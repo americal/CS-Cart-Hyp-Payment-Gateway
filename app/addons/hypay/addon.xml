@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<addon scheme="3.0">
+    <id>hypay</id>
+    <version>1.1</version>
+    <default_language>en</default_language>
+    <priority>9999</priority>
+    <has_icon>Y</has_icon>
+    <status>active</status>
+
+    <authors>
+        <author>
+            <name>Michael Shapar</name>
+            <email>micshap100@gmail.com</email>
+            <url>https://clockwork.co.il</url>
+        </author>
+    </authors>
+
+    <supplier>Michael Shapar</supplier>
+    <supplier_link>https://clockwork.co.il</supplier_link>
+
+    <functions>
+        <item for="install">fn_hypay_install</item>
+        <item for="uninstall">fn_hypay_uninstall</item>
+    </functions>
+</addon>

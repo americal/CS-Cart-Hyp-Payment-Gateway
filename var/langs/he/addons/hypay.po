@@ -1,0 +1,100 @@
+msgid ""
+msgstr "Project-Id-Version: tygh\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language-Team: Hebrew\n"
+"Language: he_IL\n"
+
+# Addon meta
+msgctxt "Addons::name::hypay"
+msgid "Hypay"
+msgstr "Hypay"
+
+msgctxt "Addons::description::hypay"
+msgid "Hypay payment gateway for CS-Cart. Generates secure payme..., choose Processor = “Hypay”, then open the processor settings."
+msgstr "שער תשלומים Hypay עבור CS-Cart. יוצר תשלומים מאובטחים. בחרו במעבד \"Hypay\" ולאחר מכן פתחו את הגדרות המעבד."
+
+# Credentials / mode
+msgctxt "SettingsSections::hypay::general"
+msgid "General"
+msgstr "כללי"
+
+msgctxt "SettingsOptions::hypay::merchant_id"
+msgid "Merchant ID"
+msgstr "מזהה סוחר"
+
+msgctxt "SettingsOptions::hypay::api_key"
+msgid "API Key"
+msgstr "מפתח API"
+
+msgctxt "SettingsOptions::hypay::sandbox"
+msgid "Sandbox mode"
+msgstr "מצב בדיקות (Sandbox)"
+
+msgctxt "SettingsTooltips::hypay::sandbox"
+msgid "Enable for test environment"
+msgstr "הפעלת סביבת בדיקות"
+
+# Order / payment behavior
+msgctxt "Languages::hypay_order_prefix"
+msgid "Order prefix"
+msgstr "קידומת הזמנה"
+
+msgctxt "Languages::hypay_order_prefix_desc"
+msgid "Prefix added to order ID sent to Hypay"
+msgstr "קידומת שמתווספת למזהה ההזמנה הנשלח ל-Hypay"
+
+msgctxt "Languages::hypay_capture_mode"
+msgid "Capture mode"
+msgstr "מצב חיוב"
+
+msgctxt "Languages::hypay_capture_mode_desc"
+msgid "Authorize only or authorize and capture"
+msgstr "אישור בלבד או אישור וחיוב"
+
+# VAT / items
+msgctxt "Languages::hypay_show_items_including_vat"
+msgid "Send items including VAT"
+msgstr "שליחת פריטים כולל מע״מ"
+
+msgctxt "Languages::hypay_show_items_including_vat_desc"
+msgid "When enabled, the API receives show_items_including_vat=1. Disable to send 0."
+msgstr "כאשר מופעל, ה-API מקבל show_items_including_vat=1. כבו כדי לשלוח 0."
+
+# EzCount
+msgctxt "Languages::hypay_ez_auto_calc_payments"
+msgid "Auto-calc payments"
+msgstr "חישוב תשלומים אוטומטי"
+
+msgctxt "Languages::hypay_ez_auto_calc_payments_label"
+msgid "Let EzCount calculate installment schedule (1 = on, 0 = off)"
+msgstr "לאפשר ל-EzCount לחשב פריסת תשלומים (1 = פעיל, 0 = כבוי)"
+
+msgctxt "Languages::hypay_ez_auto_calc_payments_desc"
+msgid "When enabled, the request sends auto_calc_payments=1 in the payment block."
+msgstr "כאשר מופעל, הבקשה שולחת auto_calc_payments=1 בבלוק התשלום."
+
+# Errors
+msgctxt "Languages::hypay_error_invalid_response"
+msgid "Invalid response from Hypay"
+msgstr "תגובה לא תקינה מ-Hypay"
+
+msgctxt "Languages::hypay_error_payment_failed"
+msgid "Payment failed"
+msgstr "התשלום נכשל"
+
+msgctxt "Languages::hypay_error_signature"
+msgid "Signature verification failed"
+msgstr "אימות החתימה נכשל"
+
+# Statuses
+msgctxt "Languages::hypay_status_pending"
+msgid "Pending"
+msgstr "ממתין"
+
+msgctxt "Languages::hypay_status_paid"
+msgid "Paid"
+msgstr "שולם"
+
+msgctxt "Languages::hypay_status_failed"
+msgid "Failed"
+msgstr "נכשל"

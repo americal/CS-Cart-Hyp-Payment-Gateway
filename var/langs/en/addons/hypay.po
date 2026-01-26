@@ -1,0 +1,302 @@
+msgid ""
+msgstr "Project-Id-Version: tygh\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language-Team: English\n"
+"Language: en_US\n"
+
+# Addon meta
+msgctxt "Addons::name::hypay"
+msgid "Hypay"
+msgstr "Hypay"
+
+msgctxt "Addons::description::hypay"
+msgid "Hypay payment gateway for CS-Cart. Generates secure payment links via APISign and can auto-issue EzCount documents (integrated or direct API). Configure it under Administration → Payment methods: add or edit a method, choose Processor = “Hypay”, then open the processor settings."
+msgstr "Hypay payment gateway for CS-Cart. Generates secure payment links via APISign and can auto-issue EzCount documents (integrated or direct API). Configure it under Administration → Payment methods: add or edit a method, choose Processor = “Hypay”, then open the processor settings."
+
+# Credentials / mode
+msgctxt "Languages::hypay_masof"
+msgid "Terminal (Masof)"
+msgstr "Terminal (Masof)"
+
+msgctxt "Languages::hypay_masof_desc"
+msgid "10 digits. Numbers starting with 00100* are test terminals; others are live."
+msgstr "10 digits. Numbers starting with 00100* are test terminals; others are live."
+
+msgctxt "Languages::hypay_api_key"
+msgid "KEY (API key)"
+msgstr "KEY (API key)"
+
+msgctxt "Languages::hypay_api_key_desc"
+msgid "Your Hypay API KEY."
+msgstr "Your Hypay API KEY."
+
+msgctxt "Languages::hypay_passp"
+msgid "PassP"
+msgstr "PassP"
+
+msgctxt "Languages::hypay_passp_desc"
+msgid "Secret PassP from Hypay backoffice."
+msgstr "Secret PassP from Hypay backoffice."
+
+msgctxt "Languages::hypay_mode"
+msgid "Mode"
+msgstr "Mode"
+
+msgctxt "Languages::hypay_mode_demo"
+msgid "Demo (test)"
+msgstr "Demo (test)"
+
+msgctxt "Languages::hypay_mode_live"
+msgid "Live (production)"
+msgstr "Live (production)"
+
+msgctxt "Languages::hypay_mode_desc"
+msgid "Choose test or live terminal."
+msgstr "Choose test or live terminal."
+
+# Return URL
+msgctxt "Languages::hypay_return_url"
+msgid "Success URL"
+msgstr "Success URL"
+
+msgctxt "Languages::hypay_return_url_desc"
+msgid "Set this URL in Hypay dashboard as the payment success/return URL."
+msgstr "Set this URL in Hypay dashboard as the payment success/return URL."
+
+# General params
+msgctxt "Languages::hypay_info"
+msgid "Transaction Info (Info)"
+msgstr "Transaction Info (Info)"
+
+msgctxt "Languages::hypay_info_desc"
+msgid "Template for the Info parameter. You can use {order_id}."
+msgstr "Template for the Info parameter. You can use {order_id}."
+
+msgctxt "Languages::hypay_encoding_flags"
+msgid "Encoding & signature"
+msgstr "Encoding & signature"
+
+msgctxt "Languages::hypay_encoding_flags_desc"
+msgid "UTF8/UTF8out are recommended On. Sign depends on your terminal settings."
+msgstr "UTF8/UTF8out are recommended On. Sign depends on your terminal settings."
+
+msgctxt "Languages::hypay_pagelang"
+msgid "Payment page language"
+msgstr "Payment page language"
+
+msgctxt "Languages::hypay_pagelang_auto"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "Languages::hypay_pagelang_desc"
+msgid "Auto picks HEB for Hebrew, ENG for others. You can force ENG/HEB."
+msgstr "Auto picks HEB for Hebrew, ENG for others. You can force ENG/HEB."
+
+msgctxt "Languages::hypay_coin"
+msgid "Currency (Coin)"
+msgstr "Currency (Coin)"
+
+msgctxt "Languages::hypay_tmp"
+msgid "Template (tmp)"
+msgstr "Template (tmp)"
+
+msgctxt "Languages::hypay_tmp_desc"
+msgid "Payment page template ID."
+msgstr "Payment page template ID."
+
+# Payments options
+msgctxt "Languages::hypay_tash"
+msgid "Max payments (Tash)"
+msgstr "Max payments (Tash)"
+
+msgctxt "Languages::hypay_tash_desc"
+msgid "Maximum number of installments the customer may choose."
+msgstr "Maximum number of installments the customer may choose."
+
+msgctxt "Languages::hypay_tashtype"
+msgid "Payment type (tashType)"
+msgstr "Payment type (tashType)"
+
+msgctxt "Languages::hypay_tashtype_desc"
+msgid "1 — regular, 6 — credit (issuer must allow credit transactions)."
+msgstr "1 — regular, 6 — credit (issuer must allow credit transactions)."
+
+msgctxt "Languages::hypay_fixtash"
+msgid "FixTash (lock number of payments)"
+msgstr "FixTash (lock number of payments)"
+
+msgctxt "Languages::hypay_tash_first"
+msgid "First payment amount"
+msgstr "First payment amount"
+
+msgctxt "Languages::hypay_tash_first_desc"
+msgid "Leave empty if not used."
+msgstr "Leave empty if not used."
+
+# Emails / UX / Risk
+msgctxt "Languages::hypay_flags"
+msgid "Emails / UX / Risk"
+msgstr "Emails / UX / Risk"
+
+msgctxt "Languages::hypay_ezcount_flags"
+msgid "Ezcount settings"
+msgstr "Ezcount settings"
+
+msgctxt "Languages::hypay_ezcount_flags_desc"
+msgid "Invoice delivery and items behaviour for Ezcount integration."
+msgstr "Invoice delivery and items behaviour for Ezcount integration."
+
+# Individual flags
+msgctxt "Languages::hypay_label_sendemail"
+msgid "sendemail (send payment confirmation)"
+msgstr "sendemail (send payment confirmation)"
+
+msgctxt "Languages::hypay_label_moredata"
+msgid "MoreData (return more data)"
+msgstr "MoreData (return more data)"
+
+msgctxt "Languages::hypay_label_pagetimeout"
+msgid "pageTimeOut (20-min timeout)"
+msgstr "pageTimeOut (20-min timeout)"
+
+msgctxt "Languages::hypay_label_postpone"
+msgid "Postpone (delayed transaction 800)"
+msgstr "Postpone (delayed transaction 800)"
+
+msgctxt "Languages::hypay_label_j5"
+msgid "J5 (preserve credit line)"
+msgstr "J5 (preserve credit line)"
+
+msgctxt "Languages::hypay_label_show_eng_tash_text"
+msgid "ShowEngTashText"
+msgstr "ShowEngTashText"
+
+msgctxt "Languages::hypay_label_hide_btns"
+msgid "hideBtns (hide wallet buttons)"
+msgstr "hideBtns (hide wallet buttons)"
+
+# Ezcount flags
+msgctxt "Languages::hypay_label_sendhesh"
+msgid "SendHesh (send invoice by email)"
+msgstr "SendHesh (send invoice by email)"
+
+msgctxt "Languages::hypay_label_pritim"
+msgid "Pritim (invoice contains items)"
+msgstr "Pritim (invoice contains items)"
+
+msgctxt "Languages::hypay_label_block_item_validation"
+msgid "blockItemValidation (strict item totals)"
+msgstr "blockItemValidation (strict item totals)"
+
+msgctxt "Languages::hypay_success_status"
+msgid "Order status on success"
+msgstr "Order status on success"
+
+msgctxt "Languages::hypay_success_status_desc"
+msgid "Select which order status to set when Hypay reports a successful charge."
+msgstr "Select which order status to set when Hypay reports a successful charge."
+
+msgctxt "Languages::hypay_fail_status"
+msgid "Order status on failure"
+msgstr "Order status on failure"
+
+msgctxt "Languages::hypay_fail_status_desc"
+msgid "Select which order status to set when Hypay fails or the request can't be signed."
+msgstr "Select which order status to set when Hypay fails or the request can't be signed."
+
+msgctxt "Languages::hypay_building_field_id"
+msgid "Building field ID"
+msgstr "Building field ID"
+
+msgctxt "Languages::hypay_building_field_id_desc"
+msgid "Customer profile field ID that stores the building/house number. Leave empty if not used."
+msgstr "Customer profile field ID that stores the building/house number. Leave empty if not used."
+
+msgctxt "Languages::hypay_debug_mode"
+msgid "Debug mode"
+msgstr "Debug mode"
+
+msgctxt "Languages::hypay_debug_mode_label"
+msgid "Enable request/response logging to hypay_ezcount.log"
+msgstr "Enable request/response logging to hypay_ezcount.log"
+
+msgctxt "Languages::hypay_debug_mode_desc"
+msgid "When enabled, the processor writes detailed logs to the file below. Disable on production for performance and security."
+msgstr "When enabled, the processor writes detailed logs to the file below. Disable on production for performance and security."
+
+msgctxt "Languages::hypay_ez_mode"
+msgid "EzCount mode"
+msgstr "EzCount mode"
+
+msgctxt "Languages::hypay_ez_mode_none"
+msgid "Disabled"
+msgstr "Disabled"
+
+msgctxt "Languages::hypay_ez_mode_integrated"
+msgid "Integrated (via Hypay)"
+msgstr "Integrated (via Hypay)"
+
+msgctxt "Languages::hypay_ez_mode_direct"
+msgid "Direct API"
+msgstr "Direct API"
+
+msgctxt "Languages::hypay_ez_mode_desc"
+msgid "Choose how invoices are created: integrated (Hypay triggers EzCount) or direct (this add-on calls EzCount API). Choose Disabled to skip invoicing."
+msgstr "Choose how invoices are created: integrated (Hypay triggers EzCount) or direct (this add-on calls EzCount API). Choose Disabled to skip invoicing."
+
+msgctxt "Languages::hypay_ez_doc_type"
+msgid "Document type"
+msgstr "Document type"
+
+msgctxt "Languages::hypay_ez_doc_type_320"
+msgid "Tax Invoice Receipt"
+msgstr "Tax Invoice Receipt"
+
+msgctxt "Languages::hypay_ez_doc_type_400"
+msgid "Receipt"
+msgstr "Receipt"
+
+msgctxt "Languages::hypay_ez_doc_type_desc"
+msgid "320 — Tax Invoice Receipt, 400 — Receipt."
+msgstr "320 — Tax Invoice Receipt, 400 — Receipt."
+
+msgctxt "Languages::hypay_ez_created_by_api_key"
+msgid "Created by API key (distributors)"
+msgstr "Created by API key (distributors)"
+
+msgctxt "Languages::hypay_ez_created_by_api_key_desc"
+msgid "Optional. Use only if you create documents on behalf of multiple EZcount users. Send it as-is (do not hash). Leave empty to omit."
+msgstr "Optional. Use only if you create documents on behalf of multiple EZcount users. Send it as-is (do not hash). Leave empty to omit."
+
+
+msgctxt "Languages::hypay_ez_doc_lang"
+msgid "Document language (lang)"
+msgstr "Document language (lang)"
+
+msgctxt "Languages::hypay_ez_doc_lang_desc"
+msgid "he for Hebrew (default), en for English."
+msgstr "he for Hebrew (default), en for English."
+
+msgctxt "Languages::hypay_ez_show_items_including_vat"
+msgid "Show items including VAT"
+msgstr "Show items including VAT"
+
+msgctxt "Languages::hypay_ez_show_items_including_vat_label"
+msgid "Send item prices as VAT-inclusive (1 = on, 0 = off)"
+msgstr "Send item prices as VAT-inclusive (1 = on, 0 = off)"
+
+msgctxt "Languages::hypay_ez_show_items_including_vat_desc"
+msgid "When enabled, the API receives show_items_including_vat=1. Disable to send 0."
+msgstr "When enabled, the API receives show_items_including_vat=1. Disable to send 0."
+
+msgctxt "Languages::hypay_ez_auto_calc_payments"
+msgid "Auto-calc payments"
+msgstr "Auto-calc payments"
+
+msgctxt "Languages::hypay_ez_auto_calc_payments_label"
+msgid "Let EzCount calculate installment schedule (1 = on, 0 = off)"
+msgstr "Let EzCount calculate installment schedule (1 = on, 0 = off)"
+
+msgctxt "Languages::hypay_ez_auto_calc_payments_desc"
+msgid "When enabled, the request sends auto_calc_payments=1 in the payment block."
+msgstr "When enabled, the request sends auto_calc_payments=1 in the payment block."
