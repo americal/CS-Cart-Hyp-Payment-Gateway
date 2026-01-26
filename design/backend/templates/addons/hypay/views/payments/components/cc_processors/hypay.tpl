@@ -1,7 +1,6 @@
 {* ============================================================================
  *  Hypay payment processor settings template
- *  Author: Aitredo (sales@aitredo.com)
- *          Michael Shapar
+ *  Author: Michael Shapar (micshap100@gmail.com)
  *  Date: 2025-10-20
  *  All rights reserved.
  * ============================================================================ *}
