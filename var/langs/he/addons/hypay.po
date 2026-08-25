@@ -100,7 +100,6 @@ msgid "Failed"
 msgstr "נכשל"
 
 # J5 (two-phase commit)
-
 msgctxt "Languages::hypay_j5_section"
 msgid "J5 / Two-phase commit"
 msgstr "J5 / עסקה דו-שלבית"
