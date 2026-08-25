@@ -593,3 +593,15 @@ msgstr "Удержание отменено локально, но Hyp не по
 msgctxt "Languages::hypay_j5_void_not_confirmed_hint"
 msgid "Hyp did not confirm this cancellation through CancelTrans (shown below). The hold is treated as abandoned on our side either way and will never be captured; the issuer releases the funds when the authorization window expires."
 msgstr "Hyp не подтвердил отмену через CancelTrans (текст ниже). Удержание в любом случае считается отменённым с нашей стороны и списано не будет; банк освободит средства по истечении срока удержания."
+
+msgctxt "Languages::hypay_j5_working"
+msgid "Contacting Hyp, please wait…"
+msgstr "Обращаемся к Hyp, подождите…"
+
+msgctxt "Languages::hypay_j5_uid"
+msgid "Shva UID"
+msgstr "Shva UID"
+
+msgctxt "Languages::hypay_j5_uid_desc"
+msgid "The unique transaction identifier Hyp returned with the authorization. The capture sends it back as inputObj.originalUid, which is how the credit card company recognises the hold being charged."
+msgstr "Уникальный идентификатор транзакции, который Hyp вернул вместе с авторизацией. При списании он отправляется обратно как inputObj.originalUid — по нему кредитная компания опознаёт списываемое удержание."

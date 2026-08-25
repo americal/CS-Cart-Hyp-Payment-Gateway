@@ -29,13 +29,15 @@ if ($mode === 'capture') {
     $payments = (isset($_REQUEST['payments']) && $_REQUEST['payments'] !== '') ? (int) $_REQUEST['payments'] : null;
     fn_hypay_capture_j5($order_id, $amount, $payments);
 
-    return [CONTROLLER_STATUS_OK, 'orders.details?order_id=' . $order_id];
+    // hypay_result tells the order page it was reached from a J5 action, so the
+    // notification carrying the outcome is pinned instead of fading away
+    return [CONTROLLER_STATUS_OK, 'orders.details?order_id=' . $order_id . '&hypay_result=capture'];
 }
 
 if ($mode === 'void') {
     fn_hypay_void_j5($order_id);
 
-    return [CONTROLLER_STATUS_OK, 'orders.details?order_id=' . $order_id];
+    return [CONTROLLER_STATUS_OK, 'orders.details?order_id=' . $order_id . '&hypay_result=void'];
 }
 
 return [CONTROLLER_STATUS_NO_PAGE];
