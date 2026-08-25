@@ -535,8 +535,8 @@ msgid "[amount] held, capture before [date]"
 msgstr "[amount] held, capture before [date]"
 
 msgctxt "Languages::hypay_j5_pi_captured_on"
-msgid "[amount] captured on [date]"
-msgstr "[amount] captured on [date]"
+msgid "[amount] captured on [date], [payments] payment(s)"
+msgstr "[amount] captured on [date], [payments] payment(s)"
 
 msgctxt "Languages::hypay_j5_capture_unknown"
 msgid "Hyp did not return a readable answer to the capture request. The hold is left locked: check the transaction in the Hyp control panel before trying again."
@@ -545,3 +545,23 @@ msgstr "Hyp did not return a readable answer to the capture request. The hold is
 msgctxt "Languages::hypay_j5_stuck_capturing"
 msgid "A capture was sent but the answer never arrived. Check the transaction in the Hyp control panel: if it was charged, no further action is needed; if it was not, the hold can be released from here after the state is corrected in the database."
 msgstr "A capture was sent but the answer never arrived. Check the transaction in the Hyp control panel: if it was charged, no further action is needed; if it was not, the hold can be released from here after the state is corrected in the database."
+
+msgctxt "Languages::hypay_j5_payments"
+msgid "Payments"
+msgstr "Payments"
+
+msgctxt "Languages::hypay_j5_payments_desc"
+msgid "Number of instalments the capture is charged in. Pre-filled with what the customer chose during the authorization; the limit comes from the Max payments (Tash) setting."
+msgstr "Number of instalments the capture is charged in. Pre-filled with what the customer chose during the authorization; the limit comes from the Max payments (Tash) setting."
+
+msgctxt "Languages::hypay_j5_error_payments_range"
+msgid "The number of payments must be between 1 and [max]."
+msgstr "The number of payments must be between 1 and [max]."
+
+msgctxt "Languages::hypay_j5_error_missing_auth_data"
+msgid "The authorization is missing data required for the capture ([fields]). Check that MoreData=True is sent with the payment request."
+msgstr "The authorization is missing data required for the capture ([fields]). Check that MoreData=True is sent with the payment request."
+
+msgctxt "Languages::hypay_j5_pi_voided_on"
+msgid "[amount] hold released on [date]"
+msgstr "[amount] hold released on [date]"
