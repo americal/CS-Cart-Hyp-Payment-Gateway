@@ -51,7 +51,6 @@
     <div class="control-label">{__("hypay_j5_uid")}</div>
     <div class="controls">
         <bdi><small>{$hypay_j5.uid}</small></bdi>
-        <p class="muted description">{__("hypay_j5_uid_desc")}</p>
     </div>
 </div>
 {/if}

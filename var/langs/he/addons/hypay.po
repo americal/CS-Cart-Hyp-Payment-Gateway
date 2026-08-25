@@ -349,8 +349,8 @@ msgid "Payments"
 msgstr "תשלומים"
 
 msgctxt "Languages::hypay_j5_payments_desc"
-msgid "Number of instalments the capture is charged in. Pre-filled with what the customer chose during the authorization; the limit comes from the Max payments (Tash) setting."
-msgstr "מספר התשלומים לגבייה. כברירת מחדל כפי שהלקוח בחר באישור; המגבלה נלקחת מהגדרת Max payments (Tash)."
+msgid "Number of instalments the capture is charged in."
+msgstr "מספר התשלומים לגבייה."
 
 msgctxt "Languages::hypay_j5_error_payments_range"
 msgid "The number of payments must be between 1 and [max]."
@@ -399,7 +399,3 @@ msgstr "פונים ל-Hyp, נא להמתין…"
 msgctxt "Languages::hypay_j5_uid"
 msgid "Shva UID"
 msgstr "Shva UID"
-
-msgctxt "Languages::hypay_j5_uid_desc"
-msgid "The unique transaction identifier Hyp returned with the authorization. The capture sends it back as inputObj.originalUid, which is how the credit card company recognises the hold being charged."
-msgstr "המזהה הייחודי של העסקה ש-Hyp החזיר עם האישור. בגבייה הוא נשלח בחזרה כ-inputObj.originalUid, וכך חברת האשראי מזהה את השמירה הנגבית."
