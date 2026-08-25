@@ -535,8 +535,8 @@ msgid "[amount] held, capture before [date]"
 msgstr "[amount] удержано, списать до [date]"
 
 msgctxt "Languages::hypay_j5_pi_captured_on"
-msgid "[amount] captured on [date]"
-msgstr "[amount] списано [date]"
+msgid "[amount] captured on [date], [payments] payment(s)"
+msgstr "[amount] списано [date], платежей: [payments]"
 
 msgctxt "Languages::hypay_j5_capture_unknown"
 msgid "Hyp did not return a readable answer to the capture request. The hold is left locked: check the transaction in the Hyp control panel before trying again."
@@ -561,3 +561,7 @@ msgstr "Количество платежей должно быть от 1 до 
 msgctxt "Languages::hypay_j5_error_missing_auth_data"
 msgid "The authorization is missing data required for the capture ([fields]). Check that MoreData=True is sent with the payment request."
 msgstr "В авторизации нет данных, необходимых для списания ([fields]). Проверьте, что запрос отправляется с MoreData=True."
+
+msgctxt "Languages::hypay_j5_pi_voided_on"
+msgid "[amount] hold released on [date]"
+msgstr "Удержание [amount] снято [date]"

@@ -168,7 +168,9 @@ if (defined('PAYMENT_NOTIFICATION')) {
          * Regular (J4) payment: charged right away
          * ----------------------------------------------------------------*/
         $reason_text = $is_success ? '🟢 Success' : '🔴 Failure';
-        if (!empty($_REQUEST['errMsg'])) {
+        if (!$is_success) {
+            $reason_text .= ' — ' . fn_hypay_format_error($ccode, $_REQUEST['errMsg'] ?? '');
+        } elseif (!empty($_REQUEST['errMsg'])) {
             $reason_text .= ' — ' . (string) $_REQUEST['errMsg'];
         }
 

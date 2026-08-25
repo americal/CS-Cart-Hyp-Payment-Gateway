@@ -333,8 +333,8 @@ msgid "[amount] held, capture before [date]"
 msgstr "[amount] נשמרו, לגבות עד [date]"
 
 msgctxt "Languages::hypay_j5_pi_captured_on"
-msgid "[amount] captured on [date]"
-msgstr "[amount] נגבו בתאריך [date]"
+msgid "[amount] captured on [date], [payments] payment(s)"
+msgstr "[amount] נגבו בתאריך [date], [payments] תשלומים"
 
 msgctxt "Languages::hypay_j5_capture_unknown"
 msgid "Hyp did not return a readable answer to the capture request. The hold is left locked: check the transaction in the Hyp control panel before trying again."
@@ -359,3 +359,7 @@ msgstr "מספר התשלומים חייב להיות בין 1 ל-[max]."
 msgctxt "Languages::hypay_j5_error_missing_auth_data"
 msgid "The authorization is missing data required for the capture ([fields]). Check that MoreData=True is sent with the payment request."
 msgstr "באישור חסרים נתונים הדרושים לגבייה ([fields]). ודאו שהבקשה נשלחת עם MoreData=True."
+
+msgctxt "Languages::hypay_j5_pi_voided_on"
+msgid "[amount] hold released on [date]"
+msgstr "שמירה של [amount] בוטלה בתאריך [date]"

@@ -725,6 +725,333 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
 }
 
 /* ============================================================================
+ * Response codes
+ * ==========================================================================*/
+
+/**
+ * Human-readable meaning of a Hyp / Shva CCode.
+ *
+ * @return string empty when the code is unknown
+ */
+function fn_hypay_ccode_message($ccode)
+{
+    static $codes = [
+        0     => 'Approved',
+        1     => 'Blocked card',
+        2     => 'Stolen card, confiscate',
+        3     => 'Call the credit card company',
+        4     => 'Transaction not approved',
+        5     => 'Forged card, confiscate',
+        6     => 'Transaction declined: incorrect CVV2 (may also indicate a missing Israeli ID number)',
+        7     => 'Transaction declined: incorrect CAVV/UCAF',
+        8     => 'Transaction declined: incorrect AVS',
+        9     => 'Declined: communication disconnection',
+        10    => 'Partial approval',
+        11    => 'Transaction declined: lack of points/stars/miles/other benefit',
+        12    => 'Card not permitted in the terminal',
+        13    => 'Request declined: incorrect balance code',
+        14    => 'Declined: card not associated with the network',
+        15    => 'Transaction declined: card is not valid',
+        16    => 'Declined: no permission for currency type (may also indicate missing required request fields)',
+        17    => 'Declined: no permission for credit type in the transaction',
+        26    => 'Transaction declined: incorrect ID',
+        33    => 'You can credit the entire transaction or a small amount of the transaction amount only',
+        41    => 'Query required for ceiling only for a transaction with J2 parameter',
+        42    => 'Query required not only for ceiling for a transaction with J2 parameter',
+        51    => 'Missing vector file 1',
+        52    => 'Missing vector file 4',
+        53    => 'Missing vector file 6',
+        55    => 'Missing vector file 11',
+        56    => 'Missing vector file 12',
+        57    => 'Missing vector file 15',
+        58    => 'Missing vector file 18',
+        59    => 'Missing vector file 31',
+        60    => 'Missing vector file 34',
+        61    => 'Missing vector file 41',
+        62    => 'Missing vector file 44',
+        63    => 'Missing vector file 64',
+        64    => 'Missing vector file 80',
+        65    => 'Missing vector file 81',
+        66    => 'Missing vector file 82',
+        67    => 'Missing vector file 83',
+        68    => 'Missing vector file 90',
+        69    => 'Missing vector file 91',
+        70    => 'Missing vector file 92',
+        71    => 'Missing vector file 93',
+        73    => 'Missing file PARAM_3_1',
+        74    => 'Missing file PARAM_3_2',
+        75    => 'Missing file PARAM_3_3',
+        76    => 'Missing file PARAM_3_4',
+        77    => 'Missing file PARAM_361',
+        78    => 'Missing file PARAM_363',
+        79    => 'Missing file PARAM_364',
+        80    => 'Missing file PARAM_61',
+        81    => 'Missing file PARAM_62',
+        82    => 'Missing file PARAM_63',
+        83    => 'Missing file CEIL_41',
+        84    => 'Missing file CEIL_42',
+        85    => 'Missing file CEIL_43',
+        86    => 'Missing file CEIL_44',
+        87    => 'Missing file DATA',
+        88    => 'Missing file JENR',
+        89    => 'Missing file Start',
+        101   => 'Missing entry in vector 1',
+        103   => 'Missing entry in vector 4',
+        104   => 'Missing entry in vector 6',
+        106   => 'Missing entry in vector 11',
+        107   => 'Missing entry in vector 12',
+        108   => 'Missing entry in vector 15',
+        110   => 'Missing entry in vector 18',
+        111   => 'Missing entry in vector 31',
+        112   => 'Missing entry in vector 34',
+        113   => 'Missing entry in vector 41',
+        114   => 'Missing entry in vector 44',
+        116   => 'Missing entry in vector 64',
+        117   => 'Missing entry in vector 81',
+        118   => 'Missing entry in vector 82',
+        119   => 'Missing entry in vector 83',
+        120   => 'Missing entry in vector 90',
+        121   => 'Missing entry in vector 91',
+        122   => 'Missing entry in vector 92',
+        123   => 'Missing entry in vector 93',
+        141   => 'Missing appropriate entry in parameters file 3.2',
+        142   => 'Missing appropriate entry in parameters file 3.3',
+        143   => 'Missing entry in club range file 3.6.1',
+        144   => 'Missing entry in club range file 3.6.3',
+        145   => 'Missing entry in club range file 3.6.4',
+        146   => 'Missing entry in card ceilings file 4.1 PL',
+        147   => 'Missing entry in card ceilings file for Israeli cards that are not PL method 4.2 0',
+        148   => 'Missing entry in card ceilings file for Israeli cards that are not PL method 4.3 1',
+        149   => 'Missing entry in card ceilings file for tourist cards 4.4',
+        150   => 'Missing entry in valid cards file - Isracard',
+        151   => 'Missing entry in valid cards file - Cal',
+        152   => 'Missing entry in valid cards file - future issuer',
+        182   => 'Error in vector 4 values',
+        183   => 'Error in vector 6/12 values',
+        186   => 'Error in vector 18 values',
+        187   => 'Error in vector 34 values',
+        188   => 'Error in vector 64 values',
+        190   => 'Error in vector 90 values',
+        191   => 'Invalid data in issuer authorization vector',
+        192   => 'Invalid data in parameters set',
+        193   => 'Invalid data in terminal-level parameters file',
+        200   => 'Missing one or more parameters from the payment completion redirect',
+        250   => 'Transaction or payment link not found',
+        300   => 'No permission for transaction type - acquirer permission',
+        301   => 'No permission for currency - acquirer permission',
+        303   => 'No acquirer permission to perform a transaction when the card is not present',
+        304   => 'No permission for credit - acquirer permission',
+        308   => 'No permission for linkage - acquirer permission',
+        309   => 'No acquirer permission for credit on a fixed date',
+        310   => 'No permission to type pre-approval number',
+        311   => 'No permission to perform transactions for service code 587',
+        312   => 'No acquirer permission for postponed credit',
+        313   => 'No acquirer permission for benefits',
+        314   => 'No acquirer permission for promotions',
+        315   => 'No acquirer permission for a specific promotion code',
+        316   => 'No acquirer permission for a loading transaction',
+        317   => 'No acquirer permission for loading/unloading in the payment method code combined with currency code',
+        318   => 'No acquirer permission for currency in this credit type',
+        319   => 'No acquirer permission for tips',
+        322   => 'No appropriate permission to perform a request for approval without a transaction J5',
+        341   => 'No permission for transaction - issuer permission',
+        342   => 'No permission for currency - issuer permission',
+        343   => 'No issuer permission to perform a transaction when the card is not present',
+        344   => 'No permission for credit - issuer permission',
+        348   => 'No permission to perform approval of a request initiated by a retailer',
+        349   => 'No appropriate permission to perform a request for approval without a transaction J5',
+        350   => 'No issuer permission for benefits',
+        351   => 'No issuer permission for postponed credit',
+        352   => 'No issuer permission for a loading transaction',
+        353   => 'No issuer permission for loading/unloading in the payment method code',
+        354   => 'No issuer permission for currency in this credit type',
+        381   => 'No permission to perform a contactless transaction above maximum amount',
+        382   => 'In a terminal defined as self-service, only self-service transactions can be performed',
+        384   => 'Terminal defined as multi-supplier/beneficiary - supplier/beneficiary number missing',
+        385   => 'In a terminal defined as an e-commerce terminal, eci must be passed',
+        400   => 'Sum of items differs from transaction amount',
+        401   => 'First or last name is required / Number of installments is too high',
+        402   => 'Transaction information is required / Number of installments is too low',
+        403   => 'Transaction amount is smaller than the minimum amount for payment',
+        404   => 'Number of payments field was not entered',
+        405   => 'Missing data for first/fixed payment amount',
+        406   => 'Total transaction amount is different from first payment amount + fixed payment amount * number of payments',
+        408   => 'Channel 2 is shorter than 37 characters',
+        410   => 'Rejection for dcode reason',
+        414   => 'In a transaction with a fixed date charge, a date later than a year from transaction performance was entered',
+        415   => 'Invalid data entered',
+        416   => 'Expiration date is not in a valid format',
+        417   => 'Terminal number is incorrect',
+        418   => 'Essential parameters are missing',
+        419   => 'Error in passing clientInputPan attribute',
+        420   => 'Invalid card number - in a situation of entering channel 2 in a transaction without a card present',
+        421   => 'General error - invalid data',
+        422   => 'Error in building ISO message',
+        424   => 'Non-numeric field',
+        425   => 'Duplicate record',
+        426   => 'The amount was increased after performing Ashrayit checks',
+        428   => 'Missing service code on the card',
+        429   => 'Card is not valid according to the valid cards file',
+        431   => 'General error',
+        432   => 'No permission for passing card through magnetic reader',
+        433   => 'Must pass in PinPad',
+        434   => 'Forbidden to pass card in the PinPad device',
+        435   => 'The device is not defined for magnetic card passing CTL',
+        436   => 'The device is not defined for EMV card passing CTL',
+        439   => 'No permission for credit type according to transaction type',
+        440   => 'Tourist card is not permitted for this credit type',
+        441   => 'No permission for performing transaction type - card exists in vector 80',
+        442   => 'Stand-in for approval verification for this acquirer should not be performed',
+        443   => 'Cannot perform a cancellation transaction - card was not found in the existing transactions file in the terminal',
+        445   => 'In an immediate debit card, only immediate debit credit can be performed',
+        447   => 'Incorrect card number (for a tokenization request, this may also indicate a missing Token=True parameter)',
+        448   => 'Must type customer address (ZIP code, house number, and city)',
+        449   => 'Must type ZIP code',
+        450   => 'Promotion code out of range, should be in 1-12 range',
+        451   => 'Error during transaction record building',
+        452   => 'In a loading/unloading/balance inquiry transaction, the payment method code field must be entered',
+        453   => 'Cannot cancel an unloading transaction 7.9.3',
+        455   => 'Cannot perform a forced debit transaction when an approval request is required (except for ceilings)',
+        456   => 'Card found in the transactions file with response code \'confiscate card\'',
+        457   => 'In an immediate debit card, regular debit/credit/cancellation transaction is allowed',
+        458   => 'Club code not in range',
+        470   => 'In a standing order transaction, the sum of payments is higher than the transaction amount field',
+        471   => 'In a standing order transaction, the current payment number is greater than the total number of payments',
+        472   => 'In a debit transaction with cash, a cash amount must be entered',
+        473   => 'In a debit transaction with cash, the cash amount must be smaller than the transaction amount',
+        474   => 'Initialization transaction in a standing order requires J5 parameter',
+        475   => 'Standing order transaction requires one of the fields: number of payments or total amount',
+        476   => 'Current payment transaction in a standing order requires payment number field',
+        477   => 'Current payment transaction in a standing order requires identification number of the initialization transaction',
+        478   => 'Current payment transaction in a standing order requires approval number of the initialization transaction',
+        479   => 'Current payment transaction in a standing order requires date and time fields of the initialization transaction',
+        480   => 'Missing field for original transaction approver',
+        481   => 'Missing number of units field when the transaction is performed in a payment method code different from currency',
+        482   => 'In a loaded card, regular debit/credit/cancellation/unloading/loading/balance inquiry transaction is allowed',
+        483   => 'Transaction with a fuel card in a fuel terminal requires entering a vehicle number',
+        484   => 'Typed vehicle number differs from the one on the magnetic stripe / bank number different from 012 / leftmost digits of the branch number different from 44',
+        485   => 'Vehicle number shorter than 6 digits / differs from the vehicle number on channel 2',
+        486   => 'Must type odometer reading',
+        487   => 'Only in a terminal defined as two-stage fuel can obligo update be used',
+        489   => 'In a Dalkan card, only regular debit transaction is allowed (cancellation transaction is forbidden)',
+        490   => 'In fuel/Dalkan/fuel club cards, transactions can be performed only in fuel terminals',
+        491   => 'Transaction involving conversion must contain all conversion rate and currency fields',
+        492   => 'No conversion on NIS/USD transactions',
+        493   => 'In a transaction involving a benefit, only one of the discount amount/units/percentage fields must be present',
+        494   => 'Different terminal number',
+        495   => 'No fallback permission',
+        496   => 'Cannot link credit other than credit/payments',
+        497   => 'Cannot link to USD/index in a currency other than NIS',
+        498   => 'Local Isracard card, the separator should be in position 18',
+        500   => 'Transaction stopped by the user',
+        504   => 'Mismatch between card data source field and card number field',
+        505   => 'Invalid value in transaction type field',
+        506   => 'Invalid value in eci field',
+        507   => 'Actual transaction amount is higher than the approved amount',
+        509   => 'Error during writing to transactions file',
+        512   => 'Cannot enter an approval received from voice response for this transaction',
+        551   => 'Response message does not match the request message',
+        552   => 'Error in field 55',
+        553   => 'Error received from the Tandem',
+        554   => 'mcc_18 field is missing in the response message',
+        555   => 'response_code_25 field is missing in the response message',
+        556   => 'rrn_37 field is missing in the response message',
+        557   => 'comp_retailer_num_42 field is missing in the response message',
+        558   => 'auth_code_43 field is missing in the response message',
+        559   => 'f39_response_39 field is missing in the response message',
+        560   => 'authorization_no_38 field is missing in the response message',
+        561   => 'additional_data_48.solek_auth_no field is missing or empty in the response message',
+        562   => 'One of the conversion fields is missing in the response message',
+        563   => 'Field value does not match the received approval numbers auth_code_43',
+        564   => 'additional_amounts54.cashback_amount field is missing or empty in the response message',
+        565   => 'Mismatch between field 25 and field 43',
+        566   => 'In a terminal defined as supporting two-stage fuel, fields 90 and 119 must be returned',
+        567   => 'Fields 25 and 127 are invalid in the obligo update message in a terminal defined as two-stage fuel',
+        598   => 'Error in negative file',
+        599   => 'General error',
+        600   => 'Transaction details received (J2)',
+        700   => 'Authorization (J5) / Transaction declined by PinPad device',
+        701   => 'Error in PinPad device',
+        702   => 'Invalid COM port',
+        703   => 'PinPad transaction error',
+        704   => 'PinPad transaction cancelled',
+        705   => 'PinPad user cancelled',
+        706   => 'PinPad user timeout',
+        707   => 'PinPad user card removed',
+        708   => 'PinPad user retries exceeded',
+        709   => 'PinPad timeout',
+        710   => 'PinPad communications error',
+        711   => 'PinPad message error',
+        712   => 'PinPad not initialized',
+        713   => 'PinPad card read error',
+        714   => 'Reader timeout',
+        715   => 'Reader communications error',
+        716   => 'Reader message error',
+        717   => 'Host message error',
+        718   => 'Host config error',
+        719   => 'Host key error',
+        720   => 'Host connect error',
+        721   => 'Host transmit error',
+        722   => 'Host receive error',
+        723   => 'Host timeout',
+        724   => 'PIN verification not supported by card',
+        725   => 'PIN verification failed',
+        726   => 'Error in receiving config.xml file',
+        730   => 'Device approved transaction contrary to Ashrayit decision',
+        731   => 'Card not inserted',
+        777   => 'OK, you can proceed',
+        800   => 'Postponed transaction',
+        901   => 'Terminal is not permitted to use this method or a wrong zPass is provided',
+        902   => 'Authentication error',
+        903   => 'The number of payments configured in the terminal has been exceeded',
+        904   => 'Missing What parameter',
+        905   => 'Unsupported payment agreement state',
+        906   => 'Recurring payment agreement does not exist',
+        910   => 'Invalid transaction for tokenization (the transaction was not successful and allowFalse=True was not included in the tokenization request)',
+        920   => 'Transaction cannot be cancelled (it was already transmitted or it does not exist)',
+        990   => 'Card details are not fully readable, please pass the card again',
+        995   => 'Payment link cannot be deleted because it has already been paid',
+        996   => 'Terminal is not permitted to use tokens',
+        997   => 'Token is not valid',
+        998   => 'Transaction cancelled',
+        999   => 'Communication error',
+    ];
+
+    $ccode = (string) $ccode;
+    if ($ccode === '' || !ctype_digit($ccode)) {
+        return '';
+    }
+
+    return $codes[(int) $ccode] ?? '';
+}
+
+/**
+ * Error text for a failed Hyp call: the code, what it means, and whatever the
+ * gateway itself said. Falls back to the raw response when nothing else is
+ * available, so a bare code is still diagnosable.
+ */
+function fn_hypay_format_error($ccode, $err_msg = '', $raw = '')
+{
+    $ccode   = trim((string) $ccode);
+    $err_msg = trim((string) $err_msg);
+
+    $parts = [];
+    if ($ccode !== '') {
+        $meaning = fn_hypay_ccode_message($ccode);
+        $parts[] = 'CCode=' . $ccode . ($meaning !== '' ? ' — ' . $meaning : '');
+    }
+    if ($err_msg !== '') {
+        $parts[] = $err_msg;
+    }
+    if (!$parts) {
+        $raw = trim((string) $raw);
+        $parts[] = $raw !== '' ? $raw : 'no response';
+    }
+
+    return implode(' | ', $parts);
+}
+
+/* ============================================================================
  * J5 (two-phase commit): authorization -> card token -> capture / void
  *
  * Flow per https://developers.hyp.co.il/pay/advanced-features/two-phase-commits
@@ -885,7 +1212,7 @@ function fn_hypay_fetch_card_token($order_id, array $pp, $trans_id, &$error = ''
         ];
     }
 
-    $error = trim((string) ($params['errMsg'] ?? '')) ?: ('CCode=' . (string) ($params['CCode'] ?? '?'));
+    $error = fn_hypay_format_error($params['CCode'] ?? '', $params['errMsg'] ?? '', $result['raw']);
     hypay_log($order_id, 'j5.getToken FAILED', $error);
 
     return false;
@@ -1062,10 +1389,7 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null)
     }
 
     if ($ccode !== '0') {
-        $error = trim((string) ($response['errMsg'] ?? ''));
-        $error = $error !== ''
-            ? ($error . ' (CCode=' . $ccode . ')')
-            : ('CCode=' . $ccode . ' — ' . trim($result['raw']));
+        $error = fn_hypay_format_error($ccode, $response['errMsg'] ?? '', $result['raw']);
         fn_hypay_update_transaction($tx['transaction_id'], ['status' => 'authorized', 'last_error' => 'capture: ' . $error]);
         fn_set_notification('E', __('error'), __('hypay_j5_capture_failed') . ' ' . $error);
         fn_hypay_order_note($order_id, __('hypay_j5_capture_failed') . ' ' . $error);
@@ -1090,8 +1414,9 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null)
         'transaction_id' => $capture_id !== '' ? $capture_id : $tx['hyp_id'],
         'reason_text'    => '🟢 ' . __('hypay_j5_pi_captured', ['[amount]' => number_format($amount, 2, '.', '')]),
         'hypay_j5'       => __('hypay_j5_pi_captured_on', [
-            '[amount]' => number_format($amount, 2, '.', ''),
-            '[date]'   => date('d.m.Y H:i', TIME),
+            '[amount]'   => number_format($amount, 2, '.', ''),
+            '[date]'     => date('d.m.Y H:i', TIME),
+            '[payments]' => $payments,
         ]),
     ]);
 
@@ -1167,7 +1492,10 @@ function fn_hypay_void_j5($order_id)
 
     fn_hypay_update_payment_info($order_id, [
         'reason_text' => '⚪ ' . __('hypay_j5_pi_voided'),
-        'hypay_j5'    => __('hypay_j5_pi_voided'),
+        'hypay_j5'    => __('hypay_j5_pi_voided_on', [
+            '[amount]' => number_format(round((float) $tx['amount_authorized'], 2), 2, '.', ''),
+            '[date]'   => date('d.m.Y H:i', TIME),
+        ]),
     ]);
 
     $void_status = !empty($pp['j5_void_status']) ? $pp['j5_void_status'] : 'I';
