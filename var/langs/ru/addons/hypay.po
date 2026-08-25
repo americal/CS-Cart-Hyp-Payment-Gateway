@@ -565,3 +565,7 @@ msgstr "В авторизации нет данных, необходимых д
 msgctxt "Languages::hypay_j5_pi_voided_on"
 msgid "[amount] hold released on [date]"
 msgstr "Удержание [amount] снято [date]"
+
+msgctxt "Languages::hypay_j5_warning_no_uid"
+msgid "Hyp did not return UID with the authorization, so this hold cannot be captured. Enable debug mode and check hypay_ezcount.log for the parameters that did come back, then ask Hyp to enable UID for the terminal."
+msgstr "Hyp не вернул UID вместе с авторизацией — списать это удержание не получится. Включите debug-режим и посмотрите в hypay_ezcount.log, какие параметры пришли, затем запросите у Hyp включение UID для терминала."

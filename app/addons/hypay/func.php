@@ -302,6 +302,38 @@ function hypay_sanitize_name($s)
     return str_replace(['[', ']', '~'], '', (string) $s);
 }
 
+/**
+ * Value of a redirect parameter, looked up case-insensitively and under every
+ * spelling Hyp is known to use. $_REQUEST keys are case-sensitive in PHP, and
+ * the gateway does not always spell parameters the way the docs do.
+ *
+ * @param array $names candidate parameter names, most preferred first
+ *
+ * @return string empty when none of them came back
+ */
+function hypay_request_value(array $names)
+{
+    foreach ($names as $name) {
+        if (isset($_REQUEST[$name]) && $_REQUEST[$name] !== '') {
+            return (string) $_REQUEST[$name];
+        }
+    }
+
+    $lookup = [];
+    foreach ($_REQUEST as $key => $value) {
+        $lookup[strtolower($key)] = $value;
+    }
+
+    foreach ($names as $name) {
+        $key = strtolower($name);
+        if (isset($lookup[$key]) && $lookup[$key] !== '' && !is_array($lookup[$key])) {
+            return (string) $lookup[$key];
+        }
+    }
+
+    return '';
+}
+
 /** Hypay brand code -> human name */
 function hypay_brand_name($brand_code)
 {

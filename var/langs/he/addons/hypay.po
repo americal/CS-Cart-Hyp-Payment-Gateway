@@ -363,3 +363,7 @@ msgstr "באישור חסרים נתונים הדרושים לגבייה ([field
 msgctxt "Languages::hypay_j5_pi_voided_on"
 msgid "[amount] hold released on [date]"
 msgstr "שמירה של [amount] בוטלה בתאריך [date]"
+
+msgctxt "Languages::hypay_j5_warning_no_uid"
+msgid "Hyp did not return UID with the authorization, so this hold cannot be captured. Enable debug mode and check hypay_ezcount.log for the parameters that did come back, then ask Hyp to enable UID for the terminal."
+msgstr "Hyp לא החזיר UID עם האישור, ולכן לא ניתן לגבות את השמירה הזו. הפעילו מצב debug ובדקו ב-hypay_ezcount.log אילו פרמטרים כן חזרו."

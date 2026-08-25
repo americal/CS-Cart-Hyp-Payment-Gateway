@@ -565,3 +565,7 @@ msgstr "The authorization is missing data required for the capture ([fields]). C
 msgctxt "Languages::hypay_j5_pi_voided_on"
 msgid "[amount] hold released on [date]"
 msgstr "[amount] hold released on [date]"
+
+msgctxt "Languages::hypay_j5_warning_no_uid"
+msgid "Hyp did not return UID with the authorization, so this hold cannot be captured. Enable debug mode and check hypay_ezcount.log for the parameters that did come back, then ask Hyp to enable UID for the terminal."
+msgstr "Hyp did not return UID with the authorization, so this hold cannot be captured. Enable debug mode and check hypay_ezcount.log for the parameters that did come back, then ask Hyp to enable UID for the terminal."
