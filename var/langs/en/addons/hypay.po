@@ -69,8 +69,8 @@ msgid "Transaction Info (Info)"
 msgstr "Transaction Info (Info)"
 
 msgctxt "Languages::hypay_info_desc"
-msgid "Template for the Info parameter. You can use {order_id}."
-msgstr "Template for the Info parameter. You can use {order_id}."
+msgid "Template for the Info parameter. You can use {order_id}. Hyp echoes this text back in the return URL without encoding it, so #, &, ?, = and % are stripped before it is sent."
+msgstr "Template for the Info parameter. You can use {order_id}. Hyp echoes this text back in the return URL without encoding it, so #, &, ?, = and % are stripped before it is sent."
 
 msgctxt "Languages::hypay_encoding_flags"
 msgid "Encoding & signature"
@@ -567,8 +567,8 @@ msgid "[amount] hold released on [date]"
 msgstr "[amount] hold released on [date]"
 
 msgctxt "Languages::hypay_j5_warning_no_uid"
-msgid "Hyp did not return UID with the authorization, so this hold cannot be captured. Enable debug mode and check hypay_ezcount.log for the parameters that did come back, then ask Hyp to enable UID for the terminal."
-msgstr "Hyp did not return UID with the authorization, so this hold cannot be captured. Enable debug mode and check hypay_ezcount.log for the parameters that did come back, then ask Hyp to enable UID for the terminal."
+msgid "Hyp did not return UID with the authorization, so this hold cannot be captured. This almost always means the return URL was cut short: Hyp echoes Info, ClientName, street and city back unencoded, and a \"#\" in any of them turns the rest of the URL into a fragment the browser never sends. Enable debug mode and look at query_string in hypay_ezcount.log to see where it stopped."
+msgstr "Hyp did not return UID with the authorization, so this hold cannot be captured. This almost always means the return URL was cut short: Hyp echoes Info, ClientName, street and city back unencoded, and a \"#\" in any of them turns the rest of the URL into a fragment the browser never sends. Enable debug mode and look at query_string in hypay_ezcount.log to see where it stopped."
 
 msgctxt "Languages::hypay_j5_pi_voided_confirmed"
 msgid "J5 hold cancelled on Hyp — not charged"

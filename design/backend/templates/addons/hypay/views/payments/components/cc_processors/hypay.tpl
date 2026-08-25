@@ -183,7 +183,7 @@
      <label class="control-label" for="hypay_info">{__("hypay_info")}</label>
      <div class="controls">
          <input type="text" name="payment_data[processor_params][info]" id="hypay_info"
-                value="{$processor_params.info|default:'Order #{order_id}'|escape}" class="input-xxlarge" />
+                value="{$processor_params.info|default:'Order {order_id}'|escape}" class="input-xxlarge" />
          <p class="muted description">{__("hypay_info_desc")}</p>
      </div>
  </div>

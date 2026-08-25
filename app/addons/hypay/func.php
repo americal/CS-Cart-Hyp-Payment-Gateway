@@ -303,6 +303,42 @@ function hypay_sanitize_name($s)
 }
 
 /**
+ * Strip the characters Hyp cannot echo back safely.
+ *
+ * Hyp copies the free-text parameters it was given (Info, ClientName, street,
+ * city, ...) into the redirect URL the customer comes back on, and it does NOT
+ * url-encode them. A "#" therefore turns the rest of that URL into a fragment,
+ * and a fragment is never sent to the server: every parameter Hyp listed after
+ * it - UID, Hesh, errMsg and the signature among them - is silently lost.
+ * "&", "?", "=" and "%" corrupt the same URL in less visible ways.
+ *
+ * Non-ASCII is safe (the browser percent-encodes it), so Hebrew is untouched.
+ */
+function hypay_sanitize_url_echo($s)
+{
+    $s = (string) $s;
+
+    $stripped = preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $s);
+    if ($stripped !== null) { $s = $stripped; }
+
+    $s = str_replace(['#', '&', '?', '=', '%', '+'], ' ', $s);
+
+    $collapsed = preg_replace('/\s+/u', ' ', $s);
+    if ($collapsed !== null) { $s = $collapsed; }
+
+    return trim($s);
+}
+
+/** Info parameter of an order, from the configured template */
+function hypay_build_info($order_id, array $pp)
+{
+    $tpl = trim((string) ($pp['info'] ?? ''));
+    if ($tpl === '') { $tpl = 'Order {order_id}'; }
+
+    return hypay_sanitize_url_echo(str_replace('{order_id}', (string) (int) $order_id, $tpl));
+}
+
+/**
  * Value of a redirect parameter, looked up case-insensitively and under every
  * spelling Hyp is known to use. $_REQUEST keys are case-sensitive in PHP, and
  * the gateway does not always spell parameters the way the docs do.
@@ -1374,7 +1410,6 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null)
         return false;
     }
 
-    $info_tpl = trim((string) ($pp['info'] ?? 'Order #{order_id}'));
     $params = [
         'action'                          => 'soft',
         'Masof'                           => trim((string) ($pp['masof'] ?? '')),
@@ -1388,7 +1423,7 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null)
         'AuthNum'                         => (string) $tx['acode'],
         // same representation the payment page request uses (Amount=150, not 150.00)
         'Amount'                          => round($amount, 2),
-        'Info'                            => str_replace('{order_id}', (string) $order_id, $info_tpl),
+        'Info'                            => hypay_build_info($order_id, $pp),
         // the original authorization, in currency subunits (agorot)
         'inputObj.originalAmount'         => (int) round($authorized * 100),
         'inputObj.originalUid'            => (string) $tx['uid'],
