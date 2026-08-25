@@ -59,6 +59,27 @@
         <div class="control-label">{__("hypay_j5_order_total")}</div>
         <div class="controls">{include file="common/price.tpl" value=$hypay_j5.order_total}</div>
     </div>
+
+    <div class="control-group">
+        <div class="control-label">{__("hypay_j5_payments")}</div>
+        <div class="controls">
+            {if $hypay_j5.status == "authorized" && $hypay_j5.max_payments > 1}
+                <select id="hypay_j5_payments_{$hypay_j5.order_id}" class="input-mini"
+                        onchange="var a = document.getElementById('hypay_j5_capture_{$hypay_j5.order_id}');
+                                  if (a) {ldelim}
+                                      a.href = a.getAttribute('data-base') + '&payments=' + this.value;
+                                      a.innerHTML = a.getAttribute('data-label') + (this.value > 1 ? ' (' + this.value + ')' : '');
+                                  {rdelim}">
+                    {for $p = 1 to $hypay_j5.max_payments}
+                        <option value="{$p}" {if $p == $hypay_j5.payments}selected="selected"{/if}>{$p}</option>
+                    {/for}
+                </select>
+                <p class="muted description">{__("hypay_j5_payments_desc")}</p>
+            {else}
+                {$hypay_j5.payments}
+            {/if}
+        </div>
+    </div>
 {/if}
 
 {if $hypay_j5.status == "captured"}
@@ -68,6 +89,10 @@
             {include file="common/price.tpl" value=$hypay_j5.amount_captured}
             {if $hypay_j5.captured_at}<div class="muted"><small>{$hypay_j5.captured_at|date_format:$hypay_date_format}</small></div>{/if}
         </div>
+    </div>
+    <div class="control-group">
+        <div class="control-label">{__("hypay_j5_payments")}</div>
+        <div class="controls">{$hypay_j5.payments_captured}</div>
     </div>
     {if $hypay_j5.capture_hyp_id}
         <div class="control-group">

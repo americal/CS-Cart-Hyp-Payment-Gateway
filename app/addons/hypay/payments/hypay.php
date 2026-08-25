@@ -73,8 +73,12 @@ if (defined('PAYMENT_NOTIFICATION')) {
     // brand mapping (Hypay codes → human names)
     $brand_name = hypay_brand_name($_REQUEST['Brand'] ?? '');
 
-    // sanitize personal ID
+    // sanitize personal ID (display value)
     $clean_user_id = hypay_clean_personal_id($_REQUEST['UserId'] ?? '');
+
+    // ...and the raw one, which is what the capture request must send back
+    $raw_user_id = preg_replace('/\D+/', '', ltrim((string) ($_REQUEST['UserId'] ?? ''), 'L'));
+    if ($raw_user_id === '') { $raw_user_id = '000000000'; }
 
     $last4        = isset($_REQUEST['L4digit']) ? preg_replace('/\D+/', '', (string) $_REQUEST['L4digit']) : '';
     $num_payments = max(1, (int) ($_REQUEST['Payments'] ?? 1));
@@ -103,7 +107,7 @@ if (defined('PAYMENT_NOTIFICATION')) {
                 'hyp_id'            => (string) ($_REQUEST['Id'] ?? ''),
                 'acode'             => (string) ($_REQUEST['ACode'] ?? ''),
                 'uid'               => (string) ($_REQUEST['UID'] ?? ''),
-                'personal_id'       => $clean_user_id,
+                'personal_id'       => $raw_user_id,
                 'client_name'       => (string) ($order_info['firstname'] ?? ''),
                 'brand'             => $brand_name,
                 'last4'             => $last4,
@@ -320,8 +324,10 @@ if ($is_j5) {
     // no document may be issued while the money is only held
     $params_sign['SendHesh'] = 'False';
 
-    // instalments are a J4 feature; a held authorization is always a single charge
-    unset($params_sign['Tash'], $params_sign['tashType'], $params_sign['TashFirstPayment'], $params_sign['FixTash']);
+    // Tash / tashType / FixTash stay exactly as configured: the customer picks
+    // the number of payments during the authorization, and the capture repeats
+    // that number. Dropping them here made the payment page fall back to the
+    // terminal maximum instead of the configured limit.
 } else {
     $params_sign['J5'] = 'False';
 }

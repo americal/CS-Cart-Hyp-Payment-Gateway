@@ -85,6 +85,12 @@ function fn_hypay_ensure_schema()
         . " KEY hyp_id (hyp_id)"
         . ") ENGINE=InnoDB DEFAULT CHARSET=utf8"
     );
+
+    // columns added after the first release: add them to existing installations
+    $columns = db_get_fields("SHOW COLUMNS FROM ?:hypay_transactions");
+    if ($columns && !in_array('payments_captured', $columns, true)) {
+        db_query("ALTER TABLE ?:hypay_transactions ADD payments_captured smallint(5) unsigned NOT NULL default '0'");
+    }
 }
 
 /* ============================================================================
@@ -791,6 +797,17 @@ function fn_hypay_hold_days(array $pp)
     return ($days > 0) ? $days : 5;
 }
 
+/** Highest number of instalments allowed for a capture */
+function fn_hypay_max_payments(array $pp, array $tx = [])
+{
+    $configured = (isset($pp['tash']) && $pp['tash'] !== '') ? (int) $pp['tash'] : 0;
+    $authorized = isset($tx['payments']) ? (int) $tx['payments'] : 0;
+
+    $max = max(1, $configured, $authorized);
+
+    return min($max, 36);
+}
+
 /** Latest Hypay transaction of an order */
 function fn_hypay_get_transaction($order_id)
 {
@@ -898,7 +915,7 @@ function fn_hypay_update_payment_info($order_id, array $extra)
  *
  * @return bool
  */
-function fn_hypay_capture_j5($order_id, $amount = null)
+function fn_hypay_capture_j5($order_id, $amount = null, $payments = null)
 {
     fn_hypay_ensure_schema();
 
@@ -936,6 +953,28 @@ function fn_hypay_capture_j5($order_id, $amount = null)
     }
     if (abs($amount - $order_total) > 0.009) {
         fn_set_notification('E', __('error'), __('hypay_j5_error_amount_mismatch'));
+
+        return false;
+    }
+
+    // number of instalments: the one the customer picked, unless the admin
+    // changed it before capturing
+    $max_payments = fn_hypay_max_payments($pp, $tx);
+    $payments     = ($payments === null) ? (int) $tx['payments'] : (int) $payments;
+    if ($payments < 1) { $payments = 1; }
+    if ($payments > $max_payments) {
+        fn_set_notification('E', __('error'), __('hypay_j5_error_payments_range', ['[max]' => $max_payments]));
+
+        return false;
+    }
+
+    // everything the capture needs must have come back with the authorization
+    $missing = [];
+    if ((string) $tx['acode'] === '') { $missing[] = 'ACode'; }
+    if ((string) $tx['uid'] === '')   { $missing[] = 'UID'; }
+    if ($missing) {
+        fn_set_notification('E', __('error'), __('hypay_j5_error_missing_auth_data', ['[fields]' => implode(', ', $missing)]));
+        hypay_log($order_id, 'j5.capture ABORTED (incomplete authorization)', $missing);
 
         return false;
     }
@@ -988,8 +1027,8 @@ function fn_hypay_capture_j5($order_id, $amount = null)
         'Tmonth'                          => $expiry['month'],
         'Tyear'                           => $expiry['year'],
         'AuthNum'                         => (string) $tx['acode'],
-        'Amount'                          => number_format($amount, 2, '.', ''),
-        'Order'                           => (string) $order_id,
+        // same representation the payment page request uses (Amount=150, not 150.00)
+        'Amount'                          => round($amount, 2),
         'Info'                            => str_replace('{order_id}', (string) $order_id, $info_tpl),
         // the original authorization, in currency subunits (agorot)
         'inputObj.originalAmount'         => (int) round($authorized * 100),
@@ -998,6 +1037,13 @@ function fn_hypay_capture_j5($order_id, $amount = null)
     ];
     if ((int) $tx['coin'] > 1) {
         $params['Coin'] = (int) $tx['coin'];
+    }
+    if ($payments > 1) {
+        // charge in the same number of instalments the customer agreed to
+        $params['Tash'] = $payments;
+        if (isset($pp['tashtype']) && $pp['tashtype'] !== '') {
+            $params['tashType'] = (int) $pp['tashtype'];
+        }
     }
 
     $result   = fn_hypay_api_request($order_id, $params, 'j5.capture');
@@ -1016,7 +1062,10 @@ function fn_hypay_capture_j5($order_id, $amount = null)
     }
 
     if ($ccode !== '0') {
-        $error = trim((string) ($response['errMsg'] ?? '')) ?: ('CCode=' . $ccode);
+        $error = trim((string) ($response['errMsg'] ?? ''));
+        $error = $error !== ''
+            ? ($error . ' (CCode=' . $ccode . ')')
+            : ('CCode=' . $ccode . ' — ' . trim($result['raw']));
         fn_hypay_update_transaction($tx['transaction_id'], ['status' => 'authorized', 'last_error' => 'capture: ' . $error]);
         fn_set_notification('E', __('error'), __('hypay_j5_capture_failed') . ' ' . $error);
         fn_hypay_order_note($order_id, __('hypay_j5_capture_failed') . ' ' . $error);
@@ -1028,7 +1077,8 @@ function fn_hypay_capture_j5($order_id, $amount = null)
     $capture_acode = (string) ($response['ACode'] ?? $tx['acode']);
 
     fn_hypay_update_transaction($tx['transaction_id'], [
-        'status'          => 'captured',
+        'status'            => 'captured',
+        'payments_captured' => $payments,
         'amount_captured' => $amount,
         'capture_hyp_id'  => $capture_id,
         'capture_acode'   => $capture_acode,
@@ -1063,7 +1113,7 @@ function fn_hypay_capture_j5($order_id, $amount = null)
             'transaction_id' => $capture_id,
             'brand'          => $tx['brand'],
             'last4'          => $tx['last4'],
-            'payments'       => $tx['payments'],
+            'payments'       => $payments,
             'amount'         => $amount,
         ]);
     } else {
@@ -1169,6 +1219,9 @@ function fn_hypay_get_j5_panel_data($order_id)
         'has_token'         => ($tx['card_token'] !== ''),
         'amount_authorized' => $authorized,
         'amount_captured'   => round((float) $tx['amount_captured'], 2),
+        'payments'          => max(1, (int) $tx['payments']),
+        'payments_captured' => max(1, (int) ($tx['payments_captured'] ?: $tx['payments'])),
+        'max_payments'      => fn_hypay_max_payments($pp, $tx),
         'order_total'       => $order_total,
         'capture_hyp_id'    => $tx['capture_hyp_id'],
         'authorized_at'     => (int) $tx['authorized_at'],

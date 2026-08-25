@@ -343,3 +343,19 @@ msgstr "Hyp לא החזיר תשובה קריאה לבקשת הגבייה. הש�
 msgctxt "Languages::hypay_j5_stuck_capturing"
 msgid "A capture was sent but the answer never arrived. Check the transaction in the Hyp control panel: if it was charged, no further action is needed; if it was not, the hold can be released from here after the state is corrected in the database."
 msgstr "בקשת גבייה נשלחה אך לא התקבלה תשובה. בדקו את העסקה בממשק Hyp."
+
+msgctxt "Languages::hypay_j5_payments"
+msgid "Payments"
+msgstr "תשלומים"
+
+msgctxt "Languages::hypay_j5_payments_desc"
+msgid "Number of instalments the capture is charged in. Pre-filled with what the customer chose during the authorization; the limit comes from the Max payments (Tash) setting."
+msgstr "מספר התשלומים לגבייה. כברירת מחדל כפי שהלקוח בחר באישור; המגבלה נלקחת מהגדרת Max payments (Tash)."
+
+msgctxt "Languages::hypay_j5_error_payments_range"
+msgid "The number of payments must be between 1 and [max]."
+msgstr "מספר התשלומים חייב להיות בין 1 ל-[max]."
+
+msgctxt "Languages::hypay_j5_error_missing_auth_data"
+msgid "The authorization is missing data required for the capture ([fields]). Check that MoreData=True is sent with the payment request."
+msgstr "באישור חסרים נתונים הדרושים לגבייה ([fields]). ודאו שהבקשה נשלחת עם MoreData=True."

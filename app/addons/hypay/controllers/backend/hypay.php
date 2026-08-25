@@ -25,8 +25,9 @@ if ($order_id <= 0) {
 }
 
 if ($mode === 'capture') {
-    $amount = (isset($_REQUEST['amount']) && $_REQUEST['amount'] !== '') ? (float) $_REQUEST['amount'] : null;
-    fn_hypay_capture_j5($order_id, $amount);
+    $amount   = (isset($_REQUEST['amount']) && $_REQUEST['amount'] !== '') ? (float) $_REQUEST['amount'] : null;
+    $payments = (isset($_REQUEST['payments']) && $_REQUEST['payments'] !== '') ? (int) $_REQUEST['payments'] : null;
+    fn_hypay_capture_j5($order_id, $amount, $payments);
 
     return [CONTROLLER_STATUS_OK, 'orders.details?order_id=' . $order_id];
 }

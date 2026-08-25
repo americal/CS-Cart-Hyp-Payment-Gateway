@@ -545,3 +545,19 @@ msgstr "Hyp не вернул читаемого ответа на запрос 
 msgctxt "Languages::hypay_j5_stuck_capturing"
 msgid "A capture was sent but the answer never arrived. Check the transaction in the Hyp control panel: if it was charged, no further action is needed; if it was not, the hold can be released from here after the state is corrected in the database."
 msgstr "Запрос на списание был отправлен, но ответ не получен. Проверьте транзакцию в панели Hyp: если списание прошло — ничего делать не нужно; если нет — состояние нужно поправить в БД, после чего удержание снова станет доступным."
+
+msgctxt "Languages::hypay_j5_payments"
+msgid "Payments"
+msgstr "Платежей"
+
+msgctxt "Languages::hypay_j5_payments_desc"
+msgid "Number of instalments the capture is charged in. Pre-filled with what the customer chose during the authorization; the limit comes from the Max payments (Tash) setting."
+msgstr "В скольких платежах будет списана сумма. По умолчанию — столько, сколько выбрал покупатель при удержании; предел берётся из настройки Max payments (Tash)."
+
+msgctxt "Languages::hypay_j5_error_payments_range"
+msgid "The number of payments must be between 1 and [max]."
+msgstr "Количество платежей должно быть от 1 до [max]."
+
+msgctxt "Languages::hypay_j5_error_missing_auth_data"
+msgid "The authorization is missing data required for the capture ([fields]). Check that MoreData=True is sent with the payment request."
+msgstr "В авторизации нет данных, необходимых для списания ([fields]). Проверьте, что запрос отправляется с MoreData=True."
