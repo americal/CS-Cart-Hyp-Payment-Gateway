@@ -1511,9 +1511,9 @@ function fn_hypay_void_j5($order_id)
         return false;
     }
 
+    // claim the row first so a double click cannot fire CancelTrans twice
     $claimed = db_query(
-        "UPDATE ?:hypay_transactions SET status = 'voided', voided_at = ?i WHERE transaction_id = ?i AND status = 'authorized'",
-        TIME,
+        "UPDATE ?:hypay_transactions SET status = 'voiding' WHERE transaction_id = ?i AND status = 'authorized'",
         $tx['transaction_id']
     );
     if (empty($claimed)) {
@@ -1522,8 +1522,48 @@ function fn_hypay_void_j5($order_id)
         return false;
     }
 
+    // action=CancelTrans releases the hold on Hyp's side, so the customer sees
+    // it drop off their card instead of waiting out the authorization window.
+    // A J5 hold is never transmitted until it is captured, so it stays
+    // cancellable this way for as long as it stays open - unlike a completed
+    // charge, which can only be cancelled the same business day.
+    $confirmed  = false;
+    $hyp_detail = '';
+
+    if ($tx['hyp_id'] !== '') {
+        $result = fn_hypay_api_request($order_id, [
+            'action'  => 'CancelTrans',
+            'Masof'   => trim((string) ($pp['masof'] ?? '')),
+            'PassP'   => trim((string) ($pp['passp'] ?? '')),
+            'TransId' => $tx['hyp_id'],
+        ], 'j5.cancel');
+
+        $response = $result['params'];
+        $ccode    = isset($response['CCode']) ? (string) $response['CCode'] : '';
+
+        if ($ccode === '0' && (string) ($response['ReversalStatus'] ?? '') === '777') {
+            $confirmed = true;
+        } else {
+            $hyp_detail = fn_hypay_format_error($ccode, '', $result['raw']);
+            hypay_log($order_id, 'j5.cancel NOT confirmed by Hyp', $hyp_detail);
+        }
+    } else {
+        $hyp_detail = 'no authorization Id stored, CancelTrans was not attempted';
+    }
+
+    // the hold is abandoned on our side either way: even if Hyp could not
+    // confirm the cancellation (already expired, or CCode=920), it must
+    // never be captured again, and the issuer releases it when the
+    // authorization window runs out.
+    fn_hypay_update_transaction($tx['transaction_id'], [
+        'status'     => 'voided',
+        'voided_at'  => TIME,
+        'last_error' => $confirmed ? '' : $hyp_detail,
+    ]);
+
+    $status_text = $confirmed ? __('hypay_j5_pi_voided_confirmed') : __('hypay_j5_pi_voided');
     fn_hypay_update_payment_info($order_id, [
-        'reason_text' => '⚪ ' . __('hypay_j5_pi_voided'),
+        'reason_text' => '⚪ ' . $status_text,
         'hypay_j5'    => __('hypay_j5_pi_voided_on', [
             '[amount]' => number_format(round((float) $tx['amount_authorized'], 2), 2, '.', ''),
             '[date]'   => date('d.m.Y H:i', TIME),
@@ -1533,10 +1573,15 @@ function fn_hypay_void_j5($order_id)
     $void_status = !empty($pp['j5_void_status']) ? $pp['j5_void_status'] : 'I';
     fn_change_order_status($order_id, $void_status);
 
-    fn_hypay_order_note($order_id, __('hypay_j5_note_voided'));
+    fn_hypay_order_note($order_id, $confirmed
+        ? __('hypay_j5_note_voided_confirmed')
+        : __('hypay_j5_note_voided_unconfirmed', ['[detail]' => $hyp_detail]));
 
-    hypay_log($order_id, 'j5.void', ['hyp_id' => $tx['hyp_id']]);
-    fn_set_notification('N', __('notice'), __('hypay_j5_void_ok', ['[days]' => fn_hypay_hold_days($pp)]));
+    hypay_log($order_id, 'j5.void', ['hyp_id' => $tx['hyp_id'], 'confirmed' => $confirmed]);
+
+    fn_set_notification('N', __('notice'), $confirmed
+        ? __('hypay_j5_void_ok_confirmed')
+        : __('hypay_j5_void_ok_unconfirmed', ['[days]' => fn_hypay_hold_days($pp)]));
 
     return true;
 }

@@ -102,11 +102,21 @@
     {/if}
 {/if}
 
-{if $hypay_j5.status == "voided" && $hypay_j5.voided_at}
-    <div class="control-group">
-        <div class="control-label">{__("hypay_j5_voided_at")}</div>
-        <div class="controls">{$hypay_j5.voided_at|date_format:$hypay_date_format}</div>
-    </div>
+{if $hypay_j5.status == "voided"}
+    {if $hypay_j5.voided_at}
+        <div class="control-group">
+            <div class="control-label">{__("hypay_j5_voided_at")}</div>
+            <div class="controls">{$hypay_j5.voided_at|date_format:$hypay_date_format}</div>
+        </div>
+    {/if}
+    {if $hypay_j5.last_error}
+        <div class="control-group">
+            <div class="controls">
+                <p class="text-warning">{__("hypay_j5_void_not_confirmed_hint")}</p>
+                <p class="muted"><small>{$hypay_j5.last_error}</small></p>
+            </div>
+        </div>
+    {/if}
 {/if}
 
 {if $hypay_j5.status == "capturing"}
