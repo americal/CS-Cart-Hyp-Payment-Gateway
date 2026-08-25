@@ -302,7 +302,6 @@ msgid "When enabled, the request sends auto_calc_payments=1 in the payment block
 msgstr "When enabled, the request sends auto_calc_payments=1 in the payment block."
 
 # J5 (two-phase commit)
-
 msgctxt "Languages::hypay_j5_section"
 msgid "J5 / Two-phase commit"
 msgstr "J5 / Двухфазный платёж"
