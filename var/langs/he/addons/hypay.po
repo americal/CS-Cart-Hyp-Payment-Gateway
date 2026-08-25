@@ -98,3 +98,249 @@ msgstr "שולם"
 msgctxt "Languages::hypay_status_failed"
 msgid "Failed"
 msgstr "נכשל"
+
+# J5 (two-phase commit)
+
+msgctxt "Languages::hypay_j5_section"
+msgid "J5 / Two-phase commit"
+msgstr "J5 / עסקה דו-שלבית"
+
+msgctxt "Languages::hypay_payment_type"
+msgid "Payment type"
+msgstr "סוג עסקה"
+
+msgctxt "Languages::hypay_payment_type_desc"
+msgid "Regular: the card is charged immediately. J5: the funds are only held and are charged later from the order page. By usergroup: J5 is used for the usergroups selected below, everybody else pays as usual."
+msgstr "רגיל: החיוב מתבצע מיד. J5: הכספים נשמרים בלבד והחיוב מתבצע מאוחר יותר מדף ההזמנה. לפי קבוצות: J5 יופעל לקבוצות שנבחרו למטה."
+
+msgctxt "Languages::hypay_payment_type_regular"
+msgid "Regular charge (J4)"
+msgstr "חיוב רגיל (J4)"
+
+msgctxt "Languages::hypay_payment_type_j5"
+msgid "Hold funds (J5) for everyone"
+msgstr "שמירת כספים (J5) לכולם"
+
+msgctxt "Languages::hypay_payment_type_usergroup"
+msgid "Hold funds (J5) by usergroup"
+msgstr "שמירת כספים (J5) לפי קבוצות"
+
+msgctxt "Languages::hypay_j5_usergroups"
+msgid "Usergroups paying with J5"
+msgstr "קבוצות שמשלמות ב-J5"
+
+msgctxt "Languages::hypay_j5_usergroups_desc"
+msgid "Used only when the payment type is \"Hold funds (J5) by usergroup\". A customer belonging to any of the selected groups gets a J5 authorization instead of a charge."
+msgstr "רלוונטי רק כאשר סוג העסקה הוא לפי קבוצות. לקוח שמשויך לאחת הקבוצות שנבחרו יקבל אישור J5 במקום חיוב."
+
+msgctxt "Languages::hypay_j5_usergroups_empty"
+msgid "Usergroup list is unavailable. Save the payment method and reopen this page."
+msgstr "רשימת הקבוצות אינה זמינה. שמרו את אמצעי התשלום ופתחו מחדש."
+
+msgctxt "Languages::hypay_j5_auth_status"
+msgid "Order status: funds held"
+msgstr "סטטוס הזמנה: הכספים נשמרו"
+
+msgctxt "Languages::hypay_j5_auth_status_desc"
+msgid "Set right after a successful J5 authorization, while the money is only held."
+msgstr "נקבע מיד לאחר אישור J5, כאשר הכסף עדיין לא נגבה."
+
+msgctxt "Languages::hypay_j5_captured_status"
+msgid "Order status: captured"
+msgstr "סטטוס הזמנה: חויב"
+
+msgctxt "Languages::hypay_j5_captured_status_desc"
+msgid "Set after the held amount has been charged."
+msgstr "נקבע לאחר גביית הסכום ששמור."
+
+msgctxt "Languages::hypay_j5_void_status"
+msgid "Order status: hold cancelled"
+msgstr "סטטוס הזמנה: השמירה בוטלה"
+
+msgctxt "Languages::hypay_j5_void_status_desc"
+msgid "Set when the hold is abandoned and no money is taken."
+msgstr "נקבע כאשר מוותרים על השמירה ולא נגבה כסף."
+
+msgctxt "Languages::hypay_j5_hold_days"
+msgid "Authorization window, days"
+msgstr "תוקף האישור, ימים"
+
+msgctxt "Languages::hypay_j5_hold_days_desc"
+msgid "How long the issuer keeps the funds blocked (Hyp: about 5 days). Used to show the capture deadline on the order page."
+msgstr "כמה זמן חברת האשראי שומרת את הכספים (לפי Hyp כ-5 ימים). משמש להצגת מועד אחרון לגבייה."
+
+msgctxt "Languages::hypay_j5_title"
+msgid "J5 hold (two-phase commit)"
+msgstr "שמירת J5 (עסקה דו-שלבית)"
+
+msgctxt "Languages::hypay_j5_status"
+msgid "Hold status"
+msgstr "סטטוס השמירה"
+
+msgctxt "Languages::hypay_j5_status_authorized"
+msgid "Authorized — awaiting capture"
+msgstr "אושר — ממתין לגבייה"
+
+msgctxt "Languages::hypay_j5_status_capturing"
+msgid "Capture in progress"
+msgstr "גבייה בתהליך"
+
+msgctxt "Languages::hypay_j5_status_captured"
+msgid "Captured"
+msgstr "נגבה"
+
+msgctxt "Languages::hypay_j5_status_voided"
+msgid "Hold cancelled"
+msgstr "השמירה בוטלה"
+
+msgctxt "Languages::hypay_j5_authorized_amount"
+msgid "Authorized amount"
+msgstr "סכום מאושר"
+
+msgctxt "Languages::hypay_j5_auth_number"
+msgid "Authorization number"
+msgstr "מספר אישור"
+
+msgctxt "Languages::hypay_j5_expires_at"
+msgid "Capture before"
+msgstr "לגבות עד"
+
+msgctxt "Languages::hypay_j5_expired"
+msgid "the authorization window has passed, the capture may be declined"
+msgstr "תוקף האישור עבר, ייתכן שהגבייה תידחה"
+
+msgctxt "Languages::hypay_j5_order_total"
+msgid "Amount to capture (order total)"
+msgstr "סכום לגבייה (סה\"כ הזמנה)"
+
+msgctxt "Languages::hypay_j5_captured_amount"
+msgid "Captured amount"
+msgstr "סכום שנגבה"
+
+msgctxt "Languages::hypay_j5_capture_transaction"
+msgid "Capture transaction ID"
+msgstr "מזהה עסקת הגבייה"
+
+msgctxt "Languages::hypay_j5_voided_at"
+msgid "Cancelled at"
+msgstr "בוטל בתאריך"
+
+msgctxt "Languages::hypay_j5_warning_total_above_hold"
+msgid "The order total is higher than the authorized amount. Only an amount up to the hold can be captured — reduce the order or ask the customer to pay again."
+msgstr "סה\"כ ההזמנה גבוה מהסכום שאושר. ניתן לגבות עד גובה השמירה בלבד."
+
+msgctxt "Languages::hypay_j5_notice_partial_capture"
+msgid "The order total is lower than the authorized amount: only the order total will be captured."
+msgstr "סה\"כ ההזמנה נמוך מהסכום שאושר: ייגבה סכום ההזמנה בלבד."
+
+msgctxt "Languages::hypay_j5_warning_no_token"
+msgid "The card token is missing; it will be requested again during the capture."
+msgstr "טוקן הכרטיס חסר; הוא יתבקש שוב בעת הגבייה."
+
+msgctxt "Languages::hypay_j5_btn_capture"
+msgid "Capture"
+msgstr "לגבות"
+
+msgctxt "Languages::hypay_j5_btn_void"
+msgid "Cancel hold"
+msgstr "לבטל שמירה"
+
+msgctxt "Languages::hypay_j5_confirm_capture"
+msgid "Charge the customer for the order total?"
+msgstr "לחייב את הלקוח בסכום ההזמנה?"
+
+msgctxt "Languages::hypay_j5_confirm_void"
+msgid "Cancel the hold? The money will not be taken."
+msgstr "לבטל את השמירה? הכסף לא ייגבה."
+
+msgctxt "Languages::hypay_j5_actions_hint"
+msgid "To capture a smaller amount, edit the order first: the capture always uses the current order total, so the EzCount document matches the money actually taken."
+msgstr "כדי לגבות סכום נמוך יותר, ערכו תחילה את ההזמנה: הגבייה תמיד לפי סה\"כ ההזמנה הנוכחי."
+
+msgctxt "Languages::hypay_j5_error_no_order"
+msgid "Order not found."
+msgstr "ההזמנה לא נמצאה."
+
+msgctxt "Languages::hypay_j5_error_not_authorized"
+msgid "This order has no J5 hold awaiting capture."
+msgstr "אין להזמנה זו שמירת J5 הממתינה לגבייה."
+
+msgctxt "Languages::hypay_j5_error_zero_amount"
+msgid "The capture amount must be greater than zero."
+msgstr "סכום הגבייה חייב להיות גדול מאפס."
+
+msgctxt "Languages::hypay_j5_error_exceeds_authorized"
+msgid "The capture amount is higher than the authorized amount."
+msgstr "סכום הגבייה גבוה מהסכום שאושר."
+
+msgctxt "Languages::hypay_j5_error_amount_mismatch"
+msgid "The capture amount must be equal to the order total. Edit the order first, then capture."
+msgstr "סכום הגבייה חייב להיות זהה לסה\"כ ההזמנה. ערכו את ההזמנה תחילה."
+
+msgctxt "Languages::hypay_j5_error_in_progress"
+msgid "This hold is already being processed."
+msgstr "השמירה כבר בטיפול."
+
+msgctxt "Languages::hypay_j5_error_no_token"
+msgid "Could not get the card token from Hyp:"
+msgstr "לא ניתן לקבל את טוקן הכרטיס מ-Hyp:"
+
+msgctxt "Languages::hypay_j5_error_bad_tokef"
+msgid "Hyp returned an unreadable card expiry (Tokef=[tokef])."
+msgstr "Hyp החזיר תוקף כרטיס לא תקין (Tokef=[tokef])."
+
+msgctxt "Languages::hypay_j5_capture_failed"
+msgid "Hyp declined the capture:"
+msgstr "Hyp דחה את הגבייה:"
+
+msgctxt "Languages::hypay_j5_capture_ok"
+msgid "Captured [amount] from the J5 hold."
+msgstr "נגבו [amount] מהשמירה."
+
+msgctxt "Languages::hypay_j5_void_ok"
+msgid "The hold was cancelled. The issuer releases the funds within about [days] days."
+msgstr "השמירה בוטלה. הכספים ישוחררו תוך כ-[days] ימים."
+
+msgctxt "Languages::hypay_j5_pi_authorized"
+msgid "J5 hold [amount] — awaiting capture"
+msgstr "שמירת J5 [amount] — ממתין לגבייה"
+
+msgctxt "Languages::hypay_j5_pi_captured"
+msgid "J5 captured [amount]"
+msgstr "J5: נגבו [amount]"
+
+msgctxt "Languages::hypay_j5_pi_voided"
+msgid "J5 hold cancelled — not charged"
+msgstr "שמירת J5 בוטלה — לא בוצע חיוב"
+
+msgctxt "Languages::hypay_j5_note_captured"
+msgid "Hypay J5: captured [amount], transaction [id]"
+msgstr "Hypay J5: נגבו [amount], עסקה [id]"
+
+msgctxt "Languages::hypay_j5_note_voided"
+msgid "Hypay J5: hold cancelled, no money was taken"
+msgstr "Hypay J5: השמירה בוטלה, לא נגבה כסף"
+
+msgctxt "Languages::hypay_ez_amount_mismatch"
+msgid "EzCount document was not issued: the order lines add up to [items] but [charged] was charged. Edit the order so the totals match."
+msgstr "מסמך EzCount לא הופק: שורות ההזמנה מסתכמות ב-[items] אך נגבו [charged]."
+
+msgctxt "Languages::hypay_j5"
+msgid "J5 hold"
+msgstr "שמירת J5"
+
+msgctxt "Languages::hypay_j5_pi_hold_until"
+msgid "[amount] held, capture before [date]"
+msgstr "[amount] נשמרו, לגבות עד [date]"
+
+msgctxt "Languages::hypay_j5_pi_captured_on"
+msgid "[amount] captured on [date]"
+msgstr "[amount] נגבו בתאריך [date]"
+
+msgctxt "Languages::hypay_j5_capture_unknown"
+msgid "Hyp did not return a readable answer to the capture request. The hold is left locked: check the transaction in the Hyp control panel before trying again."
+msgstr "Hyp לא החזיר תשובה קריאה לבקשת הגבייה. השמירה נשארה נעולה: בדקו את העסקה בממשק Hyp לפני ניסיון נוסף."
+
+msgctxt "Languages::hypay_j5_stuck_capturing"
+msgid "A capture was sent but the answer never arrived. Check the transaction in the Hyp control panel: if it was charged, no further action is needed; if it was not, the hold can be released from here after the state is corrected in the database."
+msgstr "בקשת גבייה נשלחה אך לא התקבלה תשובה. בדקו את העסקה בממשק Hyp."

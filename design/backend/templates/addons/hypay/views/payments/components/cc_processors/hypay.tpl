@@ -79,6 +79,93 @@
 
  <hr>
 
+ {* --- J5 (two-phase commit) --- *}
+ <h3>{__("hypay_j5_section")}</h3>
+
+ {$hypay_payment_type = $processor_params.payment_type}
+ {if $hypay_payment_type == ""}
+     {if $processor_params.j5 == "Y"}{$hypay_payment_type = "j5"}{else}{$hypay_payment_type = "regular"}{/if}
+ {/if}
+ <div class="control-group">
+     <label class="control-label" for="hypay_payment_type">{__("hypay_payment_type")}</label>
+     <div class="controls">
+         <select name="payment_data[processor_params][payment_type]" id="hypay_payment_type" class="input-large">
+             <option value="regular"   {if $hypay_payment_type == "regular"}selected="selected"{/if}>{__("hypay_payment_type_regular")}</option>
+             <option value="j5"        {if $hypay_payment_type == "j5"}selected="selected"{/if}>{__("hypay_payment_type_j5")}</option>
+             <option value="usergroup" {if $hypay_payment_type == "usergroup"}selected="selected"{/if}>{__("hypay_payment_type_usergroup")}</option>
+         </select>
+         <p class="muted description">{__("hypay_payment_type_desc")}</p>
+     </div>
+ </div>
+
+ {assign var="hypay_j5_groups" value=$processor_params|fn_hypay_get_j5_usergroups}
+ <div class="control-group">
+     <label class="control-label" for="hypay_j5_usergroups">{__("hypay_j5_usergroups")}</label>
+     <div class="controls">
+         {if $hypay_usergroups}
+             <select name="payment_data[processor_params][j5_usergroups][]" id="hypay_j5_usergroups"
+                     multiple="multiple" size="6" class="input-large">
+                 {foreach from=$hypay_usergroups item="ug"}
+                     <option value="{$ug.usergroup_id}" {if $ug.usergroup_id|in_array:$hypay_j5_groups}selected="selected"{/if}>{$ug.usergroup}</option>
+                 {/foreach}
+             </select>
+         {else}
+             <p class="muted">{__("hypay_j5_usergroups_empty")}</p>
+         {/if}
+         <p class="muted description">{__("hypay_j5_usergroups_desc")}</p>
+     </div>
+ </div>
+
+ {assign var="hypay_j5_auth_status" value=$processor_params.j5_auth_status|default:"O"}
+ <div class="control-group">
+     <label class="control-label" for="elm_hypay_j5_auth_status">{__("hypay_j5_auth_status")}</label>
+     <div class="controls">
+         <select name="payment_data[processor_params][j5_auth_status]" id="elm_hypay_j5_auth_status">
+             {foreach from=$statuses item="status" key="s_key"}
+                 <option value="{$s_key}" {if $s_key == $hypay_j5_auth_status}selected="selected"{/if}>{$status}</option>
+             {/foreach}
+         </select>
+         <p class="muted description">{__("hypay_j5_auth_status_desc")}</p>
+     </div>
+ </div>
+
+ {assign var="hypay_j5_captured_status" value=$processor_params.j5_captured_status|default:$succ_status}
+ <div class="control-group">
+     <label class="control-label" for="elm_hypay_j5_captured_status">{__("hypay_j5_captured_status")}</label>
+     <div class="controls">
+         <select name="payment_data[processor_params][j5_captured_status]" id="elm_hypay_j5_captured_status">
+             {foreach from=$statuses item="status" key="s_key"}
+                 <option value="{$s_key}" {if $s_key == $hypay_j5_captured_status}selected="selected"{/if}>{$status}</option>
+             {/foreach}
+         </select>
+         <p class="muted description">{__("hypay_j5_captured_status_desc")}</p>
+     </div>
+ </div>
+
+ {assign var="hypay_j5_void_status" value=$processor_params.j5_void_status|default:"I"}
+ <div class="control-group">
+     <label class="control-label" for="elm_hypay_j5_void_status">{__("hypay_j5_void_status")}</label>
+     <div class="controls">
+         <select name="payment_data[processor_params][j5_void_status]" id="elm_hypay_j5_void_status">
+             {foreach from=$statuses item="status" key="s_key"}
+                 <option value="{$s_key}" {if $s_key == $hypay_j5_void_status}selected="selected"{/if}>{$status}</option>
+             {/foreach}
+         </select>
+         <p class="muted description">{__("hypay_j5_void_status_desc")}</p>
+     </div>
+ </div>
+
+ <div class="control-group">
+     <label class="control-label" for="hypay_j5_hold_days">{__("hypay_j5_hold_days")}</label>
+     <div class="controls">
+         <input type="number" name="payment_data[processor_params][j5_hold_days]" id="hypay_j5_hold_days"
+                value="{$processor_params.j5_hold_days|default:5}" min="1" max="60" class="input-small" />
+         <p class="muted description">{__("hypay_j5_hold_days_desc")}</p>
+     </div>
+ </div>
+
+ <hr>
+
  {* --- Return URL (read-only) --- *}
  <div class="control-group">
      <label class="control-label" for="hypay_return_url">{__("hypay_return_url")}</label>
@@ -200,7 +287,6 @@
          <label class="checkbox"><input type="checkbox" name="payment_data[processor_params][moredata]" value="Y"  {if $processor_params.moredata == "Y"}checked{/if}  /> MoreData</label>
          <label class="checkbox"><input type="checkbox" name="payment_data[processor_params][pagetimeout]" value="Y" {if $processor_params.pagetimeout == "Y"}checked{/if} /> pageTimeOut</label>
          <label class="checkbox"><input type="checkbox" name="payment_data[processor_params][postpone]" value="Y"   {if $processor_params.postpone == "Y"}checked{/if}   /> Postpone</label>
-         <label class="checkbox"><input type="checkbox" name="payment_data[processor_params][j5]" value="Y"         {if $processor_params.j5 == "Y"}checked{/if}         /> J5 (credit line)</label>
          <label class="checkbox"><input type="checkbox" name="payment_data[processor_params][show_eng_tash_text]" value="Y" {if $processor_params.show_eng_tash_text == "Y"}checked{/if} /> ShowEngTashText</label>
          <label class="checkbox"><input type="checkbox" name="payment_data[processor_params][hide_btns]" value="Y"  {if $processor_params.hide_btns == "Y"}checked{/if}  /> hideBtns</label>
      </div>

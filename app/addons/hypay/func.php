@@ -2,10 +2,28 @@
 /*****************************************************************************
  * Hypay Addon Functions
  * Author: Michael Shapar (micshap100@gmail.com)
- * Version: 1.0 | 2025-10-20
+ * Version: 1.2 | 2026-08-25
+ *
+ * Shared helpers for the Hypay processor: logging, HTTP, EzCount documents
+ * and the J5 (two-phase commit) authorization / capture / void flow.
  *****************************************************************************/
 use Tygh\Http;
 use Tygh\Registry;
+
+if (!defined('BOOTSTRAP')) { die('Access denied'); }
+
+/** Hypay payment page / API entry point */
+if (!defined('HYPAY_API_URL')) { define('HYPAY_API_URL', 'https://pay.hyp.co.il/p/'); }
+
+/** CCode returned in the redirect when a J5 authorization was granted */
+if (!defined('HYPAY_CCODE_J5_AUTHORIZED')) { define('HYPAY_CCODE_J5_AUTHORIZED', '700'); }
+
+/** global debug switch (filled from payment settings later) */
+if (!isset($GLOBALS['HYPAY_DEBUG'])) { $GLOBALS['HYPAY_DEBUG'] = false; }
+
+/* ============================================================================
+ * Install / uninstall
+ * ==========================================================================*/
 
 function fn_hypay_install()
 {
@@ -13,19 +31,1155 @@ function fn_hypay_install()
         'processor'           => 'Hypay',
         'processor_script'    => 'hypay.php',
         'processor_template' => '',
-        'admin_template' => 'hypay.tpl',
         'admin_template'      => 'hypay.tpl',
         'callback'            => 'Y',
         'type'                => 'P',
         'addon'               => 'hypay'
     ]);
+    fn_hypay_ensure_schema();
     fn_set_notification('N', __('notice'), 'Hypay payment processor registered.');
 }
 
 function fn_hypay_uninstall()
 {
     db_query("DELETE FROM ?:payment_processors WHERE processor_script = ?s", 'hypay.php');
-    fn_set_notification('W', __('notice'), 'Hypay processor removed.');
+    // ?:hypay_transactions is intentionally kept: it holds financial records
+    // (authorizations / captures) that must survive an addon re-install.
+    fn_set_notification('W', __('notice'), 'Hypay processor removed. The hypay_transactions table was kept.');
 }
 
+/** Create the J5 transaction table if it is not there yet (also covers upgrades) */
+function fn_hypay_ensure_schema()
+{
+    static $done = false;
+    if ($done) { return; }
+    $done = true;
 
+    db_query(
+        "CREATE TABLE IF NOT EXISTS ?:hypay_transactions ("
+        . " transaction_id int(11) unsigned NOT NULL auto_increment,"
+        . " order_id mediumint(8) unsigned NOT NULL default '0',"
+        . " status varchar(16) NOT NULL default '',"
+        . " hyp_id varchar(64) NOT NULL default '',"
+        . " acode varchar(64) NOT NULL default '',"
+        . " uid varchar(64) NOT NULL default '',"
+        . " personal_id varchar(32) NOT NULL default '',"
+        . " client_name varchar(128) NOT NULL default '',"
+        . " card_token varchar(64) NOT NULL default '',"
+        . " card_tokef varchar(8) NOT NULL default '',"
+        . " brand varchar(32) NOT NULL default '',"
+        . " last4 varchar(8) NOT NULL default '',"
+        . " payments smallint(5) unsigned NOT NULL default '1',"
+        . " coin tinyint(3) unsigned NOT NULL default '1',"
+        . " amount_authorized decimal(12,2) NOT NULL default '0.00',"
+        . " amount_captured decimal(12,2) NOT NULL default '0.00',"
+        . " capture_hyp_id varchar(64) NOT NULL default '',"
+        . " capture_acode varchar(64) NOT NULL default '',"
+        . " authorized_at int(11) unsigned NOT NULL default '0',"
+        . " expires_at int(11) unsigned NOT NULL default '0',"
+        . " captured_at int(11) unsigned NOT NULL default '0',"
+        . " voided_at int(11) unsigned NOT NULL default '0',"
+        . " last_error text,"
+        . " PRIMARY KEY (transaction_id),"
+        . " KEY order_id (order_id),"
+        . " KEY hyp_id (hyp_id)"
+        . ") ENGINE=InnoDB DEFAULT CHARSET=utf8"
+    );
+}
+
+/* ============================================================================
+ * Debug / logging helpers
+ * ==========================================================================*/
+
+/** canonical log file path (also referenced in settings hint) */
+function hypay_log_path()
+{
+    return rtrim(Registry::get('config.dir.var'), '/\\') . '/log/hypay_ezcount.log';
+}
+
+/** dumb, safe logger: single signature, token-safe, opt-in via $HYPAY_DEBUG */
+function hypay_log($order_id, $label, $data = null)
+{
+    if (empty($GLOBALS['HYPAY_DEBUG'])) { return; }
+    try {
+        $dir = Registry::get('config.dir.var') . 'log/';
+        if (!is_dir($dir)) {
+            if (function_exists('fn_mkdir')) { @fn_mkdir($dir); } else { @mkdir($dir, 0755, true); }
+        }
+        $file = hypay_log_path();
+        $line = '[' . date('Y-m-d H:i:s') . "] order {$order_id} | {$label}";
+        if ($data !== null) {
+            if (!is_string($data)) {
+                $data = print_r($data, true);
+            }
+            $line .= ' | ' . $data;
+        }
+        @file_put_contents($file, $line . PHP_EOL, FILE_APPEND);
+    } catch (\Exception $e) {
+        // logging must never break a payment
+    }
+}
+
+/** hide secrets before they reach the log file */
+function hypay_mask_params(array $params)
+{
+    $secret_keys = ['KEY', 'PassP', 'CC', 'api_key', 'created_by_api_key', 'card_token'];
+    foreach ($secret_keys as $key) {
+        if (!empty($params[$key])) {
+            $params[$key] = substr((string) $params[$key], 0, 4) . '***';
+        }
+    }
+    return $params;
+}
+
+/** one-shot cURL JSON POST with headers/response capture (fallback to Tygh\Http) */
+function hypay_curl_json($order_id, $url, array $payload, array $extra_headers = [])
+{
+    $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $headers = array_merge([
+        'Content-Type: application/json; charset=utf-8',
+        'Accept: application/json',
+    ], $extra_headers);
+
+    $code = 0; $errno = 0; $err = ''; $resp_headers = ''; $resp_body = '';
+
+    if (function_exists('curl_init')) {
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => $url,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $json,
+            CURLOPT_HTTPHEADER     => $headers,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HEADER         => true,
+            CURLOPT_TIMEOUT        => 45,
+        ]);
+
+        $raw         = curl_exec($ch);
+        $errno       = curl_errno($ch);
+        $err         = curl_error($ch);
+        $code        = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $header_size = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+        curl_close($ch);
+
+        $resp_headers = substr((string) $raw, 0, $header_size);
+        $resp_body    = substr((string) $raw, $header_size);
+    } else {
+        // backup: Tygh\Http (no response headers, but good enough)
+        $opts = ['timeout' => 45, 'headers' => []];
+        foreach ($headers as $h) {
+            if (stripos($h, 'content-type:') === 0)      { $opts['headers']['Content-Type']  = trim(substr($h, 13)); }
+            elseif (stripos($h, 'accept:') === 0)        { $opts['headers']['Accept']        = trim(substr($h, 7)); }
+            elseif (stripos($h, 'authorization:') === 0) { $opts['headers']['Authorization'] = trim(substr($h, 14)); }
+        }
+        $resp_body = Http::post($url, $json, $opts);
+    }
+
+    hypay_log($order_id, '[cURL] POST',        ['url' => $url, 'code' => $code, 'errno' => $errno, 'err' => $err]);
+    hypay_log($order_id, '[cURL] req.headers', $headers);
+    hypay_log($order_id, '[cURL] req.body',    $json);
+    if ($resp_headers !== '') { hypay_log($order_id, '[cURL] resp.headers', $resp_headers); }
+    hypay_log($order_id, '[cURL] resp.body',   $resp_body);
+
+    $obj = json_decode($resp_body);
+    return [
+        'http_code' => $code,
+        'errno'     => $errno,
+        'error'     => $err,
+        'body'      => $resp_body,
+        'json'      => is_object($obj) ? $obj : (object) [],
+    ];
+}
+
+/**
+ * Server-to-server GET against the Hypay API.
+ * Hypay answers with a query string (Id=...&CCode=0&...), so it is parsed back
+ * into an array. Secrets are masked before anything is written to the log.
+ */
+function fn_hypay_api_request($order_id, array $params, $label = 'api')
+{
+    $url = HYPAY_API_URL . '?' . http_build_query($params);
+
+    hypay_log($order_id, $label . ' request', hypay_mask_params($params));
+
+    $response = Http::get($url, ['timeout' => 45]);
+
+    hypay_log($order_id, $label . ' response', $response);
+
+    $parsed = [];
+    parse_str(trim((string) $response), $parsed);
+
+    return [
+        'raw'    => (string) $response,
+        'params' => is_array($parsed) ? $parsed : [],
+    ];
+}
+
+/* ============================================================================
+ * Small helpers (tiny but mighty)
+ * ==========================================================================*/
+
+function hypay_allow_for_order($order_id)
+{
+    $script_ok  = fn_check_payment_script('hypay.php', $order_id);
+    $payment_ok = (isset($_REQUEST['payment']) && $_REQUEST['payment'] === 'hypay');
+    return ($order_id && ($script_ok || $payment_ok));
+}
+
+/** store/load a tiny marker (back destination + J5 intent) in order_data (type 'H') */
+function hypay_set_back_marker($order_id, $value, $is_j5 = false)
+{
+    $data = ['hypay_back' => $value, 'hypay_j5' => $is_j5 ? 'Y' : 'N'];
+    db_query("REPLACE INTO ?:order_data (order_id, type, data) VALUES (?i, 'H', ?s)", $order_id, serialize($data));
+}
+
+function hypay_get_marker_data($order_id)
+{
+    $row = db_get_row("SELECT data FROM ?:order_data WHERE order_id = ?i AND type = 'H'", $order_id);
+    if (!empty($row['data'])) {
+        $data = @unserialize($row['data']);
+        if (is_array($data)) { return $data; }
+    }
+    return [];
+}
+
+function hypay_get_back_marker($order_id)
+{
+    $data = hypay_get_marker_data($order_id);
+    return !empty($data['hypay_back']) ? (string) $data['hypay_back'] : '';
+}
+
+function hypay_clear_back_marker($order_id)
+{
+    db_query("DELETE FROM ?:order_data WHERE order_id = ?i AND type = 'H'", $order_id);
+}
+
+/** push a clean redirect (JS replace + meta refresh + noscript link) */
+function hypay_clean_redirect($url)
+{
+    $url_js   = str_replace(['\\', '"'], ['\\\\', '\"'], $url);
+    $url_html = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+
+    echo '<!doctype html><html><head>';
+    echo '<meta charset="utf-8">';
+    echo '<meta http-equiv="refresh" content="0;url=' . $url_html . '">';
+    echo '</head><body>';
+    echo '<script>try{window.location.replace("' . $url_js . '");}catch(e){window.location.href="' . $url_js . '";}</script>';
+    echo '<noscript><a href="' . $url_html . '">Continue</a></noscript>';
+    echo '</body></html>';
+    exit;
+}
+
+/** checkbox -> "True"/"False" strings per Hypay API taste */
+function hypay_bool($v)
+{
+    return (!empty($v) && $v !== 'N' && $v !== '0') ? 'True' : 'False';
+}
+
+/** put non-empty scalar into assoc array */
+function hypay_put(&$arr, $key, $val)
+{
+    if ($val === '' || $val === null) { return; }
+    $arr[$key] = $val;
+}
+
+/** language helper */
+function hypay_lang2_from_order($order_info)
+{
+    $lang_code = strtolower((string) ($order_info['lang_code'] ?? (defined('CART_LANGUAGE') ? CART_LANGUAGE : 'en')));
+    return substr($lang_code, 0, 2);
+}
+
+/** sanitize name for heshDesc */
+function hypay_sanitize_name($s)
+{
+    return str_replace(['[', ']', '~'], '', (string) $s);
+}
+
+/** Hypay brand code -> human name */
+function hypay_brand_name($brand_code)
+{
+    $brand_map = [
+        '0' => 'PL',
+        '1' => 'MasterCard',
+        '2' => 'Visa',
+        '3' => 'Diners',
+        '4' => 'Amex',
+        '5' => 'Isracard',
+    ];
+    $brand_code = (string) $brand_code;
+
+    return $brand_map[$brand_code] ?? $brand_code;
+}
+
+/** Israeli ID as Hypay wants it in the capture call (000000000 when unknown) */
+function hypay_clean_personal_id($raw_user_id)
+{
+    $clean = preg_replace('/\D+/', '', ltrim((string) $raw_user_id, 'L'));
+    if ($clean === '' || $clean === '4258784304') {
+        $clean = '000000000';
+    }
+
+    return $clean;
+}
+
+/** payment method settings of an order */
+function fn_hypay_get_processor_params($order_info)
+{
+    if (empty($order_info['payment_id'])) { return []; }
+    $processor_data = fn_get_payment_method_data($order_info['payment_id']);
+
+    return $processor_data['processor_params'] ?? [];
+}
+
+/* ============================================================================
+ * Document / line-item builders (shared by the payment page and EzCount)
+ * ==========================================================================*/
+
+/** Build heshDesc so sum(positions) == order_total including discounts/surcharges/rounding */
+function hypay_build_heshdesc($order_info) {
+    $lang2    = hypay_lang2_from_order($order_info);
+    $force_en = ($lang2 === 'ru');
+
+    $heshDesc  = '';
+    $sum_items = 0.0;
+
+    // 1) products (use per-line subtotal / qty to embed item-level discounts)
+    if (!empty($order_info['products'])) {
+        foreach ($order_info['products'] as $p) {
+            $qty = max(1, (int) ($p['amount'] ?? 1));
+
+            $name = (string) ($p['product'] ?? 'Item');
+            if ($force_en && !empty($p['product_id'])) {
+                $name_en = fn_get_product_name((int) $p['product_id'], 'EN');
+                if ($name_en === '' || $name_en === null) { $name_en = fn_get_product_name((int) $p['product_id'], 'en'); }
+                if ($name_en !== '' && $name_en !== null) { $name = $name_en; }
+            }
+            $name = hypay_sanitize_name($name);
+
+            $subtotal = (float) ($p['subtotal'] ?? ($p['price'] ?? 0) * $qty);
+            $unit     = $qty > 0 ? round($subtotal / $qty, 2) : round((float) ($p['price'] ?? 0), 2);
+
+            $heshDesc  .= "[0~{$name}~{$qty}~{$unit}]";
+            $sum_items += round($unit * $qty, 2);
+        }
+    }
+
+    // 2) shipping (net of shipping_discount)
+    $shipping_cost     = round((float) ($order_info['shipping_cost'] ?? 0), 2);
+    $shipping_discount = round((float) ($order_info['shipping_discount'] ?? 0), 2);
+    $shipping_net      = round($shipping_cost - $shipping_discount, 2);
+    if ($shipping_net != 0.0) {
+        $ship_word = ($lang2 === 'he') ? 'משלוח' : 'Shipping';
+        $ship_name = hypay_sanitize_name($ship_word);
+        $heshDesc  .= "[0~{$ship_name}~1~" . number_format($shipping_net, 2, '.', '') . "]";
+        $sum_items += $shipping_net;
+    }
+    if ($shipping_discount > 0) {
+        $label = hypay_sanitize_name(($lang2 === 'he') ? 'הנחת משלוח' : 'Shipping discount');
+        $heshDesc  .= "[0~{$label}~1~-" . number_format($shipping_discount, 2, '.', '') . "]";
+        $sum_items -= $shipping_discount;
+    }
+
+    // 3) payment surcharge
+    $payment_surcharge = round((float) ($order_info['payment_surcharge'] ?? 0), 2);
+    if ($payment_surcharge != 0.0) {
+        $label = hypay_sanitize_name(($lang2 === 'he') ? 'עמלת תשלום' : 'Payment surcharge');
+        $heshDesc  .= "[0~{$label}~1~" . number_format($payment_surcharge, 2, '.', '') . "]";
+        $sum_items += $payment_surcharge;
+    }
+
+    // 4) order-level discount (subtotal_discount) with coupon codes (if any)
+    $subtotal_discount = round((float) ($order_info['subtotal_discount'] ?? 0), 2);
+    if ($subtotal_discount > 0.0) {
+        $codes = [];
+        if (!empty($order_info['coupons']) && is_array($order_info['coupons'])) {
+            foreach ($order_info['coupons'] as $c) {
+                if (!empty($c['coupon'])) { $codes[] = $c['coupon']; }
+            }
+        }
+        $suffix = $codes ? ' (' . implode(',', $codes) . ')' : '';
+        $label  = hypay_sanitize_name(($lang2 === 'he') ? ('הנחה' . $suffix) : ('Discount' . $suffix));
+
+        $heshDesc  .= "[0~{$label}~1~-" . number_format($subtotal_discount, 2, '.', '') . "]";
+        $sum_items -= $subtotal_discount;
+    }
+
+    // 4.1) gift certificates applied (redeem)
+    if (!empty($order_info['use_gift_certificates']) && is_array($order_info['use_gift_certificates'])) {
+        foreach ($order_info['use_gift_certificates'] as $code => $gc) {
+            $amt = round((float)($gc['amount'] ?? $gc['cost'] ?? 0), 2);
+            if ($amt > 0) {
+                $label = hypay_sanitize_name(($lang2 === 'he') ? ('שובר מתנה ' . $code) : ('Gift certificate ' . $code));
+                $heshDesc  .= "[0~{$label}~1~-" . number_format($amt, 2, '.', '') . "]";
+                $sum_items -= $amt;
+            }
+        }
+    }
+
+
+    // 5) rounding adjustment to match order total exactly
+    $order_total = round((float) $order_info['total'], 2);
+    $delta       = round($order_total - $sum_items, 2);
+    if ($delta != 0.0) {
+        $label = hypay_sanitize_name(($lang2 === 'he') ? 'עיגול סכום' : 'Rounding adjustment');
+        $heshDesc  .= "[0~{$label}~1~" . number_format($delta, 2, '.', '') . "]";
+        $sum_items = round($sum_items + $delta, 2);
+    }
+
+    return [$heshDesc, $sum_items];
+}
+
+/** Build EzCount items so sum == order_total including discounts/surcharges/rounding */
+function hypay_build_ez_items($order_info) {
+    $lang2    = hypay_lang2_from_order($order_info);
+    $force_en = ($lang2 === 'ru');
+
+    $items    = [];
+    $sum_items = 0.0;
+
+    // products
+    if (!empty($order_info['products'])) {
+        foreach ($order_info['products'] as $p) {
+            $qty = max(1, (int) ($p['amount'] ?? 1));
+
+            $name = (string) ($p['product'] ?? 'Item');
+            if ($force_en && !empty($p['product_id'])) {
+                $name_en = fn_get_product_name((int) $p['product_id'], 'EN');
+                if ($name_en === '' || $name_en === null) { $name_en = fn_get_product_name((int) $p['product_id'], 'en'); }
+                if ($name_en !== '' && $name_en !== null) { $name = $name_en; }
+            }
+
+            $subtotal = (float) ($p['subtotal'] ?? ($p['price'] ?? 0) * $qty);
+            $unit     = $qty > 0 ? round($subtotal / $qty, 2) : round((float) ($p['price'] ?? 0), 2);
+
+            $items[] = [
+                'details'  => $name,
+                'price'    => $unit,
+                'amount'   => $qty,
+                'vat_type' => 'INC',
+            ];
+            $sum_items += round($unit * $qty, 2);
+        }
+    }
+
+    // shipping (net)
+    $shipping_cost     = round((float) ($order_info['shipping_cost'] ?? 0), 2);
+    $shipping_discount = round((float) ($order_info['shipping_discount'] ?? 0), 2);
+    $shipping_net      = round($shipping_cost - $shipping_discount, 2);
+    if ($shipping_net != 0.0) {
+        $ship_word = ($lang2 === 'he') ? 'משלוח' : 'Shipping';
+        $items[] = [
+            'details'  => $ship_word,
+            'price'    => $shipping_net,
+            'amount'   => 1,
+            'vat_type' => 'INC',
+        ];
+        $sum_items += $shipping_net;
+    }
+    if ($shipping_discount > 0) {
+        $items[] = [
+            'details'  => ($lang2 === 'he') ? 'הנחת משלוח' : 'Shipping discount',
+            'price'    => -$shipping_discount,
+            'amount'   => 1,
+            'vat_type' => 'INC',
+        ];
+        $sum_items -= $shipping_discount;
+    }
+
+    // payment surcharge
+    $payment_surcharge = round((float) ($order_info['payment_surcharge'] ?? 0), 2);
+    if ($payment_surcharge != 0.0) {
+        $items[] = [
+            'details'  => ($lang2 === 'he') ? 'עמלת תשלום' : 'Payment surcharge',
+            'price'    => $payment_surcharge,
+            'amount'   => 1,
+            'vat_type' => 'INC',
+        ];
+        $sum_items += $payment_surcharge;
+    }
+
+    // subtotal_discount (with coupons)
+    $subtotal_discount = round((float) ($order_info['subtotal_discount'] ?? 0), 2);
+    if ($subtotal_discount > 0.0) {
+        $codes = [];
+        if (!empty($order_info['coupons']) && is_array($order_info['coupons'])) {
+            foreach ($order_info['coupons'] as $c) {
+                if (!empty($c['coupon'])) { $codes[] = $c['coupon']; }
+            }
+        }
+        $suffix = $codes ? ' (' . implode(',', $codes) . ')' : '';
+
+        $items[] = [
+            'details'  => ($lang2 === 'he') ? ('הנחה' . $suffix) : ('Discount' . $suffix),
+            'price'    => -$subtotal_discount,
+            'amount'   => 1,
+            'vat_type' => 'INC',
+        ];
+        $sum_items -= $subtotal_discount;
+    }
+
+    // gift certificates applied (redeem)
+    if (!empty($order_info['use_gift_certificates']) && is_array($order_info['use_gift_certificates'])) {
+        foreach ($order_info['use_gift_certificates'] as $code => $gc) {
+            $amt = round((float)($gc['amount'] ?? $gc['cost'] ?? 0), 2);
+            if ($amt > 0) {
+                $items[] = [
+                    'details'  => ($lang2 === 'he') ? ('שובר מתנה ' . $code) : ('Gift certificate ' . $code),
+                    'price'    => -$amt,
+                    'amount'   => 1,
+                    'vat_type' => 'INC',
+                ];
+                $sum_items -= $amt;
+            }
+        }
+    }
+
+    // rounding adjustment
+    $order_total = round((float) $order_info['total'], 2);
+    $delta       = round($order_total - $sum_items, 2);
+    if ($delta != 0.0) {
+        $items[] = [
+            'details'  => ($lang2 === 'he') ? 'עיגול סכום' : 'Rounding adjustment',
+            'price'    => $delta,
+            'amount'   => 1,
+            'vat_type' => 'INC',
+        ];
+        $sum_items = round($sum_items + $delta, 2);
+    }
+
+    return [$items, $sum_items];
+}
+
+/* ============================================================================
+ * EzCount (Direct API) document
+ * ==========================================================================*/
+
+/**
+ * Create an EzCount document for an order through the direct API.
+ *
+ * $ctx: transaction_id (Hypay Id), brand, last4, payments, amount (charged sum).
+ * The document is issued for $ctx['amount']; the line items are rebuilt from the
+ * order, so the two must match — otherwise nothing is issued at all.
+ *
+ * @return array|false document info on success
+ */
+function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $ctx)
+{
+    $ez_env             = $pp['ez_environment'] ?? 'demo'; // demo|live
+    $ez_api_key         = trim((string) ($pp['ez_api_key'] ?? ''));
+    $ez_developer_mail  = trim((string) ($pp['ez_developer_email'] ?? ''));
+    $ez_ua_uuid         = trim((string) ($pp['ez_ua_uuid'] ?? ''));
+    $created_by_api_key = trim((string) ($pp['ez_created_by_api_key'] ?? '')); // optional, not hashed
+    $doc_type_param     = (int) ($pp['ez_doc_type'] ?? 320);                   // 320/400
+    $doc_type           = in_array($doc_type_param, [320, 400], true) ? $doc_type_param : 320;
+    $show_inc_vat       = isset($pp['ez_show_items_including_vat']) ? (int) (!empty($pp['ez_show_items_including_vat'])) : 1;
+    $doc_lang           = ($pp['ez_doc_lang'] ?? 'he') === 'en' ? 'en' : 'he';
+    $auto_calc          = isset($pp['ez_auto_calc_payments']) ? (int) (!empty($pp['ez_auto_calc_payments'])) : 0;
+
+    $amount = round((float) ($ctx['amount'] ?? $order_info['total']), 2);
+
+    // 1) line items (vat_type=INC), using unified builder so totals match
+    list($items, $items_sum) = hypay_build_ez_items($order_info);
+
+    // The document must never disagree with the money actually charged.
+    if (abs(round($items_sum, 2) - $amount) > 0.01) {
+        $msg = __('hypay_ez_amount_mismatch', ['[items]' => $items_sum, '[charged]' => $amount]);
+        fn_set_notification('E', __('error'), $msg);
+        hypay_log($order_id, 'ezcount.createDoc ABORTED (amount mismatch)', ['items_sum' => $items_sum, 'charged' => $amount]);
+
+        return false;
+    }
+
+    // 2) customer address (optionally appending building number from custom field)
+    $building_id = (int) ($pp['building_field_id'] ?? 0);
+    $building    = '';
+    if ($building_id > 0) {
+        $building = trim((string) ($order_info['fields'][$building_id] ?? ''));
+        if ($building === '' && !empty($order_info['user_id'])) {
+            $uinfo    = fn_get_user_info($order_info['user_id']);
+            $building = trim((string) ($uinfo['fields'][$building_id] ?? ''));
+        }
+    }
+    $street = trim((string) ($order_info['s_address'] ?: $order_info['b_address'] ?: ''));
+    $city   = trim((string) ($order_info['s_city']    ?: $order_info['b_city']    ?: ''));
+    $customer_address = trim(
+        $street !== ''
+            ? trim($street . ($building !== '' ? ' ' . $building : '')) . ($city !== '' ? ', ' . $city : '')
+            : $city
+    );
+
+    // 3) payments section (credit card)
+    $num_payments = (int) ($ctx['payments'] ?? 1);
+    if ($num_payments < 1) { $num_payments = 1; }
+
+    $payment_item = [
+        'payment_type'       => 3,
+        'payment_sum'        => $amount,
+        'cc_type_name'       => (string) ($ctx['brand'] ?? ''),
+        'cc_num_of_payments' => $num_payments,
+        'cc_deal_type'       => ($num_payments > 1) ? '2' : '1',
+        'auto_calc_payments' => $auto_calc,
+        'comment'            => 'מזהה עסקה בחברת האשראי: ' . (string) ($ctx['transaction_id'] ?? ''),
+    ];
+    $last4 = preg_replace('/\D+/', '', (string) ($ctx['last4'] ?? ''));
+    if ($last4 !== '') { $payment_item['cc_number'] = $last4; }
+
+    // 4) payload
+    $payload = [
+        'api_key'                  => $ez_api_key,
+        'developer_email'          => $ez_developer_mail,
+        'type'                     => $doc_type,           // 320/400
+        'ua_uuid'                  => $ez_ua_uuid ?: null, // dropped if empty
+        'lang'                     => $doc_lang,           // he/en
+        'description'              => 'Order #' . $order_id,
+        'customer_name'            => trim(($order_info['lastname'] ?? '') . ' ' . ($order_info['firstname'] ?? '')),
+        'customer_email'           => (string) ($order_info['email'] ?? ''),
+        'customer_phone'           => (string) ($order_info['phone'] ?? ''),
+        'customer_address'         => $customer_address,
+        'transaction_id'           => (string) ($ctx['transaction_id'] ?? ''),
+        'forceItems'               => 1,
+        'show_items_including_vat' => $show_inc_vat,
+        'item'                     => $items,
+        'price_total'              => $amount,
+        'payment'                  => [$payment_item],
+    ];
+    if ($created_by_api_key !== '') {
+        $payload['created_by_api_key'] = $created_by_api_key; // distributors only; plain text, server hashes
+    }
+    if (empty($payload['ua_uuid'])) { unset($payload['ua_uuid']); }
+
+    // tax exempt toggle
+    if (!empty($order_info['user_data']['tax_exempt']) && $order_info['user_data']['tax_exempt'] === 'Y') {
+        $payload['vat'] = '0';
+    }
+
+    // 5) endpoint (strict HTTPS; no access_token in query)
+    $create_url = 'https://' . (($ez_env === 'live') ? 'api' : 'demo') . '.ezcount.co.il/api/createDoc';
+
+    // 6) logging (mask only for display)
+    hypay_log($order_id, 'ezcount.key.check', [
+        'env'  => $ez_env,
+        'key6' => substr($ez_api_key, 0, 6) . '***',
+        'len'  => strlen($ez_api_key),
+    ]);
+    hypay_log($order_id, 'ezcount.createDoc url', $create_url);
+    $payload_log = $payload;
+    if (!empty($payload_log['api_key']))            { $payload_log['api_key']            = substr($ez_api_key, 0, 6) . '***'; }
+    if (!empty($payload_log['created_by_api_key'])) { $payload_log['created_by_api_key'] = substr($payload['created_by_api_key'], 0, 6) . '***'; }
+    hypay_log($order_id, 'ezcount.createDoc payload', $payload_log);
+
+    // 7) fire in the hole
+    $resp = hypay_curl_json($order_id, $create_url, $payload, []);
+    $create_response = $resp['json'];
+
+    // 8) handle result, with single smart retry (strip ua_uuid on relevant error)
+    $ok = (!empty($create_response->success) && !empty($create_response->doc_number));
+    if (!$ok) {
+        $last_error = isset($create_response->errMsg) ? (string) $create_response->errMsg : ('HTTP ' . $resp['http_code'] . '; body=' . $resp['body']);
+        fn_set_notification('E', __('error'), 'EzCount createDoc failed: ' . $last_error);
+        hypay_log($order_id, 'ezcount.createDoc FAILED', $last_error);
+
+        if (!empty($payload['ua_uuid']) && stripos($last_error, 'ua_uuid') !== false) {
+            hypay_log($order_id, 'ezcount.retry without ua_uuid');
+            $payload2 = $payload;
+            unset($payload2['ua_uuid']);
+            $resp2 = hypay_curl_json($order_id, $create_url, $payload2, []);
+            $create_response = $resp2['json'];
+            $ok = (!empty($create_response->success) && !empty($create_response->doc_number));
+            if (!$ok) {
+                $last_error = isset($create_response->errMsg) ? (string) $create_response->errMsg : ('HTTP ' . $resp2['http_code'] . '; body=' . $resp2['body']);
+                fn_set_notification('E', __('error'), 'EzCount createDoc failed (retry): ' . $last_error);
+                hypay_log($order_id, 'ezcount.createDoc FAILED (retry)', $last_error);
+            }
+        }
+    }
+
+    // 9) persist doc info once (or drop helpful hint)
+    if ($ok) {
+        $doc_log = [
+            'ezcount_invoice_id'       => $create_response->doc_number,
+            'ezcount_invoice_url'      => $create_response->pdf_link ?? '',
+            'ezcount_invoice_doc_uuid' => $create_response->doc_uuid ?? '',
+            'invoice_type'             => (string) $doc_type,
+        ];
+        db_query("REPLACE INTO ?:order_data (order_id, type, data) VALUES (?i, 'X', ?s)", $order_id, serialize($doc_log));
+        hypay_log($order_id, 'ezcount.createDoc SUCCESS', $doc_log);
+
+        return $doc_log;
+    }
+
+    hypay_log($order_id, 'ezcount.createDoc HINT', [
+        'env'         => $ez_env,
+        'has_ua_uuid' => (bool) ($ez_ua_uuid !== ''),
+        'tip'         => 'Check env (demo/live), api_key<->ua_uuid pair, and created_by_api_key (if set) belongs to the distributor account.',
+    ]);
+
+    return false;
+}
+
+/* ============================================================================
+ * J5 (two-phase commit): authorization -> card token -> capture / void
+ *
+ * Flow per https://developers.hyp.co.il/pay/advanced-features/two-phase-commits
+ *   1. payment page with J5=True&MoreData=True  -> redirect with CCode=700,
+ *      Id, ACode, UserId, UID (funds are held, nothing is charged yet)
+ *   2. action=getToken&TransId=<Id>             -> Token + Tokef
+ *   3. action=soft&Token=True&CC=<Token>...     -> the actual charge (J4),
+ *      Amount may be equal to or lower than the authorized amount
+ * ==========================================================================*/
+
+/** Usergroups the order's customer belongs to */
+function fn_hypay_get_order_usergroups($order_info)
+{
+    $ids = [];
+
+    $user_id = (int) ($order_info['user_id'] ?? 0);
+    if ($user_id > 0) {
+        $ids = db_get_fields(
+            "SELECT usergroup_id FROM ?:usergroup_links WHERE user_id = ?i AND status = 'A'",
+            $user_id
+        );
+    }
+
+    if (!empty($order_info['user_data']['usergroup_ids']) && is_array($order_info['user_data']['usergroup_ids'])) {
+        $ids = array_merge($ids, $order_info['user_data']['usergroup_ids']);
+    }
+
+    return array_values(array_unique(array_map('intval', $ids)));
+}
+
+/** Usergroup ids configured to pay with J5 */
+function fn_hypay_get_j5_usergroups($pp)
+{
+    $pp = (array) $pp;
+    $groups = $pp['j5_usergroups'] ?? [];
+    if (!is_array($groups)) {
+        $groups = array_filter(explode(',', (string) $groups), 'strlen');
+    }
+
+    return array_values(array_unique(array_map('intval', $groups)));
+}
+
+/**
+ * Should this order be paid with a J5 authorization?
+ * payment_type: regular | j5 | usergroup (legacy: the old "j5" checkbox).
+ */
+function fn_hypay_is_j5_order($order_info, array $pp)
+{
+    $type = (string) ($pp['payment_type'] ?? '');
+    if ($type === '') {
+        $type = (!empty($pp['j5']) && $pp['j5'] === 'Y') ? 'j5' : 'regular';
+    }
+
+    if ($type === 'j5')      { return true; }
+    if ($type !== 'usergroup') { return false; }
+
+    $j5_groups = fn_hypay_get_j5_usergroups($pp);
+    if (empty($j5_groups)) { return false; }
+
+    $order_groups = fn_hypay_get_order_usergroups($order_info);
+
+    return (bool) array_intersect($j5_groups, $order_groups);
+}
+
+/** How long the issuer holds the funds, in days (Hypay: typically ~5) */
+function fn_hypay_hold_days(array $pp)
+{
+    $days = (int) ($pp['j5_hold_days'] ?? 5);
+
+    return ($days > 0) ? $days : 5;
+}
+
+/** Latest Hypay transaction of an order */
+function fn_hypay_get_transaction($order_id)
+{
+    fn_hypay_ensure_schema();
+
+    $tx = db_get_row(
+        "SELECT * FROM ?:hypay_transactions WHERE order_id = ?i ORDER BY transaction_id DESC LIMIT 1",
+        (int) $order_id
+    );
+
+    return is_array($tx) ? $tx : [];
+}
+
+/** Store a fresh J5 authorization (one row per authorization attempt) */
+function fn_hypay_store_authorization($order_id, array $data)
+{
+    fn_hypay_ensure_schema();
+
+    $data['order_id'] = (int) $order_id;
+    $data['status']   = 'authorized';
+
+    return db_query("INSERT INTO ?:hypay_transactions ?e", $data);
+}
+
+function fn_hypay_update_transaction($transaction_id, array $data)
+{
+    fn_hypay_ensure_schema();
+
+    return db_query("UPDATE ?:hypay_transactions SET ?u WHERE transaction_id = ?i", $data, (int) $transaction_id);
+}
+
+/** Tokef (YYMM, e.g. 3105 = 05/31) -> ['month' => '05', 'year' => '31'] */
+function fn_hypay_split_tokef($tokef)
+{
+    $digits = preg_replace('/\D+/', '', (string) $tokef);
+    if (strlen($digits) !== 4) {
+        return ['month' => '', 'year' => ''];
+    }
+
+    $first = substr($digits, 0, 2);
+    $last  = substr($digits, 2, 2);
+
+    // documented format is YYMM
+    if ((int) $last >= 1 && (int) $last <= 12) {
+        return ['month' => $last, 'year' => $first];
+    }
+    // defensive: some terminals answer MMYY
+    if ((int) $first >= 1 && (int) $first <= 12) {
+        return ['month' => $first, 'year' => $last];
+    }
+
+    return ['month' => '', 'year' => ''];
+}
+
+/**
+ * Step 2: exchange the authorization Id for a card token.
+ *
+ * @return array|false ['token' => ..., 'tokef' => ...]
+ */
+function fn_hypay_fetch_card_token($order_id, array $pp, $trans_id, &$error = '')
+{
+    $result = fn_hypay_api_request($order_id, [
+        'action'  => 'getToken',
+        'Masof'   => trim((string) ($pp['masof'] ?? '')),
+        'PassP'   => trim((string) ($pp['passp'] ?? '')),
+        'TransId' => (string) $trans_id,
+    ], 'j5.getToken');
+
+    $params = $result['params'];
+
+    if ((string) ($params['CCode'] ?? '') === '0' && !empty($params['Token'])) {
+        return [
+            'token' => (string) $params['Token'],
+            'tokef' => (string) ($params['Tokef'] ?? ''),
+        ];
+    }
+
+    $error = trim((string) ($params['errMsg'] ?? '')) ?: ('CCode=' . (string) ($params['CCode'] ?? '?'));
+    hypay_log($order_id, 'j5.getToken FAILED', $error);
+
+    return false;
+}
+
+/** Merge extra fields into the order's payment information block */
+function fn_hypay_update_payment_info($order_id, array $extra)
+{
+    if (!function_exists('fn_update_order_payment_info')) {
+        hypay_log($order_id, 'payment_info update skipped (fn_update_order_payment_info missing)', $extra);
+
+        return false;
+    }
+
+    fn_update_order_payment_info($order_id, $extra);
+    hypay_log($order_id, 'payment_info updated', $extra);
+
+    return true;
+}
+
+/**
+ * Step 3: capture (charge) a J5 authorization.
+ *
+ * The amount is always the current order total: to charge less, the order has
+ * to be edited first, otherwise the EzCount document would not match the money
+ * actually taken. Capturing more than authorized is rejected by design.
+ *
+ * @return bool
+ */
+function fn_hypay_capture_j5($order_id, $amount = null)
+{
+    fn_hypay_ensure_schema();
+
+    $order_id   = (int) $order_id;
+    $order_info = fn_get_order_info($order_id);
+    if (empty($order_info)) {
+        fn_set_notification('E', __('error'), __('hypay_j5_error_no_order'));
+
+        return false;
+    }
+
+    $pp = fn_hypay_get_processor_params($order_info);
+    $GLOBALS['HYPAY_DEBUG'] = (!empty($pp['debug_mode']) && $pp['debug_mode'] === 'Y');
+
+    $tx = fn_hypay_get_transaction($order_id);
+    if (empty($tx) || $tx['status'] !== 'authorized') {
+        fn_set_notification('E', __('error'), __('hypay_j5_error_not_authorized'));
+
+        return false;
+    }
+
+    $order_total = round((float) $order_info['total'], 2);
+    $amount      = ($amount === null) ? $order_total : round((float) $amount, 2);
+    $authorized  = round((float) $tx['amount_authorized'], 2);
+
+    if ($amount <= 0) {
+        fn_set_notification('E', __('error'), __('hypay_j5_error_zero_amount'));
+
+        return false;
+    }
+    if ($amount > $authorized + 0.009) {
+        fn_set_notification('E', __('error'), __('hypay_j5_error_exceeds_authorized'));
+
+        return false;
+    }
+    if (abs($amount - $order_total) > 0.009) {
+        fn_set_notification('E', __('error'), __('hypay_j5_error_amount_mismatch'));
+
+        return false;
+    }
+
+    // claim the row so a double click cannot charge the customer twice
+    $claimed = db_query(
+        "UPDATE ?:hypay_transactions SET status = 'capturing' WHERE transaction_id = ?i AND status = 'authorized'",
+        $tx['transaction_id']
+    );
+    if (empty($claimed)) {
+        fn_set_notification('W', __('warning'), __('hypay_j5_error_in_progress'));
+
+        return false;
+    }
+
+    // the token may be missing if getToken failed right after the authorization
+    $token = (string) $tx['card_token'];
+    $tokef = (string) $tx['card_tokef'];
+    if ($token === '') {
+        $token_error = '';
+        $fetched = fn_hypay_fetch_card_token($order_id, $pp, $tx['hyp_id'], $token_error);
+        if ($fetched === false) {
+            fn_hypay_update_transaction($tx['transaction_id'], ['status' => 'authorized', 'last_error' => 'getToken: ' . $token_error]);
+            fn_set_notification('E', __('error'), __('hypay_j5_error_no_token') . ' ' . $token_error);
+
+            return false;
+        }
+        $token = $fetched['token'];
+        $tokef = $fetched['tokef'];
+        fn_hypay_update_transaction($tx['transaction_id'], ['card_token' => $token, 'card_tokef' => $tokef]);
+    }
+
+    $expiry = fn_hypay_split_tokef($tokef);
+    if ($expiry['month'] === '' || $expiry['year'] === '') {
+        fn_hypay_update_transaction($tx['transaction_id'], ['status' => 'authorized', 'last_error' => 'bad Tokef: ' . $tokef]);
+        fn_set_notification('E', __('error'), __('hypay_j5_error_bad_tokef', ['[tokef]' => $tokef]));
+
+        return false;
+    }
+
+    $info_tpl = trim((string) ($pp['info'] ?? 'Order #{order_id}'));
+    $params = [
+        'action'                          => 'soft',
+        'Masof'                           => trim((string) ($pp['masof'] ?? '')),
+        'PassP'                           => trim((string) ($pp['passp'] ?? '')),
+        'UserId'                          => $tx['personal_id'] !== '' ? $tx['personal_id'] : '000000000',
+        'ClientName'                      => (string) ($tx['client_name'] ?: ($order_info['firstname'] ?? '')),
+        'Token'                           => 'True',
+        'CC'                              => $token,
+        'Tmonth'                          => $expiry['month'],
+        'Tyear'                           => $expiry['year'],
+        'AuthNum'                         => (string) $tx['acode'],
+        'Amount'                          => number_format($amount, 2, '.', ''),
+        'Order'                           => (string) $order_id,
+        'Info'                            => str_replace('{order_id}', (string) $order_id, $info_tpl),
+        // the original authorization, in currency subunits (agorot)
+        'inputObj.originalAmount'         => (int) round($authorized * 100),
+        'inputObj.originalUid'            => (string) $tx['uid'],
+        'inputObj.authorizationCodeManpik' => 7,
+    ];
+    if ((int) $tx['coin'] > 1) {
+        $params['Coin'] = (int) $tx['coin'];
+    }
+
+    $result   = fn_hypay_api_request($order_id, $params, 'j5.capture');
+    $response = $result['params'];
+    $ccode    = isset($response['CCode']) ? (string) $response['CCode'] : '';
+
+    if ($ccode === '') {
+        // No readable answer: the charge may or may not have happened. The row is
+        // deliberately left in 'capturing' so nobody can charge the customer twice
+        // before the transaction has been checked in the Hyp control panel.
+        fn_hypay_update_transaction($tx['transaction_id'], ['last_error' => 'capture: no response from Hyp']);
+        fn_set_notification('E', __('error'), __('hypay_j5_capture_unknown'));
+        fn_hypay_order_note($order_id, __('hypay_j5_capture_unknown'));
+
+        return false;
+    }
+
+    if ($ccode !== '0') {
+        $error = trim((string) ($response['errMsg'] ?? '')) ?: ('CCode=' . $ccode);
+        fn_hypay_update_transaction($tx['transaction_id'], ['status' => 'authorized', 'last_error' => 'capture: ' . $error]);
+        fn_set_notification('E', __('error'), __('hypay_j5_capture_failed') . ' ' . $error);
+        fn_hypay_order_note($order_id, __('hypay_j5_capture_failed') . ' ' . $error);
+
+        return false;
+    }
+
+    $capture_id    = (string) ($response['Id'] ?? '');
+    $capture_acode = (string) ($response['ACode'] ?? $tx['acode']);
+
+    fn_hypay_update_transaction($tx['transaction_id'], [
+        'status'          => 'captured',
+        'amount_captured' => $amount,
+        'capture_hyp_id'  => $capture_id,
+        'capture_acode'   => $capture_acode,
+        'captured_at'     => TIME,
+        'last_error'      => '',
+    ]);
+
+    fn_hypay_update_payment_info($order_id, [
+        'transaction_id' => $capture_id !== '' ? $capture_id : $tx['hyp_id'],
+        'reason_text'    => '🟢 ' . __('hypay_j5_pi_captured', ['[amount]' => number_format($amount, 2, '.', '')]),
+        'hypay_j5'       => __('hypay_j5_pi_captured_on', [
+            '[amount]' => number_format($amount, 2, '.', ''),
+            '[date]'   => date('d.m.Y H:i', TIME),
+        ]),
+    ]);
+
+    $captured_status = !empty($pp['j5_captured_status']) ? $pp['j5_captured_status'] : ($pp['success_status'] ?? 'P');
+    fn_change_order_status($order_id, $captured_status);
+
+    fn_hypay_order_note($order_id, __('hypay_j5_note_captured', [
+        '[amount]' => number_format($amount, 2, '.', ''),
+        '[id]'     => $capture_id,
+    ]));
+
+    hypay_log($order_id, 'j5.capture SUCCESS', ['amount' => $amount, 'capture_id' => $capture_id]);
+    fn_set_notification('N', __('notice'), __('hypay_j5_capture_ok', ['[amount]' => number_format($amount, 2, '.', '')]));
+
+    // the document is issued now, for the amount that was actually charged
+    if (($pp['ez_mode'] ?? 'none') === 'direct') {
+        $order_info = fn_get_order_info($order_id); // re-read: the status has changed
+        fn_hypay_create_ezcount_doc($order_id, $order_info, $pp, [
+            'transaction_id' => $capture_id,
+            'brand'          => $tx['brand'],
+            'last4'          => $tx['last4'],
+            'payments'       => $tx['payments'],
+            'amount'         => $amount,
+        ]);
+    } else {
+        hypay_log($order_id, 'ezcount skipped after capture (ez_mode != direct)', ['ez_mode' => $pp['ez_mode'] ?? 'none']);
+    }
+
+    return true;
+}
+
+/**
+ * Void a J5 authorization.
+ *
+ * Hypay documents no server-to-server release call for a held authorization,
+ * so this marks the hold as abandoned on our side: it is never captured and
+ * the issuer releases the funds when the authorization window expires.
+ *
+ * @return bool
+ */
+function fn_hypay_void_j5($order_id)
+{
+    fn_hypay_ensure_schema();
+
+    $order_id   = (int) $order_id;
+    $order_info = fn_get_order_info($order_id);
+    if (empty($order_info)) {
+        fn_set_notification('E', __('error'), __('hypay_j5_error_no_order'));
+
+        return false;
+    }
+
+    $pp = fn_hypay_get_processor_params($order_info);
+    $GLOBALS['HYPAY_DEBUG'] = (!empty($pp['debug_mode']) && $pp['debug_mode'] === 'Y');
+
+    $tx = fn_hypay_get_transaction($order_id);
+    if (empty($tx) || $tx['status'] !== 'authorized') {
+        fn_set_notification('E', __('error'), __('hypay_j5_error_not_authorized'));
+
+        return false;
+    }
+
+    $claimed = db_query(
+        "UPDATE ?:hypay_transactions SET status = 'voided', voided_at = ?i WHERE transaction_id = ?i AND status = 'authorized'",
+        TIME,
+        $tx['transaction_id']
+    );
+    if (empty($claimed)) {
+        fn_set_notification('W', __('warning'), __('hypay_j5_error_in_progress'));
+
+        return false;
+    }
+
+    fn_hypay_update_payment_info($order_id, [
+        'reason_text' => '⚪ ' . __('hypay_j5_pi_voided'),
+        'hypay_j5'    => __('hypay_j5_pi_voided'),
+    ]);
+
+    $void_status = !empty($pp['j5_void_status']) ? $pp['j5_void_status'] : 'I';
+    fn_change_order_status($order_id, $void_status);
+
+    fn_hypay_order_note($order_id, __('hypay_j5_note_voided'));
+
+    hypay_log($order_id, 'j5.void', ['hyp_id' => $tx['hyp_id']]);
+    fn_set_notification('N', __('notice'), __('hypay_j5_void_ok', ['[days]' => fn_hypay_hold_days($pp)]));
+
+    return true;
+}
+
+/** Append a line to the order log (best effort, never fatal) */
+function fn_hypay_order_note($order_id, $text)
+{
+    hypay_log($order_id, 'note', $text);
+}
+
+/**
+ * Everything the admin order page needs to render the J5 block.
+ *
+ * @return array empty array when the order has no Hypay transaction
+ */
+function fn_hypay_get_j5_panel_data($order_id)
+{
+    $order_id = (int) $order_id;
+    if ($order_id <= 0) { return []; }
+
+    $tx = fn_hypay_get_transaction($order_id);
+    if (empty($tx)) { return []; }
+
+    $order_info = fn_get_order_info($order_id);
+    if (empty($order_info)) { return []; }
+
+    $pp = fn_hypay_get_processor_params($order_info);
+
+    $order_total = round((float) $order_info['total'], 2);
+    $authorized  = round((float) $tx['amount_authorized'], 2);
+    $expires_at  = (int) $tx['expires_at'];
+
+    $is_open = in_array($tx['status'], ['authorized', 'capturing'], true);
+
+    return [
+        'order_id'          => $order_id,
+        'status'            => $tx['status'],
+        'hyp_id'            => $tx['hyp_id'],
+        'acode'             => $tx['acode'],
+        'has_token'         => ($tx['card_token'] !== ''),
+        'amount_authorized' => $authorized,
+        'amount_captured'   => round((float) $tx['amount_captured'], 2),
+        'order_total'       => $order_total,
+        'capture_hyp_id'    => $tx['capture_hyp_id'],
+        'authorized_at'     => (int) $tx['authorized_at'],
+        'captured_at'       => (int) $tx['captured_at'],
+        'voided_at'         => (int) $tx['voided_at'],
+        'expires_at'        => $expires_at,
+        'is_expired'        => ($is_open && $expires_at > 0 && $expires_at < TIME),
+        'can_capture'       => ($tx['status'] === 'authorized' && $order_total > 0 && $order_total <= $authorized + 0.009),
+        'can_void'          => ($tx['status'] === 'authorized'),
+        'amount_mismatch'   => ($tx['status'] === 'authorized' && $order_total > $authorized + 0.009),
+        'hold_days'         => fn_hypay_hold_days($pp),
+        'last_error'        => (string) $tx['last_error'],
+    ];
+}

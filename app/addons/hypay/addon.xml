@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <addon scheme="3.0">
     <id>hypay</id>
-    <version>1.1</version>
+    <version>1.2</version>
     <default_language>en</default_language>
     <priority>9999</priority>
     <has_icon>Y</has_icon>

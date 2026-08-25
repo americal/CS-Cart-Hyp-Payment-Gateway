@@ -300,3 +300,249 @@ msgstr "Let EzCount calculate installment schedule (1 = on, 0 = off)"
 msgctxt "Languages::hypay_ez_auto_calc_payments_desc"
 msgid "When enabled, the request sends auto_calc_payments=1 in the payment block."
 msgstr "When enabled, the request sends auto_calc_payments=1 in the payment block."
+
+# J5 (two-phase commit)
+
+msgctxt "Languages::hypay_j5_section"
+msgid "J5 / Two-phase commit"
+msgstr "J5 / Двухфазный платёж"
+
+msgctxt "Languages::hypay_payment_type"
+msgid "Payment type"
+msgstr "Тип платежа"
+
+msgctxt "Languages::hypay_payment_type_desc"
+msgid "Regular: the card is charged immediately. J5: the funds are only held and are charged later from the order page. By usergroup: J5 is used for the usergroups selected below, everybody else pays as usual."
+msgstr "Обычный: деньги списываются сразу. J5: средства только удерживаются, списание — вручную из карточки заказа. По группам: J5 применяется к выбранным ниже группам, остальные платят как раньше."
+
+msgctxt "Languages::hypay_payment_type_regular"
+msgid "Regular charge (J4)"
+msgstr "Обычное списание (J4)"
+
+msgctxt "Languages::hypay_payment_type_j5"
+msgid "Hold funds (J5) for everyone"
+msgstr "Удержание (J5) для всех"
+
+msgctxt "Languages::hypay_payment_type_usergroup"
+msgid "Hold funds (J5) by usergroup"
+msgstr "Удержание (J5) по группам пользователей"
+
+msgctxt "Languages::hypay_j5_usergroups"
+msgid "Usergroups paying with J5"
+msgstr "Группы, которые платят через J5"
+
+msgctxt "Languages::hypay_j5_usergroups_desc"
+msgid "Used only when the payment type is \"Hold funds (J5) by usergroup\". A customer belonging to any of the selected groups gets a J5 authorization instead of a charge."
+msgstr "Работает только при типе платежа «Удержание (J5) по группам». Если покупатель состоит хотя бы в одной из выбранных групп — вместо списания создаётся удержание J5."
+
+msgctxt "Languages::hypay_j5_usergroups_empty"
+msgid "Usergroup list is unavailable. Save the payment method and reopen this page."
+msgstr "Список групп недоступен. Сохраните метод оплаты и откройте страницу заново."
+
+msgctxt "Languages::hypay_j5_auth_status"
+msgid "Order status: funds held"
+msgstr "Статус заказа: средства удержаны"
+
+msgctxt "Languages::hypay_j5_auth_status_desc"
+msgid "Set right after a successful J5 authorization, while the money is only held."
+msgstr "Устанавливается сразу после успешной авторизации J5, пока деньги только удержаны."
+
+msgctxt "Languages::hypay_j5_captured_status"
+msgid "Order status: captured"
+msgstr "Статус заказа: средства списаны"
+
+msgctxt "Languages::hypay_j5_captured_status_desc"
+msgid "Set after the held amount has been charged."
+msgstr "Устанавливается после фактического списания удержанной суммы."
+
+msgctxt "Languages::hypay_j5_void_status"
+msgid "Order status: hold cancelled"
+msgstr "Статус заказа: удержание отменено"
+
+msgctxt "Languages::hypay_j5_void_status_desc"
+msgid "Set when the hold is abandoned and no money is taken."
+msgstr "Устанавливается при отмене удержания, когда деньги не списываются."
+
+msgctxt "Languages::hypay_j5_hold_days"
+msgid "Authorization window, days"
+msgstr "Срок удержания, дней"
+
+msgctxt "Languages::hypay_j5_hold_days_desc"
+msgid "How long the issuer keeps the funds blocked (Hyp: about 5 days). Used to show the capture deadline on the order page."
+msgstr "Сколько дней банк держит средства заблокированными (по докам Hyp — около 5). Используется для показа дедлайна списания в заказе."
+
+msgctxt "Languages::hypay_j5_title"
+msgid "J5 hold (two-phase commit)"
+msgstr "Удержание J5 (двухфазный платёж)"
+
+msgctxt "Languages::hypay_j5_status"
+msgid "Hold status"
+msgstr "Статус удержания"
+
+msgctxt "Languages::hypay_j5_status_authorized"
+msgid "Authorized — awaiting capture"
+msgstr "Авторизовано — ожидает списания"
+
+msgctxt "Languages::hypay_j5_status_capturing"
+msgid "Capture in progress"
+msgstr "Списание выполняется"
+
+msgctxt "Languages::hypay_j5_status_captured"
+msgid "Captured"
+msgstr "Списано"
+
+msgctxt "Languages::hypay_j5_status_voided"
+msgid "Hold cancelled"
+msgstr "Удержание отменено"
+
+msgctxt "Languages::hypay_j5_authorized_amount"
+msgid "Authorized amount"
+msgstr "Авторизованная сумма"
+
+msgctxt "Languages::hypay_j5_auth_number"
+msgid "Authorization number"
+msgstr "Код авторизации"
+
+msgctxt "Languages::hypay_j5_expires_at"
+msgid "Capture before"
+msgstr "Списать до"
+
+msgctxt "Languages::hypay_j5_expired"
+msgid "the authorization window has passed, the capture may be declined"
+msgstr "срок удержания истёк, списание может быть отклонено"
+
+msgctxt "Languages::hypay_j5_order_total"
+msgid "Amount to capture (order total)"
+msgstr "К списанию (итог заказа)"
+
+msgctxt "Languages::hypay_j5_captured_amount"
+msgid "Captured amount"
+msgstr "Списанная сумма"
+
+msgctxt "Languages::hypay_j5_capture_transaction"
+msgid "Capture transaction ID"
+msgstr "ID транзакции списания"
+
+msgctxt "Languages::hypay_j5_voided_at"
+msgid "Cancelled at"
+msgstr "Отменено"
+
+msgctxt "Languages::hypay_j5_warning_total_above_hold"
+msgid "The order total is higher than the authorized amount. Only an amount up to the hold can be captured — reduce the order or ask the customer to pay again."
+msgstr "Итог заказа больше удержанной суммы. Списать можно не больше удержания — уменьшите заказ или запросите новую оплату."
+
+msgctxt "Languages::hypay_j5_notice_partial_capture"
+msgid "The order total is lower than the authorized amount: only the order total will be captured."
+msgstr "Итог заказа меньше удержанной суммы: спишется именно итог заказа."
+
+msgctxt "Languages::hypay_j5_warning_no_token"
+msgid "The card token is missing; it will be requested again during the capture."
+msgstr "Токен карты не получен — он будет запрошен повторно при списании."
+
+msgctxt "Languages::hypay_j5_btn_capture"
+msgid "Capture"
+msgstr "Списать"
+
+msgctxt "Languages::hypay_j5_btn_void"
+msgid "Cancel hold"
+msgstr "Отменить удержание"
+
+msgctxt "Languages::hypay_j5_confirm_capture"
+msgid "Charge the customer for the order total?"
+msgstr "Списать с покупателя сумму заказа?"
+
+msgctxt "Languages::hypay_j5_confirm_void"
+msgid "Cancel the hold? The money will not be taken."
+msgstr "Отменить удержание? Деньги списаны не будут."
+
+msgctxt "Languages::hypay_j5_actions_hint"
+msgid "To capture a smaller amount, edit the order first: the capture always uses the current order total, so the EzCount document matches the money actually taken."
+msgstr "Чтобы списать меньшую сумму, сначала отредактируйте заказ: списывается всегда текущий итог заказа, поэтому документ EzCount совпадает с фактически списанными деньгами."
+
+msgctxt "Languages::hypay_j5_error_no_order"
+msgid "Order not found."
+msgstr "Заказ не найден."
+
+msgctxt "Languages::hypay_j5_error_not_authorized"
+msgid "This order has no J5 hold awaiting capture."
+msgstr "По этому заказу нет удержания J5, ожидающего списания."
+
+msgctxt "Languages::hypay_j5_error_zero_amount"
+msgid "The capture amount must be greater than zero."
+msgstr "Сумма списания должна быть больше нуля."
+
+msgctxt "Languages::hypay_j5_error_exceeds_authorized"
+msgid "The capture amount is higher than the authorized amount."
+msgstr "Сумма списания больше авторизованной суммы."
+
+msgctxt "Languages::hypay_j5_error_amount_mismatch"
+msgid "The capture amount must be equal to the order total. Edit the order first, then capture."
+msgstr "Сумма списания должна совпадать с итогом заказа. Сначала отредактируйте заказ, затем списывайте."
+
+msgctxt "Languages::hypay_j5_error_in_progress"
+msgid "This hold is already being processed."
+msgstr "Это удержание уже обрабатывается."
+
+msgctxt "Languages::hypay_j5_error_no_token"
+msgid "Could not get the card token from Hyp:"
+msgstr "Не удалось получить токен карты от Hyp:"
+
+msgctxt "Languages::hypay_j5_error_bad_tokef"
+msgid "Hyp returned an unreadable card expiry (Tokef=[tokef])."
+msgstr "Hyp вернул нечитаемый срок действия карты (Tokef=[tokef])."
+
+msgctxt "Languages::hypay_j5_capture_failed"
+msgid "Hyp declined the capture:"
+msgstr "Hyp отклонил списание:"
+
+msgctxt "Languages::hypay_j5_capture_ok"
+msgid "Captured [amount] from the J5 hold."
+msgstr "Списано [amount] из удержания J5."
+
+msgctxt "Languages::hypay_j5_void_ok"
+msgid "The hold was cancelled. The issuer releases the funds within about [days] days."
+msgstr "Удержание отменено. Банк освободит средства примерно в течение [days] дн."
+
+msgctxt "Languages::hypay_j5_pi_authorized"
+msgid "J5 hold [amount] — awaiting capture"
+msgstr "Удержание J5 [amount] — ожидает списания"
+
+msgctxt "Languages::hypay_j5_pi_captured"
+msgid "J5 captured [amount]"
+msgstr "J5: списано [amount]"
+
+msgctxt "Languages::hypay_j5_pi_voided"
+msgid "J5 hold cancelled — not charged"
+msgstr "Удержание J5 отменено — списания не было"
+
+msgctxt "Languages::hypay_j5_note_captured"
+msgid "Hypay J5: captured [amount], transaction [id]"
+msgstr "Hypay J5: списано [amount], транзакция [id]"
+
+msgctxt "Languages::hypay_j5_note_voided"
+msgid "Hypay J5: hold cancelled, no money was taken"
+msgstr "Hypay J5: удержание отменено, деньги не списаны"
+
+msgctxt "Languages::hypay_ez_amount_mismatch"
+msgid "EzCount document was not issued: the order lines add up to [items] but [charged] was charged. Edit the order so the totals match."
+msgstr "Документ EzCount не создан: позиции заказа дают [items], а списано [charged]. Отредактируйте заказ, чтобы суммы совпали."
+
+msgctxt "Languages::hypay_j5"
+msgid "J5 hold"
+msgstr "Удержание J5"
+
+msgctxt "Languages::hypay_j5_pi_hold_until"
+msgid "[amount] held, capture before [date]"
+msgstr "[amount] удержано, списать до [date]"
+
+msgctxt "Languages::hypay_j5_pi_captured_on"
+msgid "[amount] captured on [date]"
+msgstr "[amount] списано [date]"
+
+msgctxt "Languages::hypay_j5_capture_unknown"
+msgid "Hyp did not return a readable answer to the capture request. The hold is left locked: check the transaction in the Hyp control panel before trying again."
+msgstr "Hyp не вернул читаемого ответа на запрос списания. Удержание оставлено заблокированным: проверьте транзакцию в панели Hyp, прежде чем повторять."
+
+msgctxt "Languages::hypay_j5_stuck_capturing"
+msgid "A capture was sent but the answer never arrived. Check the transaction in the Hyp control panel: if it was charged, no further action is needed; if it was not, the hold can be released from here after the state is corrected in the database."
+msgstr "Запрос на списание был отправлен, но ответ не получен. Проверьте транзакцию в панели Hyp: если списание прошло — ничего делать не нужно; если нет — состояние нужно поправить в БД, после чего удержание снова станет доступным."
