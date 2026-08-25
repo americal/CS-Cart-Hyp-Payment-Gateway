@@ -102,8 +102,16 @@ if (defined('PAYMENT_NOTIFICATION')) {
 
         if ($hyp_return_uid === '') {
             // the capture cannot be built without it, so make the gap loud now
-            // instead of at capture time
-            hypay_log($order_id, 'WARNING: no UID in the J5 return', ['keys' => array_keys($_REQUEST)]);
+            // instead of at capture time. The usual cause is a truncated return
+            // URL: Hyp echoes Info/street/city/ClientName back unencoded, and a
+            // "#" in any of them cuts the query string short - UID, Hesh, errMsg
+            // and the signature all sit after Info in Hyp's parameter order. The
+            // raw query string below shows where it stopped.
+            hypay_log($order_id, 'WARNING: no UID in the J5 return', [
+                'keys'         => array_keys($_REQUEST),
+                'query_string' => (string) ($_SERVER['QUERY_STRING'] ?? ''),
+                'Info'         => (string) ($_REQUEST['Info'] ?? ''),
+            ]);
             fn_set_notification('W', __('warning'), __('hypay_j5_warning_no_uid'));
         }
 
@@ -117,11 +125,14 @@ if (defined('PAYMENT_NOTIFICATION')) {
 
         if (!$already_stored) {
             fn_hypay_store_authorization($order_id, [
-                'hyp_id'            => (string) ($_REQUEST['Id'] ?? ''),
-                'acode'             => (string) ($_REQUEST['ACode'] ?? ''),
-                'uid'               => (string) ($_REQUEST['UID'] ?? ''),
+                // the values resolved above, not $_REQUEST directly: Hyp does
+                // not always spell these the way the docs do
+                'hyp_id'            => $hyp_return_id,
+                'acode'             => $hyp_return_acode,
+                'uid'               => $hyp_return_uid,
                 'personal_id'       => $raw_user_id,
-                'client_name'       => (string) ($order_info['firstname'] ?? ''),
+                // the same spelling the authorization was made with
+                'client_name'       => hypay_sanitize_url_echo($order_info['firstname'] ?? ''),
                 'brand'             => $brand_name,
                 'last4'             => $last4,
                 'payments'          => $num_payments,
@@ -270,9 +281,10 @@ $force_en  = ($lang2 === 'ru');
 // === build heshDesc that exactly matches order total ===
 list($heshDesc, $sum_items) = hypay_build_heshdesc($order_info);
 
-// Info template
-$info_tpl = trim((string) ($pp['info'] ?? 'Order #{order_id}'));
-$info_val = str_replace('{order_id}', (string) $order_id, $info_tpl);
+// Info template. Hyp echoes this value straight back into the redirect URL
+// without url-encoding it, so it goes through the sanitizer first - see
+// hypay_sanitize_url_echo().
+$info_val = hypay_build_info($order_id, $pp);
 
 // page language
 $page_lang_setting = $pp['page_lang'] ?? 'auto'; // auto|ENG|HEB
@@ -297,14 +309,16 @@ $params_sign = [
     'Sign'        => hypay_bool($pp['sign']    ?? 'N'),
     'PageLang'    => $page_lang,
 
-    // customer meta
-    'ClientName'  => (string) ($order_info['firstname'] ?? ''),
-    'ClientLName' => (string) ($order_info['lastname']  ?? ''),
+    // customer meta. Hyp echoes ClientName/ClientLName (as Fild1), street and
+    // city back in the redirect URL unencoded, so they are sanitized too: an
+    // address like "Herzl 5 #12" would truncate the return exactly like Info.
+    'ClientName'  => hypay_sanitize_url_echo($order_info['firstname'] ?? ''),
+    'ClientLName' => hypay_sanitize_url_echo($order_info['lastname']  ?? ''),
     'email'       => (string) ($order_info['email']     ?? ''),
     'phone'       => (string) ($order_info['phone']     ?? ''),
     'cell'        => (string) ($order_info['phone']     ?? $order_info['s_phone'] ?? ''),
-    'street'      => (string) ($order_info['s_address'] ?? $order_info['b_address'] ?? ''),
-    'city'        => (string) ($order_info['s_city']    ?? $order_info['b_city']    ?? ''),
+    'street'      => hypay_sanitize_url_echo($order_info['s_address'] ?? $order_info['b_address'] ?? ''),
+    'city'        => hypay_sanitize_url_echo($order_info['s_city']    ?? $order_info['b_city']    ?? ''),
 
     // toggles / UX sprinkles
     'MoreData'    => hypay_bool($pp['moredata'] ?? 'Y'),
