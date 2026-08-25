@@ -61,6 +61,53 @@ For detailed API behavior, refer to the official Hyp documentation.
 
 ---
 
+## 🔒 J5 — two-phase commits (hold now, charge later)
+
+The addon can hold the customer's funds instead of charging them, and charge the
+held amount later from the order page. This follows the Hyp two-phase commit
+flow: [developers.hyp.co.il](https://developers.hyp.co.il/pay/advanced-features/two-phase-commits).
+
+**How it works**
+
+1. **Authorization (J5).** The payment page is opened with `J5=True&MoreData=True`.
+   Hyp returns `CCode=700` together with `Id`, `ACode`, `UserId` and `UID`, and the
+   money is only blocked on the card. No document is issued at this point.
+2. **Card token.** Right after the authorization the addon calls
+   `action=getToken&TransId=<Id>` and stores `Token` / `Tokef`.
+3. **Capture (J4).** From the order page the merchant charges the held amount with
+   `action=soft` (`Token=True`, `CC=<Token>`, `AuthNum=<ACode>`,
+   `inputObj.originalAmount`, `inputObj.originalUid`). The EzCount document is
+   created at this moment, for the amount that was actually charged.
+
+**Per-usergroup behaviour**
+
+The payment method setting **Payment type** offers:
+
+- `Regular charge (J4)` — current behaviour, the card is charged at checkout;
+- `Hold funds (J5) for everyone`;
+- `Hold funds (J5) by usergroup` — customers of the selected usergroups (e.g.
+  `Dealer` / `Shop`) get a J5 hold, everybody else pays as before.
+
+**On the order page**
+
+The *J5 hold* block shows the authorized amount, the authorization number, the
+capture deadline and the current state, plus two buttons:
+
+- **Capture** — charges the current **order total**. To charge less, edit the order
+  first: the capture amount must equal the order total, otherwise the operation is
+  rejected so the EzCount document can never disagree with the money taken.
+  Capturing more than the authorized amount is rejected as well.
+- **Cancel hold** — the authorization is abandoned and never captured; the issuer
+  releases the funds when the authorization window (about 5 days) expires. Hyp does
+  not document a server-to-server release call, so no request is sent for this.
+
+**Data**
+
+Authorizations and captures are stored in `?:hypay_transactions` (kept on uninstall).
+
+
+---
+
 ## ⚠️ Disclaimer
 
 This software is provided **AS IS**, without warranty of any kind.
