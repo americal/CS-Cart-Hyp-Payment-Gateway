@@ -131,8 +131,9 @@ if (defined('PAYMENT_NOTIFICATION')) {
                 'acode'             => $hyp_return_acode,
                 'uid'               => $hyp_return_uid,
                 'personal_id'       => $raw_user_id,
-                // the same spelling the authorization was made with
+                // the same spelling the authorization was made with, both halves
                 'client_name'       => hypay_sanitize_url_echo($order_info['firstname'] ?? ''),
+                'client_lname'      => hypay_sanitize_url_echo($order_info['lastname']  ?? ''),
                 'brand'             => $brand_name,
                 'last4'             => $last4,
                 'payments'          => $num_payments,

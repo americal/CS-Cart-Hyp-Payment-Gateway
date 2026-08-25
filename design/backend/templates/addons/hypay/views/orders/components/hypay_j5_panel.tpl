@@ -46,6 +46,16 @@
 </div>
 {/if}
 
+{if $hypay_j5.uid}
+<div class="control-group">
+    <div class="control-label">{__("hypay_j5_uid")}</div>
+    <div class="controls">
+        <bdi><small>{$hypay_j5.uid}</small></bdi>
+        <p class="muted description">{__("hypay_j5_uid_desc")}</p>
+    </div>
+</div>
+{/if}
+
 {if $hypay_j5.status == "authorized" || $hypay_j5.status == "capturing"}
     <div class="control-group">
         <div class="control-label">{__("hypay_j5_expires_at")}</div>
@@ -147,18 +157,134 @@
 
             {* plain links, not a form: this block lives inside order_info_form *}
             {if $hypay_j5.can_capture}
-                <a class="btn btn-primary cm-post cm-confirm" title="{__("hypay_j5_confirm_capture")}"
-                   href="{"hypay.capture?order_id=`$hypay_j5.order_id`&amount=`$hypay_j5.order_total`"|fn_url}">{__("hypay_j5_btn_capture")}</a>
+                <a class="btn btn-primary cm-post cm-confirm hypay-j5-action" title="{__("hypay_j5_confirm_capture")}"
+                   id="hypay_j5_capture_{$hypay_j5.order_id}"
+                   data-base="{"hypay.capture?order_id=`$hypay_j5.order_id`&amount=`$hypay_j5.order_total`"|fn_url}"
+                   data-label="{__("hypay_j5_btn_capture")}"
+                   href="{"hypay.capture?order_id=`$hypay_j5.order_id`&amount=`$hypay_j5.order_total`&payments=`$hypay_j5.payments`"|fn_url}">{__("hypay_j5_btn_capture")}</a>
             {else}
                 <span class="btn disabled">{__("hypay_j5_btn_capture")}</span>
             {/if}
 
-            <a class="btn cm-post cm-confirm" title="{__("hypay_j5_confirm_void")}"
+            <a class="btn cm-post cm-confirm hypay-j5-action" title="{__("hypay_j5_confirm_void")}"
                href="{"hypay.void?order_id=`$hypay_j5.order_id`"|fn_url}">{__("hypay_j5_btn_void")}</a>
 
             <p class="muted description">{__("hypay_j5_actions_hint")}</p>
         </div>
     </div>
 {/if}
+
+{* ----------------------------------------------------------------------------
+ *  Capture / Cancel hold both make a server-to-server call to Hyp that can take
+ *  a few seconds, and the page does not repaint until it answers. Cover it with
+ *  a "working" overlay so nobody clicks twice, and keep the notification with
+ *  the outcome on screen instead of letting it fade out.
+ * ------------------------------------------------------------------------- *}
+{literal}
+<style>
+.hypay-j5-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(255, 255, 255, .78);
+    z-index: 100000;
+}
+.hypay-j5-overlay__box {
+    position: absolute; top: 45%; left: 50%;
+    margin: 0 0 0 -110px; width: 220px;
+    padding: 22px 16px;
+    background: #fff; border: 1px solid #d9d9d9; border-radius: 4px;
+    box-shadow: 0 2px 14px rgba(0, 0, 0, .18);
+    text-align: center; font-weight: bold;
+}
+.hypay-j5-spinner {
+    display: block; margin: 0 auto 12px;
+    width: 26px; height: 26px;
+    border: 3px solid #e0e0e0; border-top-color: #4a90d9; border-radius: 50%;
+    animation: hypay-j5-spin .8s linear infinite;
+}
+@keyframes hypay-j5-spin { to { transform: rotate(360deg); } }
+</style>
+{/literal}
+
+<div id="hypay_j5_overlay" class="hypay-j5-overlay" style="display: none;">
+    <div class="hypay-j5-overlay__box">
+        <span class="hypay-j5-spinner"></span>
+        <span>{__("hypay_j5_working")}</span>
+    </div>
+</div>
+
+{literal}
+<script type="text/javascript">
+(function () {
+    var overlay = document.getElementById('hypay_j5_overlay');
+    if (!overlay) { return; }
+
+    // the confirmation dialog opens after this click, so arm the overlay here
+    // and only raise it once the page really starts loading Hyp's answer
+    var armed = false;
+    var arm   = function () { armed = true; };
+    var links = document.querySelectorAll('.hypay-j5-action');
+    for (var i = 0; i < links.length; i++) {
+        links[i].addEventListener('click', arm);
+    }
+
+    var show = function () { if (armed) { overlay.style.display = 'block'; } };
+    window.addEventListener('beforeunload', show);
+    window.addEventListener('pagehide', show);
+
+    // returning through the browser cache must not leave it stuck on screen
+    window.addEventListener('pageshow', function () {
+        armed = false;
+        overlay.style.display = 'none';
+    });
+})();
+</script>
+{/literal}
+
+{if $smarty.request.hypay_result}
+{literal}
+<script type="text/javascript">
+(function () {
+    // this page was reached straight from Capture / Cancel hold: the
+    // notification carries the outcome, so it stays until it is closed
+    var unpin = function () {
+        var list = document.querySelectorAll('.cm-auto-hide');
+        for (var i = 0; i < list.length; i++) {
+            list[i].className = list[i].className.replace(/(^|\s)cm-auto-hide(?=\s|$)/g, '');
+        }
+    };
+    unpin();
+    document.addEventListener('DOMContentLoaded', unpin);
+
+    var jq = window.jQuery || window.$;
+    if (!jq || !jq.fn) { return; }
+
+    jq(function () {
+        // the fade-out may already have been scheduled before the class was
+        // stripped, so hold the notification open until it is dismissed
+        var closed = false;
+        jq(document).on('click', '.cm-notification-close, .notification-body .close, .close', function () {
+            closed = true;
+        });
+
+        var stop_at = new Date().getTime() + 60000;
+        var timer = window.setInterval(function () {
+            if (closed || new Date().getTime() > stop_at) {
+                window.clearInterval(timer);
+                return;
+            }
+            unpin();
+            jq('.cm-notification-content, .notification-content').each(function () {
+                var note = jq(this);
+                if (note.is(':hidden') || parseFloat(note.css('opacity')) < 1) {
+                    note.stop(true, true).css('opacity', 1).show();
+                }
+            });
+        }, 250);
+    });
+})();
+</script>
+{/literal}
+{/if}
+
 {/if}
 {/if}

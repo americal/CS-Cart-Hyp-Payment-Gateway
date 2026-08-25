@@ -391,3 +391,15 @@ msgstr "השמירה בוטלה מקומית, אך Hyp לא אישר את הבי
 msgctxt "Languages::hypay_j5_void_not_confirmed_hint"
 msgid "Hyp did not confirm this cancellation through CancelTrans (shown below). The hold is treated as abandoned on our side either way and will never be captured; the issuer releases the funds when the authorization window expires."
 msgstr "Hyp לא אישר את הביטול דרך CancelTrans (הפירוט למטה). מבחינתנו השמירה מבוטלת בכל מקרה ולא תיגבה."
+
+msgctxt "Languages::hypay_j5_working"
+msgid "Contacting Hyp, please wait…"
+msgstr "פונים ל-Hyp, נא להמתין…"
+
+msgctxt "Languages::hypay_j5_uid"
+msgid "Shva UID"
+msgstr "Shva UID"
+
+msgctxt "Languages::hypay_j5_uid_desc"
+msgid "The unique transaction identifier Hyp returned with the authorization. The capture sends it back as inputObj.originalUid, which is how the credit card company recognises the hold being charged."
+msgstr "המזהה הייחודי של העסקה ש-Hyp החזיר עם האישור. בגבייה הוא נשלח בחזרה כ-inputObj.originalUid, וכך חברת האשראי מזהה את השמירה הנגבית."

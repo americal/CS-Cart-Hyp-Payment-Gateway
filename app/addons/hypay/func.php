@@ -65,6 +65,7 @@ function fn_hypay_ensure_schema()
         . " uid varchar(64) NOT NULL default '',"
         . " personal_id varchar(32) NOT NULL default '',"
         . " client_name varchar(128) NOT NULL default '',"
+        . " client_lname varchar(128) NOT NULL default '',"
         . " card_token varchar(64) NOT NULL default '',"
         . " card_tokef varchar(8) NOT NULL default '',"
         . " brand varchar(32) NOT NULL default '',"
@@ -88,8 +89,16 @@ function fn_hypay_ensure_schema()
 
     // columns added after the first release: add them to existing installations
     $columns = db_get_fields("SHOW COLUMNS FROM ?:hypay_transactions");
-    if ($columns && !in_array('payments_captured', $columns, true)) {
-        db_query("ALTER TABLE ?:hypay_transactions ADD payments_captured smallint(5) unsigned NOT NULL default '0'");
+    if (!$columns) { return; }
+
+    $added = [
+        'payments_captured' => "smallint(5) unsigned NOT NULL default '0'",
+        'client_lname'      => "varchar(128) NOT NULL default ''",
+    ];
+    foreach ($added as $column => $definition) {
+        if (!in_array($column, $columns, true)) {
+            db_query('ALTER TABLE ?:hypay_transactions ADD ' . $column . ' ' . $definition);
+        }
     }
 }
 
@@ -1410,12 +1419,21 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null)
         return false;
     }
 
+    // The capture is a transaction of its own (Hyp has no "commit the held one"
+    // call): action=soft charges the card token and points Shva back at the
+    // authorization through AuthNum + inputObj.originalUid + originalAmount.
+    // That is why the acquirer shows a second row next to the CCode=700 one -
+    // the hold stays as the authorization record and the new row is the charge.
     $params = [
         'action'                          => 'soft',
         'Masof'                           => trim((string) ($pp['masof'] ?? '')),
         'PassP'                           => trim((string) ($pp['passp'] ?? '')),
         'UserId'                          => $tx['personal_id'] !== '' ? $tx['personal_id'] : '000000000',
-        'ClientName'                      => (string) ($tx['client_name'] ?: ($order_info['firstname'] ?? '')),
+        // both halves of the name, exactly as the authorization was made: with
+        // ClientName alone the acquirer shows the charge under the first name
+        // only, which does not match the CCode=700 row next to it
+        'ClientName'                      => (string) ($tx['client_name']  ?: ($order_info['firstname'] ?? '')),
+        'ClientLName'                     => (string) ($tx['client_lname'] ?? '') ?: (string) ($order_info['lastname'] ?? ''),
         'Token'                           => 'True',
         'CC'                              => $token,
         'Tmonth'                          => $expiry['month'],
@@ -1424,14 +1442,16 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null)
         // same representation the payment page request uses (Amount=150, not 150.00)
         'Amount'                          => round($amount, 2),
         'Info'                            => hypay_build_info($order_id, $pp),
+        'Coin'                            => max(1, (int) $tx['coin']),
+        // the same encoding flags the payment page request was signed with, so
+        // a Hebrew name is not mangled and errMsg comes back readable
+        'UTF8'                            => hypay_bool($pp['utf8']    ?? 'Y'),
+        'UTF8out'                         => hypay_bool($pp['utf8out'] ?? 'Y'),
         // the original authorization, in currency subunits (agorot)
         'inputObj.originalAmount'         => (int) round($authorized * 100),
         'inputObj.originalUid'            => (string) $tx['uid'],
         'inputObj.authorizationCodeManpik' => 7,
     ];
-    if ((int) $tx['coin'] > 1) {
-        $params['Coin'] = (int) $tx['coin'];
-    }
     if ($payments > 1) {
         // charge in the same number of instalments the customer agreed to
         $params['Tash'] = $payments;
@@ -1439,6 +1459,19 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null)
             $params['tashType'] = (int) $pp['tashtype'];
         }
     }
+
+    // the authorization this capture points back at - the three values Shva
+    // matches against the held transaction, spelled out so a refusal (CCode=4)
+    // can be compared with the CCode=700 row in the Hyp control panel
+    hypay_log($order_id, 'j5.capture references authorization', [
+        'hyp_id'                  => $tx['hyp_id'],
+        'AuthNum'                 => $tx['acode'],
+        'inputObj.originalUid'    => $tx['uid'],
+        'inputObj.originalAmount' => $params['inputObj.originalAmount'],
+        'Amount'                  => $params['Amount'],
+        'Tmonth/Tyear'            => $expiry['month'] . '/' . $expiry['year'],
+        'Tokef'                   => $tokef,
+    ]);
 
     $result   = fn_hypay_api_request($order_id, $params, 'j5.capture');
     $response = $result['params'];
@@ -1656,6 +1689,9 @@ function fn_hypay_get_j5_panel_data($order_id)
         'status'            => $tx['status'],
         'hyp_id'            => $tx['hyp_id'],
         'acode'             => $tx['acode'],
+        // shown in the panel so the values the capture sends back to Shva can be
+        // compared with the CCode=700 row in the Hyp control panel
+        'uid'               => (string) $tx['uid'],
         'has_token'         => ($tx['card_token'] !== ''),
         'amount_authorized' => $authorized,
         'amount_captured'   => round((float) $tx['amount_captured'], 2),
