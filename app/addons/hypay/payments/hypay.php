@@ -73,11 +73,17 @@ if (defined('PAYMENT_NOTIFICATION')) {
     // brand mapping (Hypay codes → human names)
     $brand_name = hypay_brand_name($_REQUEST['Brand'] ?? '');
 
+    // identifiers from the redirect, under any spelling Hyp may use for them
+    $hyp_return_id    = hypay_request_value(['Id', 'TransId']);
+    $hyp_return_acode = hypay_request_value(['ACode', 'AuthNum']);
+    $hyp_return_uid   = hypay_request_value(['UID', 'Uid', 'cgUid', 'CGUID', 'uniqueId']);
+    $hyp_return_user  = hypay_request_value(['UserId', 'personalId', 'Id_Number']);
+
     // sanitize personal ID (display value)
-    $clean_user_id = hypay_clean_personal_id($_REQUEST['UserId'] ?? '');
+    $clean_user_id = hypay_clean_personal_id($hyp_return_user);
 
     // ...and the raw one, which is what the capture request must send back
-    $raw_user_id = preg_replace('/\D+/', '', ltrim((string) ($_REQUEST['UserId'] ?? ''), 'L'));
+    $raw_user_id = preg_replace('/\D+/', '', ltrim($hyp_return_user, 'L'));
     if ($raw_user_id === '') { $raw_user_id = '000000000'; }
 
     $last4        = isset($_REQUEST['L4digit']) ? preg_replace('/\D+/', '', (string) $_REQUEST['L4digit']) : '';
@@ -92,7 +98,14 @@ if (defined('PAYMENT_NOTIFICATION')) {
             : round((float) $order_info['total'], 2);
 
         $hold_days  = fn_hypay_hold_days($pp);
-        $hyp_id     = (string) ($_REQUEST['Id'] ?? '');
+        $hyp_id     = $hyp_return_id;
+
+        if ($hyp_return_uid === '') {
+            // the capture cannot be built without it, so make the gap loud now
+            // instead of at capture time
+            hypay_log($order_id, 'WARNING: no UID in the J5 return', ['keys' => array_keys($_REQUEST)]);
+            fn_set_notification('W', __('warning'), __('hypay_j5_warning_no_uid'));
+        }
 
         // the customer may land on this URL more than once (refresh, back button):
         // one authorization must produce exactly one row
@@ -123,7 +136,7 @@ if (defined('PAYMENT_NOTIFICATION')) {
             // step 2 of the two-phase commit: grab the card token right away, so the
             // capture in the admin panel has everything it needs
             $token_error = '';
-            $token_data  = fn_hypay_fetch_card_token($order_id, $pp, $_REQUEST['Id'] ?? '', $token_error);
+            $token_data  = fn_hypay_fetch_card_token($order_id, $pp, $hyp_id, $token_error);
             if ($token_data !== false) {
                 fn_hypay_update_transaction($tx['transaction_id'], [
                     'card_token' => $token_data['token'],
@@ -145,7 +158,7 @@ if (defined('PAYMENT_NOTIFICATION')) {
             $pp_response = [];
         } else {
             $pp_response = [
-                'transaction_id' => (string) ($_REQUEST['Id'] ?? ''),
+                'transaction_id' => $hyp_id,
                 'reason_text'    => '🟡 ' . __('hypay_j5_pi_authorized', ['[amount]' => number_format($authorized, 2, '.', '')]),
                 'hypay_j5'       => __('hypay_j5_pi_hold_until', [
                     '[amount]' => number_format($authorized, 2, '.', ''),

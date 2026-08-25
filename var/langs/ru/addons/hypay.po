@@ -565,3 +565,31 @@ msgstr "В авторизации нет данных, необходимых д
 msgctxt "Languages::hypay_j5_pi_voided_on"
 msgid "[amount] hold released on [date]"
 msgstr "Удержание [amount] снято [date]"
+
+msgctxt "Languages::hypay_j5_warning_no_uid"
+msgid "Hyp did not return UID with the authorization, so this hold cannot be captured. Enable debug mode and check hypay_ezcount.log for the parameters that did come back, then ask Hyp to enable UID for the terminal."
+msgstr "Hyp не вернул UID вместе с авторизацией — списать это удержание не получится. Включите debug-режим и посмотрите в hypay_ezcount.log, какие параметры пришли, затем запросите у Hyp включение UID для терминала."
+
+msgctxt "Languages::hypay_j5_pi_voided_confirmed"
+msgid "J5 hold cancelled on Hyp — not charged"
+msgstr "Удержание J5 отменено на стороне Hyp — списания не было"
+
+msgctxt "Languages::hypay_j5_note_voided_confirmed"
+msgid "Hypay J5: cancelled via CancelTrans, Hyp confirmed the funds were released"
+msgstr "Hypay J5: удержание отменено через CancelTrans, Hyp подтвердил освобождение средств"
+
+msgctxt "Languages::hypay_j5_note_voided_unconfirmed"
+msgid "Hypay J5: hold marked cancelled locally, Hyp did not confirm it ([detail]). The issuer releases the funds when the authorization window expires."
+msgstr "Hypay J5: удержание отменено локально, Hyp не подтвердил отмену ([detail]). Банк освободит средства по истечении срока удержания."
+
+msgctxt "Languages::hypay_j5_void_ok_confirmed"
+msgid "Hyp confirmed the hold was cancelled — the funds were released immediately."
+msgstr "Hyp подтвердил отмену удержания — средства освобождены сразу."
+
+msgctxt "Languages::hypay_j5_void_ok_unconfirmed"
+msgid "The hold was cancelled locally, but Hyp could not confirm the cancellation (it may already be near its authorization window). The issuer releases the funds within about [days] days."
+msgstr "Удержание отменено локально, но Hyp не подтвердил отмену (возможно, срок удержания уже истекает). Банк освободит средства примерно в течение [days] дн."
+
+msgctxt "Languages::hypay_j5_void_not_confirmed_hint"
+msgid "Hyp did not confirm this cancellation through CancelTrans (shown below). The hold is treated as abandoned on our side either way and will never be captured; the issuer releases the funds when the authorization window expires."
+msgstr "Hyp не подтвердил отмену через CancelTrans (текст ниже). Удержание в любом случае считается отменённым с нашей стороны и списано не будет; банк освободит средства по истечении срока удержания."

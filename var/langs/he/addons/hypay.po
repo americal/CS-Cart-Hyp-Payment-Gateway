@@ -363,3 +363,31 @@ msgstr "באישור חסרים נתונים הדרושים לגבייה ([field
 msgctxt "Languages::hypay_j5_pi_voided_on"
 msgid "[amount] hold released on [date]"
 msgstr "שמירה של [amount] בוטלה בתאריך [date]"
+
+msgctxt "Languages::hypay_j5_warning_no_uid"
+msgid "Hyp did not return UID with the authorization, so this hold cannot be captured. Enable debug mode and check hypay_ezcount.log for the parameters that did come back, then ask Hyp to enable UID for the terminal."
+msgstr "Hyp לא החזיר UID עם האישור, ולכן לא ניתן לגבות את השמירה הזו. הפעילו מצב debug ובדקו ב-hypay_ezcount.log אילו פרמטרים כן חזרו."
+
+msgctxt "Languages::hypay_j5_pi_voided_confirmed"
+msgid "J5 hold cancelled on Hyp — not charged"
+msgstr "שמירת J5 בוטלה אצל Hyp — לא בוצע חיוב"
+
+msgctxt "Languages::hypay_j5_note_voided_confirmed"
+msgid "Hypay J5: cancelled via CancelTrans, Hyp confirmed the funds were released"
+msgstr "Hypay J5: בוטל דרך CancelTrans, Hyp אישר את שחרור הכספים"
+
+msgctxt "Languages::hypay_j5_note_voided_unconfirmed"
+msgid "Hypay J5: hold marked cancelled locally, Hyp did not confirm it ([detail]). The issuer releases the funds when the authorization window expires."
+msgstr "Hypay J5: השמירה סומנה כמבוטלת מקומית, Hyp לא אישר זאת ([detail])."
+
+msgctxt "Languages::hypay_j5_void_ok_confirmed"
+msgid "Hyp confirmed the hold was cancelled — the funds were released immediately."
+msgstr "Hyp אישר שהשמירה בוטלה — הכספים שוחררו מיד."
+
+msgctxt "Languages::hypay_j5_void_ok_unconfirmed"
+msgid "The hold was cancelled locally, but Hyp could not confirm the cancellation (it may already be near its authorization window). The issuer releases the funds within about [days] days."
+msgstr "השמירה בוטלה מקומית, אך Hyp לא אישר את הביטול. הכספים ישוחררו תוך כ-[days] ימים."
+
+msgctxt "Languages::hypay_j5_void_not_confirmed_hint"
+msgid "Hyp did not confirm this cancellation through CancelTrans (shown below). The hold is treated as abandoned on our side either way and will never be captured; the issuer releases the funds when the authorization window expires."
+msgstr "Hyp לא אישר את הביטול דרך CancelTrans (הפירוט למטה). מבחינתנו השמירה מבוטלת בכל מקרה ולא תיגבה."
