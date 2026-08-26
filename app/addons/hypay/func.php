@@ -1565,16 +1565,18 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null)
  * nothing, so 404 here means the reversal found nothing to act on, matching
  * CCode=920. Decoding it that way only produced a misleading message.
  *
+ * @param array $extra additional lookup keys beyond the documented four
+ *
  * @return array [state, detail] where state is confirmed | not_cancellable | failed
  */
-function fn_hypay_cancel_trans($order_id, array $pp, $trans_id)
+function fn_hypay_cancel_trans($order_id, array $pp, $trans_id, array $extra = [])
 {
-    $result = fn_hypay_api_request($order_id, [
+    $result = fn_hypay_api_request($order_id, array_merge([
         'action'  => 'CancelTrans',
         'Masof'   => trim((string) ($pp['masof'] ?? '')),
         'PassP'   => trim((string) ($pp['passp'] ?? '')),
         'TransId' => (string) $trans_id,
-    ], 'j5.cancel');
+    ], $extra), 'j5.cancel');
 
     $response = $result['params'];
     $ccode    = isset($response['CCode']) ? (string) $response['CCode'] : '';
@@ -1640,17 +1642,38 @@ function fn_hypay_void_j5($order_id)
 
     // action=CancelTrans asks Hyp to reverse the deal, so the customer sees the
     // hold drop off their card instead of waiting out the authorization window.
-    // On terminal 0010334524 every J5 hold comes back CCode=920 with
-    // ReversalStatus=404 - with and without the payment count on the request,
-    // and with one instalment as well as several - so this terminal appears not
-    // to expose held authorizations to the reversal command at all. The call is
-    // still made: it costs one request, and it is the documented way to release
-    // a hold where the terminal does support it.
+    // On terminal 0010334524 the documented call comes back CCode=920 with
+    // ReversalStatus=404 for every hold, which reads as "nothing found to
+    // reverse".
+    //
+    // The Enterprise reference explains why that is plausible: there, a
+    // reversal looked up by tranId "will search for the original debit
+    // transaction by this ID", while cgUid - the identifier shared by every
+    // step of one financial transaction, two-phase commits included - finds the
+    // latest state of the transaction itself. A J5 hold is not a debit
+    // transaction, so a lookup meant for one can miss it. Pay's TransId is the
+    // step identifier; the Shva UID is the value that spans the whole
+    // transaction, and Pay already names it inputObj.originalUid in the capture
+    // request.
+    //
+    // So a hold refused with CCode=920 is retried once with the UID as the
+    // lookup key, under both spellings that value goes by here. This is not in
+    // the Pay reference for CancelTrans - it is a hypothesis that matches the
+    // symptom - and it only ever runs after the documented call was refused.
     $cancel_state = 'not_attempted';
     $hyp_detail   = '';
 
     if ($tx['hyp_id'] !== '') {
         list($cancel_state, $hyp_detail) = fn_hypay_cancel_trans($order_id, $pp, $tx['hyp_id']);
+
+        if ($cancel_state === 'not_cancellable' && (string) $tx['uid'] !== '') {
+            hypay_log($order_id, 'j5.cancel retrying with the Shva UID as the lookup key', ['uid' => $tx['uid']]);
+
+            list($cancel_state, $hyp_detail) = fn_hypay_cancel_trans($order_id, $pp, $tx['hyp_id'], [
+                'inputObj.originalUid' => (string) $tx['uid'],
+                'UID'                  => (string) $tx['uid'],
+            ]);
+        }
     } else {
         $cancel_state = 'failed';
         $hyp_detail   = 'no authorization Id stored, CancelTrans was not attempted';
