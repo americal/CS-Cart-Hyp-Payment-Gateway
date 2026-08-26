@@ -304,6 +304,10 @@ msgctxt "Languages::hypay_j5_confirm_void"
 msgid "Cancel the hold? The money will not be taken."
 msgstr "לבטל את השמירה? הכסף לא ייגבה."
 
+msgctxt "Languages::hypay_j5_actions_hint_short"
+msgid "Capture charges the current order total."
+msgstr "הגבייה מבוצעת לפי סכום ההזמנה הנוכחי."
+
 msgctxt "Languages::hypay_j5_actions_hint"
 msgid "To capture a smaller amount, edit the order first: the capture always uses the current order total, so the EzCount document matches the money actually taken."
 msgstr "כדי לגבות סכום נמוך יותר, ערכו תחילה את ההזמנה: הגבייה תמיד לפי סה\"כ ההזמנה הנוכחי."
@@ -475,6 +479,10 @@ msgstr "Hypay J5: השמירה בוטלה אצלנו. Hyp אינו מבטל שמ
 msgctxt "Languages::hypay_j5_void_instalments_hint"
 msgid "This hold was taken in instalments, and Hyp does not reverse those through CancelTrans - a single-payment hold is released immediately, an instalment one is refused whatever payment details the request carries. Nothing was charged and the hold can never be captured; the issuer releases the funds when the authorization window ends, within about [days] days."
 msgstr "השמירה נלקחה בתשלומים, ו-Hyp אינו מבטל כאלה דרך CancelTrans. לא בוצע חיוב ולא ניתן לגבות את השמירה; הכספים ישוחררו תוך כ-[days] ימים."
+
+msgctxt "Languages::hypay_j5_void_instalments_notice_short"
+msgid "An instalment hold is not released early."
+msgstr "שמירה בתשלומים אינה משוחררת מוקדם."
 
 msgctxt "Languages::hypay_j5_void_instalments_notice"
 msgid "Cancelling: this hold was taken in more than one payment, and Hyp does not release those early — cancelling still guarantees it is never captured, but the funds stay held until the authorization window ends, within about [days] days. A single-payment hold is released immediately."

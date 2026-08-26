@@ -176,10 +176,18 @@
             <a class="btn cm-post cm-confirm hypay-j5-action" title="{__("hypay_j5_confirm_void")}"
                href="{"hypay.void?order_id=`$hypay_j5.order_id`"|fn_url}">{__("hypay_j5_btn_void")}</a>
 
-            <p class="muted description">{__("hypay_j5_actions_hint")}</p>
+            {* one short line each, with the full explanation on the marker. The
+               text goes through capture + escape rather than straight into the
+               attribute: at least one translation contains a double quote
+               (Hebrew writes a total as סה"כ) and would end the attribute early. *}
+            {capture name="hypay_hint_capture"}{__("hypay_j5_actions_hint")}{/capture}
+            <p class="muted description">{__("hypay_j5_actions_hint_short")}<span
+                class="cm-tooltip hypay-j5-hint" title="{$smarty.capture.hypay_hint_capture|escape}">i</span></p>
 
             {if $hypay_j5.payments > 1}
-                <p class="muted description">{__("hypay_j5_void_instalments_notice", ["[days]" => $hypay_j5.hold_days])}</p>
+                {capture name="hypay_hint_void"}{__("hypay_j5_void_instalments_notice", ["[days]" => $hypay_j5.hold_days])}{/capture}
+                <p class="muted description">{__("hypay_j5_void_instalments_notice_short")}<span
+                    class="cm-tooltip hypay-j5-hint" title="{$smarty.capture.hypay_hint_void|escape}">i</span></p>
             {/if}
         </div>
     </div>
@@ -213,6 +221,18 @@
     animation: hypay-j5-spin .8s linear infinite;
 }
 @keyframes hypay-j5-spin { to { transform: rotate(360deg); } }
+
+/* the "i" marker carrying a hint too long to keep on screen */
+.hypay-j5-hint {
+    display: inline-block;
+    width: 14px; height: 14px;
+    margin: 0 4px;                 /* not margin-left: the admin may be RTL */
+    border: 1px solid #b6b6b6; border-radius: 50%;
+    background: #fff; color: #6b6b6b;
+    font: bold 10px/14px sans-serif;
+    text-align: center; vertical-align: middle;
+    cursor: help;
+}
 </style>
 {/literal}
 

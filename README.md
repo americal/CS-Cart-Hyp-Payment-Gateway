@@ -189,6 +189,10 @@ The row is only dropped where that panel actually renders. On the order list,
 printable documents and the storefront it stays, since there is nothing else
 there to say the order is holding money.
 
+The two long hints under the Capture / Cancel hold buttons are down to one line
+each, with the full wording moved onto an `i` marker beside them — hover it and
+the whole explanation appears. Nothing was cut, only folded away.
+
 The panel's *UID* row now appears only while the payment method has debug mode
 on. It is what a stuck capture gets diagnosed with, which is exactly when debug
 mode is on anyway; the rest of the time it was a long opaque string occupying a
