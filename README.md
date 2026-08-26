@@ -55,6 +55,7 @@ The addon provides configuration options for:
 - Sandbox / Production mode
 - Order ID prefix
 - Authorization / capture behavior
+- EzCount document line items — itemized products or the order number alone
 - Additional Hyp-specific parameters
 
 For detailed API behavior, refer to the official Hyp documentation.
@@ -78,6 +79,21 @@ flow: [developers.hyp.co.il](https://developers.hyp.co.il/pay/advanced-features/
    `action=soft` (`Token=True`, `CC=<Token>`, `AuthNum=<ACode>`,
    `inputObj.originalAmount`, `inputObj.originalUid`). The EzCount document is
    created at this moment, for the amount that was actually charged.
+
+**What the document says**
+
+The EzCount (Direct API) setting **Document line items** decides how the document
+is filled in:
+
+- `List products` (default) — a line per product, plus shipping, payment
+  surcharge, discounts, redeemed gift certificates and a rounding adjustment so
+  the lines add up to the order total exactly;
+- `Order number only` — a single line naming the order (`Order #1234`), priced at
+  the order total.
+
+The setting applies to every document issued through the direct API, so the J5
+capture document and the regular J4 checkout document stay consistent with each
+other.
 
 **Per-usergroup behaviour**
 

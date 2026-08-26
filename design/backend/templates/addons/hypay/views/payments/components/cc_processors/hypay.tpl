@@ -410,6 +410,19 @@
         </div>
     </div>
 
+    {* Line items: itemized products or a single order line *}
+    {assign var="ez_line_items_mode" value=$processor_params.ez_line_items_mode|default:"list_products"}
+    <div class="control-group">
+        <label class="control-label" for="ez_line_items_mode">{__("hypay_ez_line_items_mode")}</label>
+        <div class="controls">
+            <select name="payment_data[processor_params][ez_line_items_mode]" id="ez_line_items_mode" class="input-large">
+                <option value="list_products" {if $ez_line_items_mode == "list_products"}selected="selected"{/if}>{__("hypay_ez_line_items_mode_products")}</option>
+                <option value="list_orders" {if $ez_line_items_mode == "list_orders"}selected="selected"{/if}>{__("hypay_ez_line_items_mode_orders")}</option>
+            </select>
+            <p class="muted description">{__("hypay_ez_line_items_mode_desc")}</p>
+        </div>
+    </div>
+
     {* Show items including VAT (0/1) *}
     <div class="control-group">
         <label class="control-label" for="ez_show_items_including_vat">{__("hypay_ez_show_items_including_vat")}</label>

@@ -277,6 +277,22 @@ msgctxt "Languages::hypay_ez_doc_lang_desc"
 msgid "he — иврит (по умолчанию), en — английский."
 msgstr "he — иврит (по умолчанию), en — английский."
 
+msgctxt "Languages::hypay_ez_line_items_mode"
+msgid "Document line items"
+msgstr "Состав документа"
+
+msgctxt "Languages::hypay_ez_line_items_mode_products"
+msgid "List products"
+msgstr "Расписывать товары"
+
+msgctxt "Languages::hypay_ez_line_items_mode_orders"
+msgid "Order number only"
+msgstr "Только номер заказа"
+
+msgctxt "Languages::hypay_ez_line_items_mode_desc"
+msgid "How the document issued through the direct API is itemized, including the one issued when a J5 authorization is captured. List products: a line per product plus shipping, payment surcharge, discounts and the rounding adjustment. Order number only: a single line naming the order, priced at the order total."
+msgstr "Чем заполняется документ, выписанный через direct API, в том числе при списании J5-авторизации. Расписывать товары: строка на каждый товар плюс доставка, комиссия, скидки и округление. Только номер заказа: одна строка с номером заказа на всю его сумму."
+
 msgctxt "Languages::hypay_ez_show_items_including_vat"
 msgid "Show items including VAT"
 msgstr "Показывать позиции с НДС"

@@ -73,6 +73,22 @@ msgctxt "Languages::hypay_ez_auto_calc_payments_desc"
 msgid "When enabled, the request sends auto_calc_payments=1 in the payment block."
 msgstr "כאשר מופעל, הבקשה שולחת auto_calc_payments=1 בבלוק התשלום."
 
+msgctxt "Languages::hypay_ez_line_items_mode"
+msgid "Document line items"
+msgstr "פירוט שורות המסמך"
+
+msgctxt "Languages::hypay_ez_line_items_mode_products"
+msgid "List products"
+msgstr "פירוט מוצרים"
+
+msgctxt "Languages::hypay_ez_line_items_mode_orders"
+msgid "Order number only"
+msgstr "מספר הזמנה בלבד"
+
+msgctxt "Languages::hypay_ez_line_items_mode_desc"
+msgid "How the document issued through the direct API is itemized, including the one issued when a J5 authorization is captured. List products: a line per product plus shipping, payment surcharge, discounts and the rounding adjustment. Order number only: a single line naming the order, priced at the order total."
+msgstr "כיצד מפורט המסמך שמופק דרך ה-API הישיר, לרבות המסמך שמופק בעת חיוב אישור J5. פירוט מוצרים: שורה לכל מוצר בצירוף משלוח, עמלת תשלום, הנחות ועיגול סכום. מספר הזמנה בלבד: שורה אחת עם מספר ההזמנה על סכום ההזמנה המלא."
+
 # Errors
 msgctxt "Languages::hypay_error_invalid_response"
 msgid "Invalid response from Hypay"

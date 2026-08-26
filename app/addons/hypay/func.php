@@ -519,13 +519,50 @@ function hypay_build_heshdesc($order_info) {
     return [$heshDesc, $sum_items];
 }
 
-/** Build EzCount items so sum == order_total including discounts/surcharges/rounding */
-function hypay_build_ez_items($order_info) {
+/**
+ * Which line items a Direct API document is made of.
+ *
+ * list_products - one line per product, plus shipping, surcharge, discounts and
+ *                 the rounding adjustment (the default, unchanged behaviour).
+ * list_orders   - a single line naming the order, priced at the order total.
+ *
+ * @return bool true when the document should itemize the products
+ */
+function hypay_ez_is_list_products_mode(array $pp)
+{
+    $mode = trim((string) ($pp['ez_line_items_mode'] ?? ''));
+
+    return $mode !== 'list_orders';
+}
+
+/**
+ * Build EzCount items so sum == order_total including discounts/surcharges/rounding.
+ *
+ * @param bool $list_products false to collapse the whole order into one line
+ */
+function hypay_build_ez_items($order_info, $list_products = true) {
     $lang2    = hypay_lang2_from_order($order_info);
     $force_en = ($lang2 === 'ru');
 
     $items    = [];
     $sum_items = 0.0;
+
+    // one line for the whole order: nothing to sum up, nothing to round off
+    if (!$list_products) {
+        $order_total = round((float) $order_info['total'], 2);
+        $order_label = ($lang2 === 'he')
+            ? ('הזמנה מס\' ' . (int) $order_info['order_id'])
+            : ('Order #' . (int) $order_info['order_id']);
+
+        $items[] = [
+            'details'  => $order_label,
+            'price'    => $order_total,
+            'amount'   => 1,
+            'vat_type' => 'INC',
+        ];
+
+        return [$items, $order_total];
+    }
 
     // products
     if (!empty($order_info['products'])) {
@@ -665,11 +702,16 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
     $show_inc_vat       = isset($pp['ez_show_items_including_vat']) ? (int) (!empty($pp['ez_show_items_including_vat'])) : 1;
     $doc_lang           = ($pp['ez_doc_lang'] ?? 'he') === 'en' ? 'en' : 'he';
     $auto_calc          = isset($pp['ez_auto_calc_payments']) ? (int) (!empty($pp['ez_auto_calc_payments'])) : 0;
+    $list_products      = hypay_ez_is_list_products_mode($pp);
 
     $amount = round((float) ($ctx['amount'] ?? $order_info['total']), 2);
 
     // 1) line items (vat_type=INC), using unified builder so totals match
-    list($items, $items_sum) = hypay_build_ez_items($order_info);
+    list($items, $items_sum) = hypay_build_ez_items($order_info, $list_products);
+    hypay_log($order_id, 'ezcount.line_items_mode', [
+        'mode'  => $list_products ? 'list_products' : 'list_orders',
+        'lines' => count($items),
+    ]);
 
     // The document must never disagree with the money actually charged.
     if (abs(round($items_sum, 2) - $amount) > 0.01) {
