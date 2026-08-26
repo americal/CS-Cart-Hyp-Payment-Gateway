@@ -74,8 +74,8 @@ msgid "When enabled, the request sends auto_calc_payments=1 in the payment block
 msgstr "כאשר מופעל, הבקשה שולחת auto_calc_payments=1 בבלוק התשלום."
 
 msgctxt "Languages::hypay_ez_line_items_mode"
-msgid "Document line items"
-msgstr "פירוט שורות המסמך"
+msgid "Document line items: regular deals"
+msgstr "פירוט שורות המסמך: עסקאות רגילות"
 
 msgctxt "Languages::hypay_ez_line_items_mode_products"
 msgid "List products"
@@ -86,8 +86,20 @@ msgid "Order number only"
 msgstr "מספר הזמנה בלבד"
 
 msgctxt "Languages::hypay_ez_line_items_mode_desc"
-msgid "How the document issued through the direct API is itemized, including the one issued when a J5 authorization is captured. List products: a line per product plus shipping, payment surcharge, discounts and the rounding adjustment. Order number only: a single line naming the order, priced at the order total."
-msgstr "כיצד מפורט המסמך שמופק דרך ה-API הישיר, לרבות המסמך שמופק בעת חיוב אישור J5. פירוט מוצרים: שורה לכל מוצר בצירוף משלוח, עמלת תשלום, הנחות ועיגול סכום. מספר הזמנה בלבד: שורה אחת עם מספר ההזמנה על סכום ההזמנה המלא."
+msgid "How a document issued at regular checkout is itemized. List products: a line per product plus shipping, payment surcharge, discounts and the rounding adjustment. Order number only: a single line reading Order #1234, priced at the order total."
+msgstr "כיצד מפורט המסמך שמופק בתשלום רגיל. פירוט מוצרים: שורה לכל מוצר בצירוף משלוח, עמלת תשלום, הנחות ועיגול סכום. מספר הזמנה בלבד: שורה אחת בנוסח Order #1234 על מלוא סכום ההזמנה."
+
+msgctxt "Languages::hypay_ez_line_items_mode_j5"
+msgid "Document line items: J5 (after capture)"
+msgstr "פירוט שורות המסמך: עסקאות J5 (לאחר חיוב)"
+
+msgctxt "Languages::hypay_ez_line_items_mode_j5_inherit"
+msgid "Same as regular deals"
+msgstr "כמו בעסקאות רגילות"
+
+msgctxt "Languages::hypay_ez_line_items_mode_j5_desc"
+msgid "The same choice for the document issued when a J5 authorization is captured, days after checkout. Left at \"same as regular deals\" it follows the setting above, so an install that had one setting keeps behaving as it did."
+msgstr "אותה בחירה עבור המסמך שמופק בעת חיוב אישור J5, ימים לאחר ההזמנה. בערך \"כמו בעסקאות רגילות\" תיושם ההגדרה שלמעלה, כך שהתנהגות התקנה קיימת אינה משתנה."
 
 # Errors
 msgctxt "Languages::hypay_error_invalid_response"

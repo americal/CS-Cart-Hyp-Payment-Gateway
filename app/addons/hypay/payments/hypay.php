@@ -231,6 +231,7 @@ if (defined('PAYMENT_NOTIFICATION')) {
                     'last4'          => $last4,
                     'payments'       => $num_payments,
                     'amount'         => round((float) $order_info['total'], 2),
+                    'flow'           => 'regular',
                 ]);
             }
         }

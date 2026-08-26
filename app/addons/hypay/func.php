@@ -526,14 +526,30 @@ function hypay_build_heshdesc($order_info) {
  * Which line items a Direct API document is made of.
  *
  * list_products - one line per product, plus shipping, surcharge, discounts and
- *                 the rounding adjustment (the default, unchanged behaviour).
+ *                 the rounding adjustment (the default).
  * list_orders   - a single line naming the order, priced at the order total.
+ *
+ * A J5 document is issued at capture, days after the customer checked out, and
+ * often for a different audience than a regular checkout receipt - so it gets
+ * its own setting. That setting starts out empty and follows the regular one
+ * until somebody chooses otherwise: an install that had picked list_orders
+ * before this split keeps issuing list_orders on both paths.
+ *
+ * @param string $flow 'j5' for the document issued after a capture
  *
  * @return bool true when the document should itemize the products
  */
-function hypay_ez_is_list_products_mode(array $pp)
+function hypay_ez_is_list_products_mode(array $pp, $flow = 'regular')
 {
-    $mode = trim((string) ($pp['ez_line_items_mode'] ?? ''));
+    $mode = '';
+
+    if ($flow === 'j5') {
+        $mode = trim((string) ($pp['ez_line_items_mode_j5'] ?? ''));
+    }
+
+    if ($mode === '') {
+        $mode = trim((string) ($pp['ez_line_items_mode'] ?? ''));
+    }
 
     return $mode !== 'list_orders';
 }
@@ -707,13 +723,15 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
     $show_inc_vat       = isset($pp['ez_show_items_including_vat']) ? (int) (!empty($pp['ez_show_items_including_vat'])) : 1;
     $doc_lang           = ($pp['ez_doc_lang'] ?? 'he') === 'en' ? 'en' : 'he';
     $auto_calc          = isset($pp['ez_auto_calc_payments']) ? (int) (!empty($pp['ez_auto_calc_payments'])) : 0;
-    $list_products      = hypay_ez_is_list_products_mode($pp);
+    $flow               = ($ctx['flow'] ?? 'regular') === 'j5' ? 'j5' : 'regular';
+    $list_products      = hypay_ez_is_list_products_mode($pp, $flow);
 
     $amount = round((float) ($ctx['amount'] ?? $order_info['total']), 2);
 
     // 1) line items (vat_type=INC), using unified builder so totals match
     list($items, $items_sum) = hypay_build_ez_items($order_info, $list_products);
     hypay_log($order_id, 'ezcount.line_items_mode', [
+        'flow'  => $flow,
         'mode'  => $list_products ? 'list_products' : 'list_orders',
         'lines' => count($items),
     ]);
@@ -1690,6 +1708,7 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null)
             'last4'          => $tx['last4'],
             'payments'       => $payments,
             'amount'         => $amount,
+            'flow'           => 'j5',
         ]);
     } else {
         hypay_log($order_id, 'ezcount skipped after capture (ez_mode != direct)', ['ez_mode' => $pp['ez_mode'] ?? 'none']);

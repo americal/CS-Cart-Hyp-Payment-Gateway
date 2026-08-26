@@ -55,7 +55,8 @@ The addon provides configuration options for:
 - Sandbox / Production mode
 - Order ID prefix
 - Authorization / capture behavior
-- EzCount document line items — itemized products or the order number alone
+- EzCount document line items — itemized products or the order number alone,
+  set separately for regular checkout and for J5 captures
 - Additional order status to set after a J5 capture (needs the eCom Labs add-on)
 - Additional Hyp-specific parameters
 
@@ -83,8 +84,8 @@ flow: [developers.hyp.co.il](https://developers.hyp.co.il/pay/advanced-features/
 
 **What the document says**
 
-The EzCount (Direct API) setting **Document line items** decides how the document
-is filled in:
+The EzCount (Direct API) settings **Document line items** decide how a document
+is filled in. Either choice is available:
 
 - `List products` (default) — a line per product, plus shipping, payment
   surcharge, discounts, redeemed gift certificates and a rounding adjustment so
@@ -94,9 +95,15 @@ is filled in:
   wording stays the same everywhere so the documents can be reconciled against
   order numbers without minding the language they were issued in.
 
-The setting applies to every document issued through the direct API, so the J5
-capture document and the regular J4 checkout document stay consistent with each
-other.
+There are two of these settings, because the two documents are not really the
+same document. **Regular deals** covers the receipt issued the moment a customer
+pays at checkout. **J5 (after capture)** covers the one issued when the held
+amount is charged — days later, from the order page, often for a dealer rather
+than a walk-up customer, and by then the order may have been edited.
+
+The J5 setting starts at *same as regular deals* and follows the one above until
+it is set to something of its own, so an installation that configured a single
+mode before the split keeps issuing exactly what it issued before.
 
 **Per-usergroup behaviour**
 
