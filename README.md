@@ -168,6 +168,12 @@ Russian-speaking admin Hebrew payment lines forever. Everything those lines say
 is also in `?:hypay_transactions`, so they are composed again from the
 transaction on the way out, in the language the reader is using.
 
+On the order details page that happens in the add-on's own `orders` controller,
+which has the finished `order_info` the templates are about to render. The
+`get_order_info_post` hook does the same for every other order read, but it
+cannot be the only pass: whether `payment_info` is already attached when that
+hook fires is not the add-on's to decide, and on the details page it is not.
+
 This fixes orders that were already paid for, too: nothing was migrated, the
 text is simply no longer read back verbatim. The stored strings stay where they
 are and remain the fallback for a J5 order whose transaction row is gone, and
