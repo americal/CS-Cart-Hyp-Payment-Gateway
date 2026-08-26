@@ -2016,6 +2016,16 @@ function fn_hypay_get_j5_panel_data($order_id)
 
     $is_open = in_array($tx['status'], ['authorized', 'capturing'], true);
 
+    // How far the order has drifted from the hold, for the panel to print instead
+    // of leaving it to be worked out from two rows. Same 0.009 tolerance the
+    // warnings use - without it a half-agora rounding artefact would be reported
+    // in red as a real difference, with no warning beside it and capture still
+    // allowed. Zero outside 'authorized': once a capture has gone out, the
+    // comparison is not something anyone can act on.
+    $delta = ($tx['status'] === 'authorized' && abs($order_total - $authorized) > 0.009)
+        ? round($order_total - $authorized, 2)
+        : 0.0;
+
     return [
         'order_id'          => $order_id,
         'status'            => $tx['status'],
@@ -2044,6 +2054,8 @@ function fn_hypay_get_j5_panel_data($order_id)
         'can_capture'       => ($tx['status'] === 'authorized' && $order_total > 0 && $order_total <= $authorized + 0.009),
         'can_void'          => ($tx['status'] === 'authorized'),
         'amount_mismatch'   => ($tx['status'] === 'authorized' && $order_total > $authorized + 0.009),
+        'amount_delta'      => $delta,
+        'amount_delta_abs'  => abs($delta),
         'hold_days'         => fn_hypay_hold_days($pp),
         'void_state'        => (string) ($tx['void_state'] ?? ''),
         'last_error'        => (string) $tx['last_error'],

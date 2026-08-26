@@ -68,7 +68,17 @@
 
     <div class="control-group">
         <div class="control-label">{__("hypay_j5_order_total")}</div>
-        <div class="controls">{include file="common/price.tpl" value=$hypay_j5.order_total}</div>
+        <div class="controls">
+            {include file="common/price.tpl" value=$hypay_j5.order_total}
+            {* the difference spelled out: comparing it against the hold two rows
+               up is exactly the arithmetic nobody should be doing by eye *}
+            {if $hypay_j5.amount_delta != 0}
+                <div class="{if $hypay_j5.amount_delta > 0}text-error{else}text-warning{/if}"><small>
+                    {if $hypay_j5.amount_delta > 0}+{else}&minus;{/if}{include file="common/price.tpl" value=$hypay_j5.amount_delta_abs}
+                    {__("hypay_j5_delta_vs_hold")}
+                </small></div>
+            {/if}
+        </div>
     </div>
 
     <div class="control-group">
@@ -150,8 +160,8 @@
         <div class="controls">
             {if $hypay_j5.amount_mismatch}
                 <p class="text-error">{__("hypay_j5_warning_total_above_hold")}</p>
-            {elseif $hypay_j5.order_total < $hypay_j5.amount_authorized}
-                <p class="muted">{__("hypay_j5_notice_partial_capture")}</p>
+            {elseif $hypay_j5.amount_delta < 0}
+                <p class="text-warning">{__("hypay_j5_notice_partial_capture")}</p>
             {/if}
 
             {if !$hypay_j5.has_token}

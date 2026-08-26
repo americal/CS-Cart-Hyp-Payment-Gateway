@@ -462,6 +462,10 @@ msgctxt "Languages::hypay_j5_expired"
 msgid "the authorization window has passed, the capture may be declined"
 msgstr "the authorization window has passed, the capture may be declined"
 
+msgctxt "Languages::hypay_j5_delta_vs_hold"
+msgid "against the hold"
+msgstr "against the hold"
+
 msgctxt "Languages::hypay_j5_order_total"
 msgid "Amount to capture (order total)"
 msgstr "Amount to capture (order total)"
