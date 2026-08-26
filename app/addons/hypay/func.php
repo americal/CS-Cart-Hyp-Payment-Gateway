@@ -1437,6 +1437,25 @@ function fn_hypay_render_payment_info(array $tx)
 }
 
 /**
+ * Is the J5 panel going to render further down this page?
+ *
+ * It prints the hold in full - amount through the store's price format, deadline
+ * through its date format, with an expiry warning the flat line cannot show - so
+ * on that page the "J5 hold" row is a second, worse copy of it. Mirrors the
+ * condition at the top of hypay_j5_panel.tpl: the two have to agree, or a page
+ * ends up showing the hold twice or not at all.
+ *
+ * @return bool
+ */
+function fn_hypay_j5_panel_is_rendered()
+{
+    return defined('AREA')
+        && AREA === 'A'
+        && Registry::get('runtime.controller') === 'orders'
+        && Registry::get('runtime.mode') === 'details';
+}
+
+/**
  * Re-render the J5 payment info in the reader's language.
  *
  * fn_update_order_payment_info stores finished strings, and the language that
@@ -1463,11 +1482,15 @@ function fn_hypay_get_order_info_post(&$order, $additional_data)
     }
 
     $rendered = fn_hypay_render_payment_info($tx);
-    if (empty($rendered)) {
-        return;
+    if (!empty($rendered)) {
+        $order['payment_info'] = array_merge($order['payment_info'], $rendered);
     }
 
-    $order['payment_info'] = array_merge($order['payment_info'], $rendered);
+    // Dropped after the merge, not before, so it also covers 'capturing', where
+    // there is nothing to re-render but the panel still prints the hold.
+    if (fn_hypay_j5_panel_is_rendered()) {
+        unset($order['payment_info']['hypay_j5']);
+    }
 }
 
 /* ============================================================================
@@ -2001,6 +2024,10 @@ function fn_hypay_get_j5_panel_data($order_id)
         // shown in the panel so the values the capture sends back to Shva can be
         // compared with the CCode=700 row in the Hyp control panel
         'uid'               => (string) $tx['uid'],
+        // the UID only matters while someone is diagnosing a capture, which is
+        // also when debug mode is on; the rest of the time it is a long opaque
+        // string taking up a row
+        'debug'             => (!empty($pp['debug_mode']) && $pp['debug_mode'] === 'Y'),
         'has_token'         => ($tx['card_token'] !== ''),
         'amount_authorized' => $authorized,
         'amount_captured'   => round((float) $tx['amount_captured'], 2),

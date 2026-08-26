@@ -46,7 +46,9 @@
 </div>
 {/if}
 
-{if $hypay_j5.uid}
+{* only while debug mode is on: the UID is what a capture is diagnosed with,
+   and the rest of the time it is a long opaque string taking up a row *}
+{if $hypay_j5.uid && $hypay_j5.debug}
 <div class="control-group">
     <div class="control-label">{__("hypay_j5_uid")}</div>
     <div class="controls">

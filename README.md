@@ -177,6 +177,23 @@ account of what happened.
 Regular (J4) charges are unaffected: their *Payment status* is `Success` or
 `Failure` plus whatever Hyp said, in English, as it has always been.
 
+**Said once, not twice**
+
+On the order details page the *J5 hold* row is dropped from payment info,
+because the panel right below it already prints the same hold and prints it
+better: the amount goes through the store's price format, the deadline through
+its date format, and an expired hold is called out in red — none of which a flat
+line of text can do.
+
+The row is only dropped where that panel actually renders. On the order list,
+printable documents and the storefront it stays, since there is nothing else
+there to say the order is holding money.
+
+The panel's *UID* row now appears only while the payment method has debug mode
+on. It is what a stuck capture gets diagnosed with, which is exactly when debug
+mode is on anyway; the rest of the time it was a long opaque string occupying a
+row of its own.
+
 **Data**
 
 Authorizations and captures are stored in `?:hypay_transactions` (kept on uninstall).
