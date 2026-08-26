@@ -1647,38 +1647,27 @@ function fn_hypay_void_j5($order_id)
     // action=CancelTrans asks Hyp to reverse the deal, so the customer sees the
     // hold drop off their card instead of waiting out the authorization window.
     //
-    // The documented four-parameter call is enough for a single-payment hold.
-    // An instalment hold is refused with CCode=920 and ReversalStatus=404,
-    // which is "Number of payments field was not entered" in the same table
-    // that decodes CCode - and repeating just the count is refused too. The
-    // Enterprise reference says why: setting the number of payments on a
-    // reversal "is not supported on its own and may be rejected; instead, it
-    // requires an explicit breakdown with firstPayment and periodicalPayment".
+    // What terminal 0010334524 does, measured rather than guessed:
     //
-    // So an instalment hold that comes back refused is retried once with the
-    // whole schedule the authorization redirect reported, under the names it
-    // used for those values.
+    //   1 payment   -> CCode=0,   ReversalStatus=777, the hold is released
+    //   2 payments  -> CCode=920, ReversalStatus=404
+    //   3 payments  -> CCode=920, ReversalStatus=404
+    //   3 payments, request repeating the payment count       -> unchanged
+    //   3 payments, request repeating the whole schedule
+    //     (Payments, Tash, noKPayments, nFirstPayment, firstPayment) -> unchanged
+    //
+    // So a hold taken in instalments is not reversible through CancelTrans
+    // here, and no combination of payment fields changes that: ReversalStatus
+    // decodes as "Number of payments field was not entered" in the CCode table,
+    // but supplying those fields makes no difference, so the reading is a red
+    // herring. Only the documented call is made; the rest is a question for
+    // Hyp.
     $cancel_state = 'not_attempted';
     $hyp_detail   = '';
+    $payments     = max(1, (int) $tx['payments']);
 
     if ($tx['hyp_id'] !== '') {
         list($cancel_state, $hyp_detail) = fn_hypay_cancel_trans($order_id, $pp, $tx['hyp_id']);
-
-        $payments = max(1, (int) $tx['payments']);
-
-        if ($cancel_state === 'not_cancellable' && $payments > 1) {
-            $breakdown = [
-                'Payments'       => $payments,
-                'Tash'           => $payments,
-                'noKPayments'    => $payments - 1,
-                'nFirstPayment'  => number_format(round((float) $tx['first_payment'], 2), 2, '.', ''),
-                'firstPayment'   => number_format(round((float) $tx['periodical_payment'], 2), 2, '.', ''),
-            ];
-
-            hypay_log($order_id, 'j5.cancel retrying with the instalment breakdown', $breakdown);
-
-            list($cancel_state, $hyp_detail) = fn_hypay_cancel_trans($order_id, $pp, $tx['hyp_id'], $breakdown);
-        }
     } else {
         $cancel_state = 'failed';
         $hyp_detail   = 'no authorization Id stored, CancelTrans was not attempted';
@@ -1712,6 +1701,9 @@ function fn_hypay_void_j5($order_id)
     if ($confirmed) {
         $note   = __('hypay_j5_note_voided_confirmed');
         $notice = __('hypay_j5_void_ok_confirmed');
+    } elseif ($cancel_state === 'not_cancellable' && $payments > 1) {
+        $note   = __('hypay_j5_note_voided_instalments');
+        $notice = __('hypay_j5_void_ok_instalments', ['[days]' => fn_hypay_hold_days($pp)]);
     } elseif ($cancel_state === 'not_cancellable') {
         $note   = __('hypay_j5_note_voided_not_cancellable');
         $notice = __('hypay_j5_void_ok_not_cancellable', ['[days]' => fn_hypay_hold_days($pp)]);

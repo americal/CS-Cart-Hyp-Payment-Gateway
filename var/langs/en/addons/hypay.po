@@ -613,3 +613,19 @@ msgstr "Hypay J5: hold cancelled here, Hyp refused to reverse it on its side; th
 msgctxt "Languages::hypay_j5_void_not_cancellable_hint"
 msgid "Hyp refused to reverse this hold — its answer is below. Nothing was charged and the hold can never be captured; the issuer releases the funds when the authorization window ends, within about [days] days."
 msgstr "Hyp refused to reverse this hold — its answer is below. Nothing was charged and the hold can never be captured; the issuer releases the funds when the authorization window ends, within about [days] days."
+
+msgctxt "Languages::hypay_j5_void_ok_instalments"
+msgid "The hold will not be captured. Hyp does not reverse a hold taken in instalments, so the issuer releases the funds when the authorization window ends, within about [days] days."
+msgstr "The hold will not be captured. Hyp does not reverse a hold taken in instalments, so the issuer releases the funds when the authorization window ends, within about [days] days."
+
+msgctxt "Languages::hypay_j5_note_voided_instalments"
+msgid "Hypay J5: hold cancelled here. Hyp does not reverse a hold taken in instalments, so the issuer releases the funds when the authorization window ends."
+msgstr "Hypay J5: hold cancelled here. Hyp does not reverse a hold taken in instalments, so the issuer releases the funds when the authorization window ends."
+
+msgctxt "Languages::hypay_j5_void_instalments_hint"
+msgid "This hold was taken in instalments, and Hyp does not reverse those through CancelTrans - a single-payment hold is released immediately, an instalment one is refused whatever payment details the request carries. Nothing was charged and the hold can never be captured; the issuer releases the funds when the authorization window ends, within about [days] days."
+msgstr "This hold was taken in instalments, and Hyp does not reverse those through CancelTrans - a single-payment hold is released immediately, an instalment one is refused whatever payment details the request carries. Nothing was charged and the hold can never be captured; the issuer releases the funds when the authorization window ends, within about [days] days."
+
+msgctxt "Languages::hypay_j5_void_instalments_notice"
+msgid "Cancelling: this hold was taken in more than one payment, and Hyp does not release those early — cancelling still guarantees it is never captured, but the funds stay held until the authorization window ends, within about [days] days. A single-payment hold is released immediately."
+msgstr "Cancelling: this hold was taken in more than one payment, and Hyp does not release those early — cancelling still guarantees it is never captured, but the funds stay held until the authorization window ends, within about [days] days. A single-payment hold is released immediately."
