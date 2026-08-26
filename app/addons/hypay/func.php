@@ -1468,18 +1468,25 @@ function fn_hypay_j5_panel_is_rendered()
  * put: they remain the fallback for anything that reads payment_info without
  * going through fn_get_order_info.
  */
-function fn_hypay_get_order_info_post(&$order, $additional_data)
+function fn_hypay_localize_payment_info(&$order)
 {
     // hypay_j5 is written for J5 orders only, so this skips the query for
     // regular charges without having to ask the database first
-    if (empty($order['order_id']) || !isset($order['payment_info']['hypay_j5'])) {
-        return;
+    if (!is_array($order)
+        || empty($order['order_id'])
+        || empty($order['payment_info'])
+        || !is_array($order['payment_info'])
+        || !isset($order['payment_info']['hypay_j5'])
+    ) {
+        return false;
     }
 
     $tx = fn_hypay_get_transaction($order['order_id']);
     if (empty($tx)) {
-        return;
+        return false;
     }
+
+    $before = $order['payment_info'];
 
     $rendered = fn_hypay_render_payment_info($tx);
     if (!empty($rendered)) {
@@ -1491,6 +1498,21 @@ function fn_hypay_get_order_info_post(&$order, $additional_data)
     if (fn_hypay_j5_panel_is_rendered()) {
         unset($order['payment_info']['hypay_j5']);
     }
+
+    return ($order['payment_info'] !== $before);
+}
+
+/**
+ * Best-effort pass for everywhere an order is read that is not the details page
+ * - order lists, printable documents, notifications.
+ *
+ * It cannot be the only pass: whether payment_info is already on $order when
+ * this fires is not something the add-on gets to decide, and on the details page
+ * it demonstrably was not. The controller below covers that page for certain.
+ */
+function fn_hypay_get_order_info_post(&$order, $additional_data)
+{
+    fn_hypay_localize_payment_info($order);
 }
 
 /* ============================================================================
