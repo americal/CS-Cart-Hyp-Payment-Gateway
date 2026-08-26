@@ -180,17 +180,25 @@ msgctxt "Languages::hypay_j5_captured_status_desc"
 msgid "Set after the held amount has been charged."
 msgstr "נקבע לאחר גביית הסכום ששמור."
 
-msgctxt "Languages::hypay_j5_captured_additional_status"
-msgid "Additional status: captured"
-msgstr "סטטוס נוסף לאחר חיוב"
+msgctxt "Languages::hypay_j5_auth_additional_status"
+msgid "Additional status: funds held"
+msgstr "סטטוס נוסף: הכספים נשמרו"
 
-msgctxt "Languages::hypay_j5_captured_additional_status_none"
+msgctxt "Languages::hypay_j5_auth_additional_status_desc"
+msgid "Additional order status to mark once Hyp confirms the hold and the order takes the status above. Left at \"do not change\", only the main order status moves. Needs the [eCom Labs] Additional Order Statuses add-on: while it is disabled both of these selectors are hidden and the stored choices are kept until it comes back."
+msgstr "סטטוס הזמנה נוסף שיסומן כאשר Hyp מאשר את השמירה וההזמנה מקבלת את הסטטוס שלמעלה. בערך \"ללא שינוי\" ישתנה רק הסטטוס הראשי. דורש את התוסף [eCom Labs] Additional Order Statuses: כל עוד הוא מכובה שתי הרשימות מוסתרות והערכים שנבחרו נשמרים."
+
+msgctxt "Languages::hypay_j5_additional_status_none"
 msgid "— do not change —"
 msgstr "— ללא שינוי —"
 
+msgctxt "Languages::hypay_j5_captured_additional_status"
+msgid "Additional status: captured"
+msgstr "סטטוס נוסף: חויב"
+
 msgctxt "Languages::hypay_j5_captured_additional_status_desc"
-msgid "Additional order status to mark after the held amount has been charged. Leave it at \"do not change\" to touch only the main order status. Needs the [eCom Labs] Additional Order Statuses add-on: while it is disabled this setting is hidden, and the stored choice is kept until it comes back."
-msgstr "סטטוס הזמנה נוסף שיסומן לאחר חיוב הסכום שנשמר. בבחירת הערך \"ללא שינוי\" ישתנה רק הסטטוס הראשי. דורש את התוסף [eCom Labs] Additional Order Statuses: כל עוד הוא מכובה, ההגדרה מוסתרת והערך שנבחר נשמר."
+msgid "Additional order status to mark once the held amount has been charged. Left at \"do not change\", only the main order status moves. Needs the [eCom Labs] Additional Order Statuses add-on: while it is disabled both of these selectors are hidden and the stored choices are kept until it comes back."
+msgstr "סטטוס הזמנה נוסף שיסומן לאחר חיוב הסכום שנשמר. בערך \"ללא שינוי\" ישתנה רק הסטטוס הראשי. דורש את התוסף [eCom Labs] Additional Order Statuses: כל עוד הוא מכובה שתי הרשימות מוסתרות והערכים שנבחרו נשמרים."
 
 msgctxt "Languages::hypay_j5_void_status"
 msgid "Order status: hold cancelled"

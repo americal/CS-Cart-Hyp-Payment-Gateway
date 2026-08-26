@@ -57,7 +57,8 @@ The addon provides configuration options for:
 - Authorization / capture behavior
 - EzCount document line items — itemized products or the order number alone,
   set separately for regular checkout and for J5 captures
-- Additional order status to set after a J5 capture (needs the eCom Labs add-on)
+- Additional order status to set when a J5 hold is confirmed and when it is
+  captured (needs the eCom Labs add-on)
 - Additional Hyp-specific parameters
 
 For detailed API behavior, refer to the official Hyp documentation.
@@ -114,17 +115,28 @@ The payment method setting **Payment type** offers:
 - `Hold funds (J5) by usergroup` — customers of the selected usergroups (e.g.
   `Dealer` / `Shop`) get a J5 hold, everybody else pays as before.
 
-**Additional status after capture**
+**Additional statuses**
 
-If the [eCom Labs] Additional Order Statuses add-on is installed and active, the
-J5 settings gain an **Additional status: captured** selector. Pick one and a
-successful capture marks the order with it (`?:orders.additional_status`) right
-after the main order status changes; leave it at *do not change* and only the
-main status moves.
+If the [eCom Labs] Additional Order Statuses add-on is installed and active, each
+of the two J5 order statuses gains an additional-status selector beside it:
 
-The selector is hidden whenever that add-on is missing or disabled, since there
-would be no column to write to. A choice made earlier is not lost in the
-meantime: it stays stored, hidden, and starts working again the moment the
+| Selector | Applied when | Alongside |
+|---|---|---|
+| **Additional status: funds held** | Hyp confirms the hold at checkout | *Order status: funds held* |
+| **Additional status: captured** | the held amount is charged | *Order status: captured* |
+
+Each writes the chosen status to `?:orders.additional_status` right after the
+main order status moves. Left at *do not change*, only the main status moves —
+that is the default for both, so nothing changes until you pick something.
+
+The hold selector fires only on a genuine authorization. A replayed return — a
+refresh, or the back button on an order already captured or cancelled — leaves
+the order alone, additional status included, the same way it already leaves the
+main status alone.
+
+Both selectors are hidden whenever the add-on is missing or disabled, since
+there would be no column to write to. Choices made earlier are not lost in the
+meantime: they stay stored, hidden, and start working again the moment the
 add-on is switched back on. A status deleted after the fact is skipped rather
 than written, with the reason recorded in the log.
 

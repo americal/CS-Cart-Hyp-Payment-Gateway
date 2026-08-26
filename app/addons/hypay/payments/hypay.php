@@ -192,6 +192,12 @@ if (defined('PAYMENT_NOTIFICATION')) {
             hypay_log($order_id, 'fn_finish_payment payload (J5)', $pp_response);
             fn_finish_payment($order_id, $pp_response);
 
+            // inside this branch on purpose: a replayed return takes the other
+            // one and leaves the order alone, additional status included
+            if (!empty($pp['j5_auth_additional_status'])) {
+                fn_hypay_set_additional_status($order_id, $pp['j5_auth_additional_status']);
+            }
+
             // no document at this point: it is issued when the money is captured
             hypay_log($order_id, 'ezcount skipped (J5 authorization, not charged yet)');
         }
