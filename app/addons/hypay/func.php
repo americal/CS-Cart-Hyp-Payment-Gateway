@@ -1280,6 +1280,11 @@ function fn_hypay_fetch_card_token($order_id, array $pp, $trans_id, &$error = ''
         'Masof'   => trim((string) ($pp['masof'] ?? '')),
         'PassP'   => trim((string) ($pp['passp'] ?? '')),
         'TransId' => (string) $trans_id,
+        // a J5 authorization is not a completed charge, and tokenization
+        // rejects those with CCode=910 unless allowFalse says otherwise. Our
+        // terminal happens to answer without it, but the reference is explicit
+        // that a card that was only verified needs it.
+        'allowFalse' => 'True',
     ], 'j5.getToken');
 
     $params = $result['params'];
