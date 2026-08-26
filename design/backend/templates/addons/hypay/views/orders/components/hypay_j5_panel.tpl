@@ -121,7 +121,11 @@
     {if $hypay_j5.last_error}
         <div class="control-group">
             <div class="controls">
-                <p class="text-warning">{__("hypay_j5_void_not_confirmed_hint")}</p>
+                {if $hypay_j5.void_state == "not_cancellable"}
+                    <p class="muted">{__("hypay_j5_void_not_cancellable_hint", ["[days]" => $hypay_j5.hold_days])}</p>
+                {else}
+                    <p class="text-warning">{__("hypay_j5_void_not_confirmed_hint")}</p>
+                {/if}
                 <p class="muted"><small>{$hypay_j5.last_error}</small></p>
             </div>
         </div>

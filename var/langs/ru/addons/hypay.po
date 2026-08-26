@@ -601,3 +601,15 @@ msgstr "Обращаемся к Hyp, подождите…"
 msgctxt "Languages::hypay_j5_uid"
 msgid "Shva UID"
 msgstr "Shva UID"
+
+msgctxt "Languages::hypay_j5_void_ok_not_cancellable"
+msgid "The hold will not be captured. Hyp does not reverse a held authorization through CancelTrans on this terminal, so the issuer releases the funds when the authorization window ends, within about [days] days."
+msgstr "Удержание списано не будет. На этом терминале Hyp не снимает авторизацию через CancelTrans, поэтому банк освободит средства по окончании срока удержания — примерно за [days] дн."
+
+msgctxt "Languages::hypay_j5_note_voided_not_cancellable"
+msgid "Hypay J5: hold cancelled here. Hyp answered CCode=920 to CancelTrans, which is how it reports a held authorization it will not reverse; the issuer releases the funds when the authorization window ends."
+msgstr "Hypay J5: удержание отменено у нас. На CancelTrans Hyp ответил CCode=920 — так он сообщает, что не снимает эту авторизацию; банк освободит средства по окончании срока удержания."
+
+msgctxt "Languages::hypay_j5_void_not_cancellable_hint"
+msgid "Hyp will not reverse this hold through CancelTrans — it answers CCode=920 for a held authorization, which the command only covers for actual charges. Nothing was charged and the hold can never be captured; the issuer releases the funds when the authorization window ends, within about [days] days."
+msgstr "Hyp не снимает это удержание через CancelTrans — на удержанную авторизацию он отвечает CCode=920, так как команда рассчитана на реальные списания. Деньги не списаны, списать удержание уже нельзя; банк освободит средства по окончании срока удержания, примерно за [days] дн."

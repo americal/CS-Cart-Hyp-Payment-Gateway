@@ -80,6 +80,7 @@ function fn_hypay_ensure_schema()
         . " expires_at int(11) unsigned NOT NULL default '0',"
         . " captured_at int(11) unsigned NOT NULL default '0',"
         . " voided_at int(11) unsigned NOT NULL default '0',"
+        . " void_state varchar(16) NOT NULL default '',"
         . " last_error text,"
         . " PRIMARY KEY (transaction_id),"
         . " KEY order_id (order_id),"
@@ -94,6 +95,7 @@ function fn_hypay_ensure_schema()
     $added = [
         'payments_captured' => "smallint(5) unsigned NOT NULL default '0'",
         'client_lname'      => "varchar(128) NOT NULL default ''",
+        'void_state'        => "varchar(16) NOT NULL default ''",
     ];
     foreach ($added as $column => $definition) {
         if (!in_array($column, $columns, true)) {
@@ -1590,13 +1592,14 @@ function fn_hypay_void_j5($order_id)
         return false;
     }
 
-    // action=CancelTrans releases the hold on Hyp's side, so the customer sees
-    // it drop off their card instead of waiting out the authorization window.
-    // A J5 hold is never transmitted until it is captured, so it stays
-    // cancellable this way for as long as it stays open - unlike a completed
-    // charge, which can only be cancelled the same business day.
-    $confirmed  = false;
-    $hyp_detail = '';
+    // action=CancelTrans asks Hyp to reverse the deal, so the customer sees the
+    // hold drop off their card instead of waiting out the authorization window.
+    // Whether that works depends on the terminal: CancelTrans is documented for
+    // charges that have not been transmitted yet, and a J5 hold is not a charge,
+    // so some terminals answer CCode=920 ("already transmitted or does not
+    // exist") for every hold. That is a normal outcome here, not a failure.
+    $cancel_state = 'not_attempted';
+    $hyp_detail   = '';
 
     if ($tx['hyp_id'] !== '') {
         $result = fn_hypay_api_request($order_id, [
@@ -1608,16 +1611,32 @@ function fn_hypay_void_j5($order_id)
 
         $response = $result['params'];
         $ccode    = isset($response['CCode']) ? (string) $response['CCode'] : '';
+        $reversal = isset($response['ReversalStatus']) ? (string) $response['ReversalStatus'] : '';
 
-        if ($ccode === '0' && (string) ($response['ReversalStatus'] ?? '') === '777') {
-            $confirmed = true;
+        if ($ccode === '0' && $reversal === '777') {
+            $cancel_state = 'confirmed';
+        } elseif ($ccode === '920') {
+            $cancel_state = 'not_cancellable';
         } else {
+            $cancel_state = 'failed';
+        }
+
+        if ($cancel_state !== 'confirmed') {
             $hyp_detail = fn_hypay_format_error($ccode, '', $result['raw']);
-            hypay_log($order_id, 'j5.cancel NOT confirmed by Hyp', $hyp_detail);
+            if ($reversal !== '') {
+                $hyp_detail .= ' | ReversalStatus=' . $reversal;
+            }
+            hypay_log($order_id, 'j5.cancel not confirmed by Hyp', [
+                'state'  => $cancel_state,
+                'detail' => $hyp_detail,
+            ]);
         }
     } else {
-        $hyp_detail = 'no authorization Id stored, CancelTrans was not attempted';
+        $cancel_state = 'failed';
+        $hyp_detail   = 'no authorization Id stored, CancelTrans was not attempted';
     }
+
+    $confirmed = ($cancel_state === 'confirmed');
 
     // the hold is abandoned on our side either way: even if Hyp could not
     // confirm the cancellation (already expired, or CCode=920), it must
@@ -1626,6 +1645,7 @@ function fn_hypay_void_j5($order_id)
     fn_hypay_update_transaction($tx['transaction_id'], [
         'status'     => 'voided',
         'voided_at'  => TIME,
+        'void_state' => $cancel_state,
         'last_error' => $confirmed ? '' : $hyp_detail,
     ]);
 
@@ -1641,15 +1661,22 @@ function fn_hypay_void_j5($order_id)
     $void_status = !empty($pp['j5_void_status']) ? $pp['j5_void_status'] : 'I';
     fn_change_order_status($order_id, $void_status);
 
-    fn_hypay_order_note($order_id, $confirmed
-        ? __('hypay_j5_note_voided_confirmed')
-        : __('hypay_j5_note_voided_unconfirmed', ['[detail]' => $hyp_detail]));
+    if ($confirmed) {
+        $note   = __('hypay_j5_note_voided_confirmed');
+        $notice = __('hypay_j5_void_ok_confirmed');
+    } elseif ($cancel_state === 'not_cancellable') {
+        $note   = __('hypay_j5_note_voided_not_cancellable');
+        $notice = __('hypay_j5_void_ok_not_cancellable', ['[days]' => fn_hypay_hold_days($pp)]);
+    } else {
+        $note   = __('hypay_j5_note_voided_unconfirmed', ['[detail]' => $hyp_detail]);
+        $notice = __('hypay_j5_void_ok_unconfirmed', ['[days]' => fn_hypay_hold_days($pp)]);
+    }
 
-    hypay_log($order_id, 'j5.void', ['hyp_id' => $tx['hyp_id'], 'confirmed' => $confirmed]);
+    fn_hypay_order_note($order_id, $note);
 
-    fn_set_notification('N', __('notice'), $confirmed
-        ? __('hypay_j5_void_ok_confirmed')
-        : __('hypay_j5_void_ok_unconfirmed', ['[days]' => fn_hypay_hold_days($pp)]));
+    hypay_log($order_id, 'j5.void', ['hyp_id' => $tx['hyp_id'], 'state' => $cancel_state]);
+
+    fn_set_notification('N', __('notice'), $notice);
 
     return true;
 }
@@ -1709,6 +1736,7 @@ function fn_hypay_get_j5_panel_data($order_id)
         'can_void'          => ($tx['status'] === 'authorized'),
         'amount_mismatch'   => ($tx['status'] === 'authorized' && $order_total > $authorized + 0.009),
         'hold_days'         => fn_hypay_hold_days($pp),
+        'void_state'        => (string) ($tx['void_state'] ?? ''),
         'last_error'        => (string) $tx['last_error'],
     ];
 }
