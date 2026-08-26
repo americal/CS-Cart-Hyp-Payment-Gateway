@@ -89,8 +89,10 @@ is filled in:
 - `List products` (default) — a line per product, plus shipping, payment
   surcharge, discounts, redeemed gift certificates and a rounding adjustment so
   the lines add up to the order total exactly;
-- `Order number only` — a single line naming the order (`Order #1234`), priced at
-  the order total.
+- `Order number only` — a single line naming the order, priced at the order
+  total. That line always reads `Order #1234`, on a Hebrew order too: the
+  wording stays the same everywhere so the documents can be reconciled against
+  order numbers without minding the language they were issued in.
 
 The setting applies to every document issued through the direct API, so the J5
 capture document and the regular J4 checkout document stay consistent with each

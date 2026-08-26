@@ -553,9 +553,11 @@ function hypay_build_ez_items($order_info, $list_products = true) {
     // one line for the whole order: nothing to sum up, nothing to round off
     if (!$list_products) {
         $order_total = round((float) $order_info['total'], 2);
-        $order_label = ($lang2 === 'he')
-            ? ('הזמנה מס\' ' . (int) $order_info['order_id'])
-            : ('Order #' . (int) $order_info['order_id']);
+
+        // deliberately not translated: accounting reconciles these documents
+        // against order numbers, and one wording across every order is what
+        // makes that possible - a Hebrew order must read the same as the rest
+        $order_label = 'Order #' . (int) $order_info['order_id'];
 
         $items[] = [
             'details'  => $order_label,
