@@ -159,6 +159,45 @@ capture deadline and the current state, plus two buttons:
   releases the funds when the authorization window (about 5 days) expires. Hyp does
   not document a server-to-server release call, so no request is sent for this.
 
+**Payment information language**
+
+The *Payment status* and *J5 hold* lines follow whoever is reading them, not
+whoever paid. CS-Cart stores payment info as finished strings, and the language
+that produced them is the customer's — so a Hebrew storefront would hand a
+Russian-speaking admin Hebrew payment lines forever. Everything those lines say
+is also in `?:hypay_transactions`, so they are composed again from the
+transaction on the way out, in the language the reader is using.
+
+This fixes orders that were already paid for, too: nothing was migrated, the
+text is simply no longer read back verbatim. The stored strings stay where they
+are and remain the fallback for a J5 order whose transaction row is gone, and
+for the `capturing` state, where the text written at that moment is the only
+account of what happened.
+
+Regular (J4) charges are unaffected: their *Payment status* is `Success` or
+`Failure` plus whatever Hyp said, in English, as it has always been.
+
+**Said once, not twice**
+
+On the order details page the *J5 hold* row is dropped from payment info,
+because the panel right below it already prints the same hold and prints it
+better: the amount goes through the store's price format, the deadline through
+its date format, and an expired hold is called out in red — none of which a flat
+line of text can do.
+
+The row is only dropped where that panel actually renders. On the order list,
+printable documents and the storefront it stays, since there is nothing else
+there to say the order is holding money.
+
+The two long hints under the Capture / Cancel hold buttons are down to one line
+each, with the full wording moved onto an `i` marker beside them — hover it and
+the whole explanation appears. Nothing was cut, only folded away.
+
+The panel's *UID* row now appears only while the payment method has debug mode
+on. It is what a stuck capture gets diagnosed with, which is exactly when debug
+mode is on anyway; the rest of the time it was a long opaque string occupying a
+row of its own.
+
 **Data**
 
 Authorizations and captures are stored in `?:hypay_transactions` (kept on uninstall).

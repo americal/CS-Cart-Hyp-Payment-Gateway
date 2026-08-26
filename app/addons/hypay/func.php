@@ -1386,6 +1386,113 @@ function fn_hypay_update_payment_info($order_id, array $extra)
     return true;
 }
 
+/**
+ * The J5 payment-info lines, written out in whatever language is current.
+ *
+ * @param array $tx a ?:hypay_transactions row
+ *
+ * @return array payment_info keys to overwrite, empty when there is nothing to say
+ */
+function fn_hypay_render_payment_info(array $tx)
+{
+    $authorized = number_format(round((float) ($tx['amount_authorized'] ?? 0), 2), 2, '.', '');
+
+    switch ((string) ($tx['status'] ?? '')) {
+        case 'authorized':
+            return [
+                'reason_text' => '🟡 ' . __('hypay_j5_pi_authorized', ['[amount]' => $authorized]),
+                'hypay_j5'    => __('hypay_j5_pi_hold_until', [
+                    '[amount]' => $authorized,
+                    '[date]'   => date('d.m.Y', (int) ($tx['expires_at'] ?? 0)),
+                ]),
+            ];
+
+        case 'captured':
+            $captured = number_format(round((float) ($tx['amount_captured'] ?? 0), 2), 2, '.', '');
+
+            return [
+                'reason_text' => '🟢 ' . __('hypay_j5_pi_captured', ['[amount]' => $captured]),
+                'hypay_j5'    => __('hypay_j5_pi_captured_on', [
+                    '[amount]'   => $captured,
+                    '[date]'     => date('d.m.Y H:i', (int) ($tx['captured_at'] ?? 0)),
+                    '[payments]' => max(1, (int) ($tx['payments_captured'] ?? 1)),
+                ]),
+            ];
+
+        case 'voided':
+            $confirmed = ((string) ($tx['void_state'] ?? '') === 'confirmed');
+
+            return [
+                'reason_text' => '⚪ ' . ($confirmed ? __('hypay_j5_pi_voided_confirmed') : __('hypay_j5_pi_voided')),
+                'hypay_j5'    => __('hypay_j5_pi_voided_on', [
+                    '[amount]' => $authorized,
+                    '[date]'   => date('d.m.Y H:i', (int) ($tx['voided_at'] ?? 0)),
+                ]),
+            ];
+    }
+
+    // 'capturing' means a capture went out and the answer never came back. The
+    // text stored at that moment is the only account of it, so leave it alone.
+    return [];
+}
+
+/**
+ * Is the J5 panel going to render further down this page?
+ *
+ * It prints the hold in full - amount through the store's price format, deadline
+ * through its date format, with an expiry warning the flat line cannot show - so
+ * on that page the "J5 hold" row is a second, worse copy of it. Mirrors the
+ * condition at the top of hypay_j5_panel.tpl: the two have to agree, or a page
+ * ends up showing the hold twice or not at all.
+ *
+ * @return bool
+ */
+function fn_hypay_j5_panel_is_rendered()
+{
+    return defined('AREA')
+        && AREA === 'A'
+        && Registry::get('runtime.controller') === 'orders'
+        && Registry::get('runtime.mode') === 'details';
+}
+
+/**
+ * Re-render the J5 payment info in the reader's language.
+ *
+ * fn_update_order_payment_info stores finished strings, and the language that
+ * produced them is the one the *customer* was checking out in - so a shop whose
+ * storefront is Hebrew hands its Russian-speaking admin Hebrew payment lines
+ * forever. Everything those lines say is also in ?:hypay_transactions, so they
+ * are composed again on the way out instead of being read back verbatim.
+ *
+ * Only the two keys this add-on writes are touched, and the stored values stay
+ * put: they remain the fallback for anything that reads payment_info without
+ * going through fn_get_order_info.
+ */
+function fn_hypay_get_order_info_post(&$order, $additional_data)
+{
+    // hypay_j5 is written for J5 orders only, so this skips the query for
+    // regular charges without having to ask the database first
+    if (empty($order['order_id']) || !isset($order['payment_info']['hypay_j5'])) {
+        return;
+    }
+
+    $tx = fn_hypay_get_transaction($order['order_id']);
+    if (empty($tx)) {
+        return;
+    }
+
+    $rendered = fn_hypay_render_payment_info($tx);
+    if (!empty($rendered)) {
+        $order['payment_info'] = array_merge($order['payment_info'], $rendered);
+    }
+
+    // Dropped after the merge, not before, so it also covers 'capturing', where
+    // there is nothing to re-render but the panel still prints the hold.
+    if (fn_hypay_j5_panel_is_rendered()) {
+        unset($order['payment_info']['hypay_j5']);
+    }
+}
+
 /* ============================================================================
  * Additional order status (eCom Labs "Additional Order Statuses" add-on)
  * ==========================================================================*/
@@ -1909,6 +2016,16 @@ function fn_hypay_get_j5_panel_data($order_id)
 
     $is_open = in_array($tx['status'], ['authorized', 'capturing'], true);
 
+    // How far the order has drifted from the hold, for the panel to print instead
+    // of leaving it to be worked out from two rows. Same 0.009 tolerance the
+    // warnings use - without it a half-agora rounding artefact would be reported
+    // in red as a real difference, with no warning beside it and capture still
+    // allowed. Zero outside 'authorized': once a capture has gone out, the
+    // comparison is not something anyone can act on.
+    $delta = ($tx['status'] === 'authorized' && abs($order_total - $authorized) > 0.009)
+        ? round($order_total - $authorized, 2)
+        : 0.0;
+
     return [
         'order_id'          => $order_id,
         'status'            => $tx['status'],
@@ -1917,6 +2034,10 @@ function fn_hypay_get_j5_panel_data($order_id)
         // shown in the panel so the values the capture sends back to Shva can be
         // compared with the CCode=700 row in the Hyp control panel
         'uid'               => (string) $tx['uid'],
+        // the UID only matters while someone is diagnosing a capture, which is
+        // also when debug mode is on; the rest of the time it is a long opaque
+        // string taking up a row
+        'debug'             => (!empty($pp['debug_mode']) && $pp['debug_mode'] === 'Y'),
         'has_token'         => ($tx['card_token'] !== ''),
         'amount_authorized' => $authorized,
         'amount_captured'   => round((float) $tx['amount_captured'], 2),
@@ -1933,6 +2054,8 @@ function fn_hypay_get_j5_panel_data($order_id)
         'can_capture'       => ($tx['status'] === 'authorized' && $order_total > 0 && $order_total <= $authorized + 0.009),
         'can_void'          => ($tx['status'] === 'authorized'),
         'amount_mismatch'   => ($tx['status'] === 'authorized' && $order_total > $authorized + 0.009),
+        'amount_delta'      => $delta,
+        'amount_delta_abs'  => abs($delta),
         'hold_days'         => fn_hypay_hold_days($pp),
         'void_state'        => (string) ($tx['void_state'] ?? ''),
         'last_error'        => (string) $tx['last_error'],

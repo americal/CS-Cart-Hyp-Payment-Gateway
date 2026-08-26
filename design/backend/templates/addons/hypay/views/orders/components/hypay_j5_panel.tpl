@@ -46,7 +46,9 @@
 </div>
 {/if}
 
-{if $hypay_j5.uid}
+{* only while debug mode is on: the UID is what a capture is diagnosed with,
+   and the rest of the time it is a long opaque string taking up a row *}
+{if $hypay_j5.uid && $hypay_j5.debug}
 <div class="control-group">
     <div class="control-label">{__("hypay_j5_uid")}</div>
     <div class="controls">
@@ -66,7 +68,17 @@
 
     <div class="control-group">
         <div class="control-label">{__("hypay_j5_order_total")}</div>
-        <div class="controls">{include file="common/price.tpl" value=$hypay_j5.order_total}</div>
+        <div class="controls">
+            {include file="common/price.tpl" value=$hypay_j5.order_total}
+            {* the difference spelled out: comparing it against the hold two rows
+               up is exactly the arithmetic nobody should be doing by eye *}
+            {if $hypay_j5.amount_delta != 0}
+                <div class="{if $hypay_j5.amount_delta > 0}text-error{else}text-warning{/if}"><small>
+                    {if $hypay_j5.amount_delta > 0}+{else}&minus;{/if}{include file="common/price.tpl" value=$hypay_j5.amount_delta_abs}
+                    {__("hypay_j5_delta_vs_hold")}
+                </small></div>
+            {/if}
+        </div>
     </div>
 
     <div class="control-group">
@@ -148,8 +160,8 @@
         <div class="controls">
             {if $hypay_j5.amount_mismatch}
                 <p class="text-error">{__("hypay_j5_warning_total_above_hold")}</p>
-            {elseif $hypay_j5.order_total < $hypay_j5.amount_authorized}
-                <p class="muted">{__("hypay_j5_notice_partial_capture")}</p>
+            {elseif $hypay_j5.amount_delta < 0}
+                <p class="text-warning">{__("hypay_j5_notice_partial_capture")}</p>
             {/if}
 
             {if !$hypay_j5.has_token}
@@ -174,10 +186,18 @@
             <a class="btn cm-post cm-confirm hypay-j5-action" title="{__("hypay_j5_confirm_void")}"
                href="{"hypay.void?order_id=`$hypay_j5.order_id`"|fn_url}">{__("hypay_j5_btn_void")}</a>
 
-            <p class="muted description">{__("hypay_j5_actions_hint")}</p>
+            {* one short line each, with the full explanation on the marker. The
+               text goes through capture + escape rather than straight into the
+               attribute: at least one translation contains a double quote
+               (Hebrew writes a total as סה"כ) and would end the attribute early. *}
+            {capture name="hypay_hint_capture"}{__("hypay_j5_actions_hint")}{/capture}
+            <p class="muted description">{__("hypay_j5_actions_hint_short")}<span
+                class="cm-tooltip hypay-j5-hint" title="{$smarty.capture.hypay_hint_capture|escape}">i</span></p>
 
             {if $hypay_j5.payments > 1}
-                <p class="muted description">{__("hypay_j5_void_instalments_notice", ["[days]" => $hypay_j5.hold_days])}</p>
+                {capture name="hypay_hint_void"}{__("hypay_j5_void_instalments_notice", ["[days]" => $hypay_j5.hold_days])}{/capture}
+                <p class="muted description">{__("hypay_j5_void_instalments_notice_short")}<span
+                    class="cm-tooltip hypay-j5-hint" title="{$smarty.capture.hypay_hint_void|escape}">i</span></p>
             {/if}
         </div>
     </div>
@@ -211,6 +231,18 @@
     animation: hypay-j5-spin .8s linear infinite;
 }
 @keyframes hypay-j5-spin { to { transform: rotate(360deg); } }
+
+/* the "i" marker carrying a hint too long to keep on screen */
+.hypay-j5-hint {
+    display: inline-block;
+    width: 14px; height: 14px;
+    margin: 0 4px;                 /* not margin-left: the admin may be RTL */
+    border: 1px solid #b6b6b6; border-radius: 50%;
+    background: #fff; color: #6b6b6b;
+    font: bold 10px/14px sans-serif;
+    text-align: center; vertical-align: middle;
+    cursor: help;
+}
 </style>
 {/literal}
 
