@@ -1386,6 +1386,90 @@ function fn_hypay_update_payment_info($order_id, array $extra)
     return true;
 }
 
+/**
+ * The J5 payment-info lines, written out in whatever language is current.
+ *
+ * @param array $tx a ?:hypay_transactions row
+ *
+ * @return array payment_info keys to overwrite, empty when there is nothing to say
+ */
+function fn_hypay_render_payment_info(array $tx)
+{
+    $authorized = number_format(round((float) ($tx['amount_authorized'] ?? 0), 2), 2, '.', '');
+
+    switch ((string) ($tx['status'] ?? '')) {
+        case 'authorized':
+            return [
+                'reason_text' => '🟡 ' . __('hypay_j5_pi_authorized', ['[amount]' => $authorized]),
+                'hypay_j5'    => __('hypay_j5_pi_hold_until', [
+                    '[amount]' => $authorized,
+                    '[date]'   => date('d.m.Y', (int) ($tx['expires_at'] ?? 0)),
+                ]),
+            ];
+
+        case 'captured':
+            $captured = number_format(round((float) ($tx['amount_captured'] ?? 0), 2), 2, '.', '');
+
+            return [
+                'reason_text' => '🟢 ' . __('hypay_j5_pi_captured', ['[amount]' => $captured]),
+                'hypay_j5'    => __('hypay_j5_pi_captured_on', [
+                    '[amount]'   => $captured,
+                    '[date]'     => date('d.m.Y H:i', (int) ($tx['captured_at'] ?? 0)),
+                    '[payments]' => max(1, (int) ($tx['payments_captured'] ?? 1)),
+                ]),
+            ];
+
+        case 'voided':
+            $confirmed = ((string) ($tx['void_state'] ?? '') === 'confirmed');
+
+            return [
+                'reason_text' => '⚪ ' . ($confirmed ? __('hypay_j5_pi_voided_confirmed') : __('hypay_j5_pi_voided')),
+                'hypay_j5'    => __('hypay_j5_pi_voided_on', [
+                    '[amount]' => $authorized,
+                    '[date]'   => date('d.m.Y H:i', (int) ($tx['voided_at'] ?? 0)),
+                ]),
+            ];
+    }
+
+    // 'capturing' means a capture went out and the answer never came back. The
+    // text stored at that moment is the only account of it, so leave it alone.
+    return [];
+}
+
+/**
+ * Re-render the J5 payment info in the reader's language.
+ *
+ * fn_update_order_payment_info stores finished strings, and the language that
+ * produced them is the one the *customer* was checking out in - so a shop whose
+ * storefront is Hebrew hands its Russian-speaking admin Hebrew payment lines
+ * forever. Everything those lines say is also in ?:hypay_transactions, so they
+ * are composed again on the way out instead of being read back verbatim.
+ *
+ * Only the two keys this add-on writes are touched, and the stored values stay
+ * put: they remain the fallback for anything that reads payment_info without
+ * going through fn_get_order_info.
+ */
+function fn_hypay_get_order_info_post(&$order, $additional_data)
+{
+    // hypay_j5 is written for J5 orders only, so this skips the query for
+    // regular charges without having to ask the database first
+    if (empty($order['order_id']) || !isset($order['payment_info']['hypay_j5'])) {
+        return;
+    }
+
+    $tx = fn_hypay_get_transaction($order['order_id']);
+    if (empty($tx)) {
+        return;
+    }
+
+    $rendered = fn_hypay_render_payment_info($tx);
+    if (empty($rendered)) {
+        return;
+    }
+
+    $order['payment_info'] = array_merge($order['payment_info'], $rendered);
+}
+
 /* ============================================================================
  * Additional order status (eCom Labs "Additional Order Statuses" add-on)
  * ==========================================================================*/

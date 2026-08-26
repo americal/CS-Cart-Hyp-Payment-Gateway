@@ -7,3 +7,8 @@
 
 if (!defined('BOOTSTRAP')) { die('Access denied'); }
 
+// Payment info stores whatever language the customer paid in. Re-render the J5
+// lines from ?:hypay_transactions every time an order is read, so the reader
+// sees them in their own language instead of the buyer's.
+fn_register_hooks('get_order_info');
+

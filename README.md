@@ -159,6 +159,24 @@ capture deadline and the current state, plus two buttons:
   releases the funds when the authorization window (about 5 days) expires. Hyp does
   not document a server-to-server release call, so no request is sent for this.
 
+**Payment information language**
+
+The *Payment status* and *J5 hold* lines follow whoever is reading them, not
+whoever paid. CS-Cart stores payment info as finished strings, and the language
+that produced them is the customer's — so a Hebrew storefront would hand a
+Russian-speaking admin Hebrew payment lines forever. Everything those lines say
+is also in `?:hypay_transactions`, so they are composed again from the
+transaction on the way out, in the language the reader is using.
+
+This fixes orders that were already paid for, too: nothing was migrated, the
+text is simply no longer read back verbatim. The stored strings stay where they
+are and remain the fallback for a J5 order whose transaction row is gone, and
+for the `capturing` state, where the text written at that moment is the only
+account of what happened.
+
+Regular (J4) charges are unaffected: their *Payment status* is `Success` or
+`Failure` plus whatever Hyp said, in English, as it has always been.
+
 **Data**
 
 Authorizations and captures are stored in `?:hypay_transactions` (kept on uninstall).
