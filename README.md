@@ -55,6 +55,8 @@ The addon provides configuration options for:
 - Sandbox / Production mode
 - Order ID prefix
 - Authorization / capture behavior
+- EzCount document line items — itemized products or the order number alone
+- Additional order status to set after a J5 capture (needs the eCom Labs add-on)
 - Additional Hyp-specific parameters
 
 For detailed API behavior, refer to the official Hyp documentation.
@@ -79,6 +81,21 @@ flow: [developers.hyp.co.il](https://developers.hyp.co.il/pay/advanced-features/
    `inputObj.originalAmount`, `inputObj.originalUid`). The EzCount document is
    created at this moment, for the amount that was actually charged.
 
+**What the document says**
+
+The EzCount (Direct API) setting **Document line items** decides how the document
+is filled in:
+
+- `List products` (default) — a line per product, plus shipping, payment
+  surcharge, discounts, redeemed gift certificates and a rounding adjustment so
+  the lines add up to the order total exactly;
+- `Order number only` — a single line naming the order (`Order #1234`), priced at
+  the order total.
+
+The setting applies to every document issued through the direct API, so the J5
+capture document and the regular J4 checkout document stay consistent with each
+other.
+
 **Per-usergroup behaviour**
 
 The payment method setting **Payment type** offers:
@@ -87,6 +104,20 @@ The payment method setting **Payment type** offers:
 - `Hold funds (J5) for everyone`;
 - `Hold funds (J5) by usergroup` — customers of the selected usergroups (e.g.
   `Dealer` / `Shop`) get a J5 hold, everybody else pays as before.
+
+**Additional status after capture**
+
+If the [eCom Labs] Additional Order Statuses add-on is installed and active, the
+J5 settings gain an **Additional status: captured** selector. Pick one and a
+successful capture marks the order with it (`?:orders.additional_status`) right
+after the main order status changes; leave it at *do not change* and only the
+main status moves.
+
+The selector is hidden whenever that add-on is missing or disabled, since there
+would be no column to write to. A choice made earlier is not lost in the
+meantime: it stays stored, hidden, and starts working again the moment the
+add-on is switched back on. A status deleted after the fact is skipped rather
+than written, with the reason recorded in the log.
 
 **On the order page**
 
@@ -105,6 +136,54 @@ capture deadline and the current state, plus two buttons:
 
 Authorizations and captures are stored in `?:hypay_transactions` (kept on uninstall).
 
+
+---
+
+## 🔒 3-D Secure (3DS)
+
+**There is no 3DS setting in this add-on, for J5 or for anything else — by design.**
+
+3DS is switched on per *terminal*, in the Hyp Pay account, and Hyp only passes the
+authentication through between the card issuer and the acquirer. Once it is active
+on a terminal, no request parameter turns it on or off: every transaction sent to
+that terminal — J5 authorization, J4 charge, capture — follows whatever the
+terminal is configured for. A setting here would be a switch wired to nothing.
+
+Configure it in the Hyp Pay account of a **production** terminal (3DS is not
+available on test terminals), under הגדרות (Settings) → 3DS עסקה בטוחה:
+
+- פרטי עסקה בטוחה — merchant name in English (no spaces, up to 10 characters),
+  website domain, country code `376` for Israel, and the size of the OTP prompt;
+- הגדרות — per card brand: MID (10 digits starting with `972` for American
+  Express), acquirer, MCC, and both ישראל and תייר card types enabled.
+
+Two of those settings are the closest thing to the per-deal control a J5 toggle
+would have given:
+
+- a **minimum amount per currency** — 3DS only kicks in above it, so small holds
+  can skip the challenge;
+- the **fallback** checkbox — lets a transaction through without 3DS when the 3DS
+  system is temporarily unreachable.
+
+To run J5 with 3DS and regular checkout without it (or the other way round), the
+only real option is a second terminal configured differently, since the split has
+to happen at the terminal.
+
+**Reading the result.** J5 authorizations always go out with `MoreData=True`, so
+Hyp returns the `ECI` code on the redirect. It says whether the acquirer carries
+the chargeback liability:
+
+| ECI (Visa / Mastercard) | Meaning | Chargeback protection |
+|---|---|---|
+| `05` / `02` | Fully authenticated — the customer passed the challenge | Per the acquirer's rules |
+| `06` / `01` | Attempted — 3DS started, issuer or card does not support it | Per the acquirer's rules |
+| `07` / `00` | Failed — verification did not happen or did not pass | None |
+
+The add-on does not store `ECI` today; enable debug mode to see the full return in
+`var/log/hypay_ezcount.log`.
+
+See [3-D Secure on developers.hyp.co.il](https://developers.hyp.co.il/pay/advanced-features/3-d-secure)
+for the full setup guide.
 
 ---
 

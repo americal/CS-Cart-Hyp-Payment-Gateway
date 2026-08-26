@@ -277,6 +277,22 @@ msgctxt "Languages::hypay_ez_doc_lang_desc"
 msgid "he — иврит (по умолчанию), en — английский."
 msgstr "he — иврит (по умолчанию), en — английский."
 
+msgctxt "Languages::hypay_ez_line_items_mode"
+msgid "Document line items"
+msgstr "Состав документа"
+
+msgctxt "Languages::hypay_ez_line_items_mode_products"
+msgid "List products"
+msgstr "Расписывать товары"
+
+msgctxt "Languages::hypay_ez_line_items_mode_orders"
+msgid "Order number only"
+msgstr "Только номер заказа"
+
+msgctxt "Languages::hypay_ez_line_items_mode_desc"
+msgid "How the document issued through the direct API is itemized, including the one issued when a J5 authorization is captured. List products: a line per product plus shipping, payment surcharge, discounts and the rounding adjustment. Order number only: a single line naming the order, priced at the order total."
+msgstr "Чем заполняется документ, выписанный через direct API, в том числе при списании J5-авторизации. Расписывать товары: строка на каждый товар плюс доставка, комиссия, скидки и округление. Только номер заказа: одна строка с номером заказа на всю его сумму."
+
 msgctxt "Languages::hypay_ez_show_items_including_vat"
 msgid "Show items including VAT"
 msgstr "Показывать позиции с НДС"
@@ -353,6 +369,18 @@ msgstr "Статус заказа: средства списаны"
 msgctxt "Languages::hypay_j5_captured_status_desc"
 msgid "Set after the held amount has been charged."
 msgstr "Устанавливается после фактического списания удержанной суммы."
+
+msgctxt "Languages::hypay_j5_captured_additional_status"
+msgid "Additional status: captured"
+msgstr "Доп. статус после списания"
+
+msgctxt "Languages::hypay_j5_captured_additional_status_none"
+msgid "— do not change —"
+msgstr "— не менять —"
+
+msgctxt "Languages::hypay_j5_captured_additional_status_desc"
+msgid "Additional order status to mark after the held amount has been charged. Leave it at \"do not change\" to touch only the main order status. Needs the [eCom Labs] Additional Order Statuses add-on: while it is disabled this setting is hidden, and the stored choice is kept until it comes back."
+msgstr "Дополнительный статус заказа, который будет проставлен после списания заблокированной суммы. «Не менять» — трогается только основной статус. Требует аддон [eCom Labs] Additional Order Statuses: пока он отключён, настройка скрыта, а выбранное значение сохраняется до его возврата."
 
 msgctxt "Languages::hypay_j5_void_status"
 msgid "Order status: hold cancelled"

@@ -142,6 +142,27 @@
      </div>
  </div>
 
+ {* Additional status after capture. Rendered only while the add-on that owns
+    ?:orders.additional_status is active; otherwise the stored value is carried
+    through a hidden field, so disabling the add-on cannot silently wipe it. *}
+ {assign var="hypay_j5_add_status" value=$processor_params.j5_captured_additional_status|default:""}
+ {if $hypay_additional_statuses}
+     <div class="control-group">
+         <label class="control-label" for="elm_hypay_j5_captured_additional_status">{__("hypay_j5_captured_additional_status")}</label>
+         <div class="controls">
+             <select name="payment_data[processor_params][j5_captured_additional_status]" id="elm_hypay_j5_captured_additional_status">
+                 <option value="">{__("hypay_j5_captured_additional_status_none")}</option>
+                 {foreach from=$hypay_additional_statuses item="status" key="s_key"}
+                     <option value="{$s_key}" {if $s_key == $hypay_j5_add_status}selected="selected"{/if}>{$status}</option>
+                 {/foreach}
+             </select>
+             <p class="muted description">{__("hypay_j5_captured_additional_status_desc")}</p>
+         </div>
+     </div>
+ {elseif $hypay_j5_add_status}
+     <input type="hidden" name="payment_data[processor_params][j5_captured_additional_status]" value="{$hypay_j5_add_status|escape}" />
+ {/if}
+
  {assign var="hypay_j5_void_status" value=$processor_params.j5_void_status|default:"I"}
  <div class="control-group">
      <label class="control-label" for="elm_hypay_j5_void_status">{__("hypay_j5_void_status")}</label>
@@ -407,6 +428,19 @@
                 <option value="400" {if $processor_params.ez_doc_type == 400}selected{/if}>{__("hypay_ez_doc_type_400")} (400)</option>
             </select>
             <p class="muted description">{__("hypay_ez_doc_type_desc")}</p>
+        </div>
+    </div>
+
+    {* Line items: itemized products or a single order line *}
+    {assign var="ez_line_items_mode" value=$processor_params.ez_line_items_mode|default:"list_products"}
+    <div class="control-group">
+        <label class="control-label" for="ez_line_items_mode">{__("hypay_ez_line_items_mode")}</label>
+        <div class="controls">
+            <select name="payment_data[processor_params][ez_line_items_mode]" id="ez_line_items_mode" class="input-large">
+                <option value="list_products" {if $ez_line_items_mode == "list_products"}selected="selected"{/if}>{__("hypay_ez_line_items_mode_products")}</option>
+                <option value="list_orders" {if $ez_line_items_mode == "list_orders"}selected="selected"{/if}>{__("hypay_ez_line_items_mode_orders")}</option>
+            </select>
+            <p class="muted description">{__("hypay_ez_line_items_mode_desc")}</p>
         </div>
     </div>
 

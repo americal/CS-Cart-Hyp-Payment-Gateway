@@ -15,4 +15,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $lang_code = defined('DESCR_SL') ? DESCR_SL : CART_LANGUAGE;
 
     Tygh::$app['view']->assign('hypay_usergroups', fn_get_usergroups(['type' => 'C'], $lang_code));
+
+    // Empty unless the eCom Labs "Additional Order Statuses" add-on is active:
+    // the template hides the whole setting rather than offer a status that has
+    // nowhere to be stored.
+    Tygh::$app['view']->assign('hypay_additional_statuses', fn_hypay_get_additional_statuses($lang_code));
 }
