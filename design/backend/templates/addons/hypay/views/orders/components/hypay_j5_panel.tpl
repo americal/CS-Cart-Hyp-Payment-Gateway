@@ -175,6 +175,10 @@
                href="{"hypay.void?order_id=`$hypay_j5.order_id`"|fn_url}">{__("hypay_j5_btn_void")}</a>
 
             <p class="muted description">{__("hypay_j5_actions_hint")}</p>
+
+            {if $hypay_j5.payments > 1}
+                <p class="muted description">{__("hypay_j5_void_instalments_notice", ["[days]" => $hypay_j5.hold_days])}</p>
+            {/if}
         </div>
     </div>
 {/if}
