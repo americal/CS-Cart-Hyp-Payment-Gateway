@@ -120,6 +120,10 @@ if (defined('PAYMENT_NOTIFICATION')) {
             fn_set_notification('W', __('warning'), __('hypay_j5_warning_no_uid'));
         }
 
+        // an addon updated by copying files over an older copy never runs the
+        // install hook, so the table may still be missing on this callback
+        fn_hypay_ensure_schema();
+
         // the customer may land on this URL more than once (refresh, back button):
         // one authorization must produce exactly one row
         $already_stored = $hyp_id !== '' && db_get_field(
