@@ -115,6 +115,12 @@ The payment method setting **Payment type** offers:
 - `Hold funds (J5) by usergroup` — customers of the selected usergroups (e.g.
   `Dealer` / `Shop`) get a J5 hold, everybody else pays as before.
 
+**Reset selected** under the usergroup list clears the whole selection in one
+click, which beats ctrl-clicking entries loose one at a time. It only changes
+the form — the method still has to be saved — and an empty list under this
+payment type means nobody gets a hold at all: every customer is charged at
+checkout, as if the type were `Regular charge (J4)`.
+
 **Additional statuses**
 
 If the [eCom Labs] Additional Order Statuses add-on is installed and active, each
