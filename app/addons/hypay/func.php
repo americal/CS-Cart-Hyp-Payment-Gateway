@@ -81,6 +81,8 @@ function fn_hypay_ensure_schema()
         . " captured_at int(11) unsigned NOT NULL default '0',"
         . " voided_at int(11) unsigned NOT NULL default '0',"
         . " void_state varchar(16) NOT NULL default '',"
+        . " first_payment decimal(12,2) NOT NULL default '0.00',"
+        . " periodical_payment decimal(12,2) NOT NULL default '0.00',"
         . " last_error text,"
         . " PRIMARY KEY (transaction_id),"
         . " KEY order_id (order_id),"
@@ -96,6 +98,8 @@ function fn_hypay_ensure_schema()
         'payments_captured' => "smallint(5) unsigned NOT NULL default '0'",
         'client_lname'      => "varchar(128) NOT NULL default ''",
         'void_state'        => "varchar(16) NOT NULL default ''",
+        'first_payment'      => "decimal(12,2) NOT NULL default '0.00'",
+        'periodical_payment' => "decimal(12,2) NOT NULL default '0.00'",
     ];
     foreach ($added as $column => $definition) {
         if (!in_array($column, $columns, true)) {
@@ -1642,37 +1646,38 @@ function fn_hypay_void_j5($order_id)
 
     // action=CancelTrans asks Hyp to reverse the deal, so the customer sees the
     // hold drop off their card instead of waiting out the authorization window.
-    // On terminal 0010334524 the documented call comes back CCode=920 with
-    // ReversalStatus=404 for every hold, which reads as "nothing found to
-    // reverse".
     //
-    // The Enterprise reference explains why that is plausible: there, a
-    // reversal looked up by tranId "will search for the original debit
-    // transaction by this ID", while cgUid - the identifier shared by every
-    // step of one financial transaction, two-phase commits included - finds the
-    // latest state of the transaction itself. A J5 hold is not a debit
-    // transaction, so a lookup meant for one can miss it. Pay's TransId is the
-    // step identifier; the Shva UID is the value that spans the whole
-    // transaction, and Pay already names it inputObj.originalUid in the capture
-    // request.
+    // The documented four-parameter call is enough for a single-payment hold.
+    // An instalment hold is refused with CCode=920 and ReversalStatus=404,
+    // which is "Number of payments field was not entered" in the same table
+    // that decodes CCode - and repeating just the count is refused too. The
+    // Enterprise reference says why: setting the number of payments on a
+    // reversal "is not supported on its own and may be rejected; instead, it
+    // requires an explicit breakdown with firstPayment and periodicalPayment".
     //
-    // So a hold refused with CCode=920 is retried once with the UID as the
-    // lookup key, under both spellings that value goes by here. This is not in
-    // the Pay reference for CancelTrans - it is a hypothesis that matches the
-    // symptom - and it only ever runs after the documented call was refused.
+    // So an instalment hold that comes back refused is retried once with the
+    // whole schedule the authorization redirect reported, under the names it
+    // used for those values.
     $cancel_state = 'not_attempted';
     $hyp_detail   = '';
 
     if ($tx['hyp_id'] !== '') {
         list($cancel_state, $hyp_detail) = fn_hypay_cancel_trans($order_id, $pp, $tx['hyp_id']);
 
-        if ($cancel_state === 'not_cancellable' && (string) $tx['uid'] !== '') {
-            hypay_log($order_id, 'j5.cancel retrying with the Shva UID as the lookup key', ['uid' => $tx['uid']]);
+        $payments = max(1, (int) $tx['payments']);
 
-            list($cancel_state, $hyp_detail) = fn_hypay_cancel_trans($order_id, $pp, $tx['hyp_id'], [
-                'inputObj.originalUid' => (string) $tx['uid'],
-                'UID'                  => (string) $tx['uid'],
-            ]);
+        if ($cancel_state === 'not_cancellable' && $payments > 1) {
+            $breakdown = [
+                'Payments'       => $payments,
+                'Tash'           => $payments,
+                'noKPayments'    => $payments - 1,
+                'nFirstPayment'  => number_format(round((float) $tx['first_payment'], 2), 2, '.', ''),
+                'firstPayment'   => number_format(round((float) $tx['periodical_payment'], 2), 2, '.', ''),
+            ];
+
+            hypay_log($order_id, 'j5.cancel retrying with the instalment breakdown', $breakdown);
+
+            list($cancel_state, $hyp_detail) = fn_hypay_cancel_trans($order_id, $pp, $tx['hyp_id'], $breakdown);
         }
     } else {
         $cancel_state = 'failed';
