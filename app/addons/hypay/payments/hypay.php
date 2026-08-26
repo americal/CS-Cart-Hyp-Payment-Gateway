@@ -79,6 +79,11 @@ if (defined('PAYMENT_NOTIFICATION')) {
     $hyp_return_uid   = hypay_request_value(['UID', 'Uid', 'cgUid', 'CGUID', 'uniqueId']);
     $hyp_return_user  = hypay_request_value(['UserId', 'personalId', 'Id_Number']);
 
+    // instalment schedule: nFirstPayment is the first payment, firstPayment the
+    // periodical one. Absent on a single-payment deal.
+    $hyp_first_payment      = (float) hypay_request_value(['nFirstPayment']);
+    $hyp_periodical_payment = (float) hypay_request_value(['firstPayment']);
+
     // sanitize personal ID (display value)
     $clean_user_id = hypay_clean_personal_id($hyp_return_user);
 
@@ -139,6 +144,8 @@ if (defined('PAYMENT_NOTIFICATION')) {
                 'payments'          => $num_payments,
                 'coin'              => (int) ($pp['coin'] ?? 1),
                 'amount_authorized' => $authorized,
+            'first_payment'      => round($hyp_first_payment, 2),
+            'periodical_payment' => round($hyp_periodical_payment, 2),
                 'authorized_at'     => TIME,
                 'expires_at'        => TIME + $hold_days * 86400,
             ]);
