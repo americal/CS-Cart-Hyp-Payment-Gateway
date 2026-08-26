@@ -601,3 +601,15 @@ msgstr "Обращаемся к Hyp, подождите…"
 msgctxt "Languages::hypay_j5_uid"
 msgid "Shva UID"
 msgstr "Shva UID"
+
+msgctxt "Languages::hypay_j5_void_ok_not_cancellable"
+msgid "The hold will not be captured. Hyp refused to reverse it, so the issuer releases the funds when the authorization window ends, within about [days] days."
+msgstr "Удержание списано не будет. Hyp отклонил его снятие, поэтому банк освободит средства по окончании срока удержания — примерно за [days] дн."
+
+msgctxt "Languages::hypay_j5_note_voided_not_cancellable"
+msgid "Hypay J5: hold cancelled here, Hyp refused to reverse it on its side; the issuer releases the funds when the authorization window ends."
+msgstr "Hypay J5: удержание отменено у нас, Hyp отклонил снятие на своей стороне; банк освободит средства по окончании срока удержания."
+
+msgctxt "Languages::hypay_j5_void_not_cancellable_hint"
+msgid "Hyp refused to reverse this hold — its answer is below. Nothing was charged and the hold can never be captured; the issuer releases the funds when the authorization window ends, within about [days] days."
+msgstr "Hyp отклонил снятие этого удержания — его ответ ниже. Деньги не списаны, списать удержание уже нельзя; банк освободит средства по окончании срока удержания, примерно за [days] дн."

@@ -399,3 +399,15 @@ msgstr "פונים ל-Hyp, נא להמתין…"
 msgctxt "Languages::hypay_j5_uid"
 msgid "Shva UID"
 msgstr "Shva UID"
+
+msgctxt "Languages::hypay_j5_void_ok_not_cancellable"
+msgid "The hold will not be captured. Hyp refused to reverse it, so the issuer releases the funds when the authorization window ends, within about [days] days."
+msgstr "השמירה לא תיגבה. Hyp דחה את ביטולה, ולכן הכספים ישוחררו בתום תוקף האישור, תוך כ-[days] ימים."
+
+msgctxt "Languages::hypay_j5_note_voided_not_cancellable"
+msgid "Hypay J5: hold cancelled here, Hyp refused to reverse it on its side; the issuer releases the funds when the authorization window ends."
+msgstr "Hypay J5: השמירה בוטלה אצלנו, Hyp דחה את הביטול אצלו; הכספים ישוחררו בתום תוקף האישור."
+
+msgctxt "Languages::hypay_j5_void_not_cancellable_hint"
+msgid "Hyp refused to reverse this hold — its answer is below. Nothing was charged and the hold can never be captured; the issuer releases the funds when the authorization window ends, within about [days] days."
+msgstr "Hyp דחה את ביטול השמירה — התשובה שלו למטה. לא בוצע חיוב ולא ניתן לגבות את השמירה; הכספים ישוחררו תוך כ-[days] ימים."
