@@ -109,6 +109,25 @@
                      <option value="{$ug.usergroup_id}" {if $ug.usergroup_id|in_array:$hypay_j5_groups}selected="selected"{/if}>{$ug.usergroup}</option>
                  {/foreach}
              </select>
+             <p><button type="button" class="btn" id="hypay_j5_usergroups_reset">{__("hypay_j5_usergroups_reset")}</button></p>
+             {literal}
+             <script type="text/javascript">
+             (function () {
+                 var list  = document.getElementById('hypay_j5_usergroups');
+                 var reset = document.getElementById('hypay_j5_usergroups_reset');
+                 if (!list || !reset) { return; }
+
+                 // type="button" keeps this out of the form's submit path: the
+                 // selection is only cleared here, the method still has to be
+                 // saved for the empty list to reach processor_params
+                 reset.addEventListener('click', function () {
+                     for (var i = 0; i < list.options.length; i++) {
+                         list.options[i].selected = false;
+                     }
+                 });
+             })();
+             </script>
+             {/literal}
          {else}
              <p class="muted">{__("hypay_j5_usergroups_empty")}</p>
          {/if}

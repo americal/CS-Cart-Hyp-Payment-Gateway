@@ -157,8 +157,12 @@ msgid "Usergroups paying with J5"
 msgstr "קבוצות שמשלמות ב-J5"
 
 msgctxt "Languages::hypay_j5_usergroups_desc"
-msgid "Used only when the payment type is \"Hold funds (J5) by usergroup\". A customer belonging to any of the selected groups gets a J5 authorization instead of a charge."
-msgstr "רלוונטי רק כאשר סוג העסקה הוא לפי קבוצות. לקוח שמשויך לאחת הקבוצות שנבחרו יקבל אישור J5 במקום חיוב."
+msgid "Used only when the payment type is \"Hold funds (J5) by usergroup\". A customer belonging to any of the selected groups gets a J5 authorization instead of a charge. Reset selected clears the list in the form and takes effect once the method is saved; an empty list means nobody gets a hold and every customer is charged at checkout."
+msgstr "בשימוש רק כאשר סוג התשלום הוא \"שמירת כספים (J5) לפי קבוצות\". לקוח מאחת הקבוצות שנבחרו מקבל אישור J5 במקום חיוב. \"איפוס הבחירה\" מנקה את הרשימה בטופס ונכנס לתוקף לאחר שמירת אמצעי התשלום; רשימה ריקה משמעה שאיש אינו מקבל שמירה וכל הלקוחות מחויבים בקופה."
+
+msgctxt "Languages::hypay_j5_usergroups_reset"
+msgid "Reset selected"
+msgstr "איפוס הבחירה"
 
 msgctxt "Languages::hypay_j5_usergroups_empty"
 msgid "Usergroup list is unavailable. Save the payment method and reopen this page."
