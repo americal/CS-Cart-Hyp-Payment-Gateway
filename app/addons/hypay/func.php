@@ -1551,6 +1551,50 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null)
 }
 
 /**
+ * One CancelTrans call.
+ *
+ * @param array $extra additional parameters beyond the documented four
+ *
+ * @return array [state, detail] where state is confirmed | needs_payments |
+ *               not_cancellable | failed
+ */
+function fn_hypay_cancel_trans($order_id, array $pp, $trans_id, array $extra = [])
+{
+    $result = fn_hypay_api_request($order_id, array_merge([
+        'action'  => 'CancelTrans',
+        'Masof'   => trim((string) ($pp['masof'] ?? '')),
+        'PassP'   => trim((string) ($pp['passp'] ?? '')),
+        'TransId' => (string) $trans_id,
+    ], $extra), 'j5.cancel');
+
+    $response = $result['params'];
+    $ccode    = isset($response['CCode']) ? (string) $response['CCode'] : '';
+    $reversal = isset($response['ReversalStatus']) ? (string) $response['ReversalStatus'] : '';
+
+    if ($ccode === '0' && $reversal === '777') {
+        return ['confirmed', ''];
+    }
+
+    $detail = fn_hypay_format_error($ccode, '', $result['raw']);
+    if ($reversal !== '') {
+        $meaning = fn_hypay_ccode_message($reversal);
+        $detail .= ' | ReversalStatus=' . $reversal . ($meaning !== '' ? ' — ' . $meaning : '');
+    }
+
+    if ($reversal === '404') {
+        $state = 'needs_payments';
+    } elseif ($ccode === '920') {
+        $state = 'not_cancellable';
+    } else {
+        $state = 'failed';
+    }
+
+    hypay_log($order_id, 'j5.cancel not confirmed by Hyp', ['state' => $state, 'detail' => $detail]);
+
+    return [$state, $detail];
+}
+
+/**
  * Void a J5 authorization.
  *
  * Hypay documents no server-to-server release call for a held authorization,
@@ -1594,42 +1638,32 @@ function fn_hypay_void_j5($order_id)
 
     // action=CancelTrans asks Hyp to reverse the deal, so the customer sees the
     // hold drop off their card instead of waiting out the authorization window.
-    // Whether that works depends on the terminal: CancelTrans is documented for
-    // charges that have not been transmitted yet, and a J5 hold is not a charge,
-    // so some terminals answer CCode=920 ("already transmitted or does not
-    // exist") for every hold. That is a normal outcome here, not a failure.
     $cancel_state = 'not_attempted';
     $hyp_detail   = '';
 
     if ($tx['hyp_id'] !== '') {
-        $result = fn_hypay_api_request($order_id, [
-            'action'  => 'CancelTrans',
-            'Masof'   => trim((string) ($pp['masof'] ?? '')),
-            'PassP'   => trim((string) ($pp['passp'] ?? '')),
-            'TransId' => $tx['hyp_id'],
-        ], 'j5.cancel');
+        $payments = max(1, (int) $tx['payments']);
 
-        $response = $result['params'];
-        $ccode    = isset($response['CCode']) ? (string) $response['CCode'] : '';
-        $reversal = isset($response['ReversalStatus']) ? (string) $response['ReversalStatus'] : '';
+        list($cancel_state, $hyp_detail) = fn_hypay_cancel_trans($order_id, $pp, $tx['hyp_id']);
 
-        if ($ccode === '0' && $reversal === '777') {
-            $cancel_state = 'confirmed';
-        } elseif ($ccode === '920') {
-            $cancel_state = 'not_cancellable';
-        } else {
-            $cancel_state = 'failed';
+        // ReversalStatus carries the Shva reason behind Hyp's generic CCode=920:
+        // a successful cancellation answers 777 ("OK, you can proceed"), while
+        // 404 is "Number of payments field was not entered". An instalment deal
+        // therefore needs its payment count on the reversal - the Pay reference
+        // for CancelTrans does not mention it, but the Enterprise reference says
+        // as much for cancelDeal/refundDeal, so it is worth one retry that
+        // repeats the count under both names this API uses for it.
+        if ($cancel_state === 'needs_payments' && $payments > 1) {
+            hypay_log($order_id, 'j5.cancel retrying with the instalment count', ['payments' => $payments]);
+
+            list($cancel_state, $hyp_detail) = fn_hypay_cancel_trans($order_id, $pp, $tx['hyp_id'], [
+                'Tash'     => $payments,
+                'Payments' => $payments,
+            ]);
         }
 
-        if ($cancel_state !== 'confirmed') {
-            $hyp_detail = fn_hypay_format_error($ccode, '', $result['raw']);
-            if ($reversal !== '') {
-                $hyp_detail .= ' | ReversalStatus=' . $reversal;
-            }
-            hypay_log($order_id, 'j5.cancel not confirmed by Hyp', [
-                'state'  => $cancel_state,
-                'detail' => $hyp_detail,
-            ]);
+        if ($cancel_state === 'needs_payments') {
+            $cancel_state = 'not_cancellable';
         }
     } else {
         $cancel_state = 'failed';
