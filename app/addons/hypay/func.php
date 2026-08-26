@@ -1280,6 +1280,11 @@ function fn_hypay_fetch_card_token($order_id, array $pp, $trans_id, &$error = ''
         'Masof'   => trim((string) ($pp['masof'] ?? '')),
         'PassP'   => trim((string) ($pp['passp'] ?? '')),
         'TransId' => (string) $trans_id,
+        // a J5 authorization is not a completed charge, and tokenization
+        // rejects those with CCode=910 unless allowFalse says otherwise. Our
+        // terminal happens to answer without it, but the reference is explicit
+        // that a card that was only verified needs it.
+        'allowFalse' => 'True',
     ], 'j5.getToken');
 
     $params = $result['params'];
@@ -1553,10 +1558,16 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null)
 /**
  * One CancelTrans call.
  *
- * @param array $extra additional parameters beyond the documented four
+ * ReversalStatus is reported raw. It is tempting to read it through the CCode
+ * table, where the documented success value 777 is "OK, you can proceed" and
+ * the 404 a held authorization comes back with is "Number of payments field
+ * was not entered" - but repeating the payment count on the request changed
+ * nothing, so 404 here means the reversal found nothing to act on, matching
+ * CCode=920. Decoding it that way only produced a misleading message.
  *
- * @return array [state, detail] where state is confirmed | needs_payments |
- *               not_cancellable | failed
+ * @param array $extra additional lookup keys beyond the documented four
+ *
+ * @return array [state, detail] where state is confirmed | not_cancellable | failed
  */
 function fn_hypay_cancel_trans($order_id, array $pp, $trans_id, array $extra = [])
 {
@@ -1577,17 +1588,10 @@ function fn_hypay_cancel_trans($order_id, array $pp, $trans_id, array $extra = [
 
     $detail = fn_hypay_format_error($ccode, '', $result['raw']);
     if ($reversal !== '') {
-        $meaning = fn_hypay_ccode_message($reversal);
-        $detail .= ' | ReversalStatus=' . $reversal . ($meaning !== '' ? ' — ' . $meaning : '');
+        $detail .= ' | ReversalStatus=' . $reversal;
     }
 
-    if ($reversal === '404') {
-        $state = 'needs_payments';
-    } elseif ($ccode === '920') {
-        $state = 'not_cancellable';
-    } else {
-        $state = 'failed';
-    }
+    $state = ($ccode === '920') ? 'not_cancellable' : 'failed';
 
     hypay_log($order_id, 'j5.cancel not confirmed by Hyp', ['state' => $state, 'detail' => $detail]);
 
@@ -1638,32 +1642,37 @@ function fn_hypay_void_j5($order_id)
 
     // action=CancelTrans asks Hyp to reverse the deal, so the customer sees the
     // hold drop off their card instead of waiting out the authorization window.
+    // On terminal 0010334524 the documented call comes back CCode=920 with
+    // ReversalStatus=404 for every hold, which reads as "nothing found to
+    // reverse".
+    //
+    // The Enterprise reference explains why that is plausible: there, a
+    // reversal looked up by tranId "will search for the original debit
+    // transaction by this ID", while cgUid - the identifier shared by every
+    // step of one financial transaction, two-phase commits included - finds the
+    // latest state of the transaction itself. A J5 hold is not a debit
+    // transaction, so a lookup meant for one can miss it. Pay's TransId is the
+    // step identifier; the Shva UID is the value that spans the whole
+    // transaction, and Pay already names it inputObj.originalUid in the capture
+    // request.
+    //
+    // So a hold refused with CCode=920 is retried once with the UID as the
+    // lookup key, under both spellings that value goes by here. This is not in
+    // the Pay reference for CancelTrans - it is a hypothesis that matches the
+    // symptom - and it only ever runs after the documented call was refused.
     $cancel_state = 'not_attempted';
     $hyp_detail   = '';
 
     if ($tx['hyp_id'] !== '') {
-        $payments = max(1, (int) $tx['payments']);
-
         list($cancel_state, $hyp_detail) = fn_hypay_cancel_trans($order_id, $pp, $tx['hyp_id']);
 
-        // ReversalStatus carries the Shva reason behind Hyp's generic CCode=920:
-        // a successful cancellation answers 777 ("OK, you can proceed"), while
-        // 404 is "Number of payments field was not entered". An instalment deal
-        // therefore needs its payment count on the reversal - the Pay reference
-        // for CancelTrans does not mention it, but the Enterprise reference says
-        // as much for cancelDeal/refundDeal, so it is worth one retry that
-        // repeats the count under both names this API uses for it.
-        if ($cancel_state === 'needs_payments' && $payments > 1) {
-            hypay_log($order_id, 'j5.cancel retrying with the instalment count', ['payments' => $payments]);
+        if ($cancel_state === 'not_cancellable' && (string) $tx['uid'] !== '') {
+            hypay_log($order_id, 'j5.cancel retrying with the Shva UID as the lookup key', ['uid' => $tx['uid']]);
 
             list($cancel_state, $hyp_detail) = fn_hypay_cancel_trans($order_id, $pp, $tx['hyp_id'], [
-                'Tash'     => $payments,
-                'Payments' => $payments,
+                'inputObj.originalUid' => (string) $tx['uid'],
+                'UID'                  => (string) $tx['uid'],
             ]);
-        }
-
-        if ($cancel_state === 'needs_payments') {
-            $cancel_state = 'not_cancellable';
         }
     } else {
         $cancel_state = 'failed';
