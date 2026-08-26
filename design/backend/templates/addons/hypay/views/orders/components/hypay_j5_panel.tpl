@@ -121,7 +121,9 @@
     {if $hypay_j5.last_error}
         <div class="control-group">
             <div class="controls">
-                {if $hypay_j5.void_state == "not_cancellable"}
+                {if $hypay_j5.void_state == "not_cancellable" && $hypay_j5.payments > 1}
+                    <p class="muted">{__("hypay_j5_void_instalments_hint", ["[days]" => $hypay_j5.hold_days])}</p>
+                {elseif $hypay_j5.void_state == "not_cancellable"}
                     <p class="muted">{__("hypay_j5_void_not_cancellable_hint", ["[days]" => $hypay_j5.hold_days])}</p>
                 {else}
                     <p class="text-warning">{__("hypay_j5_void_not_confirmed_hint")}</p>

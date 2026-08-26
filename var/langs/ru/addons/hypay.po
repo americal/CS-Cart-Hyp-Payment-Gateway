@@ -613,3 +613,15 @@ msgstr "Hypay J5: удержание отменено у нас, Hyp откло�
 msgctxt "Languages::hypay_j5_void_not_cancellable_hint"
 msgid "Hyp refused to reverse this hold — its answer is below. Nothing was charged and the hold can never be captured; the issuer releases the funds when the authorization window ends, within about [days] days."
 msgstr "Hyp отклонил снятие этого удержания — его ответ ниже. Деньги не списаны, списать удержание уже нельзя; банк освободит средства по окончании срока удержания, примерно за [days] дн."
+
+msgctxt "Languages::hypay_j5_void_ok_instalments"
+msgid "The hold will not be captured. Hyp does not reverse a hold taken in instalments, so the issuer releases the funds when the authorization window ends, within about [days] days."
+msgstr "Удержание списано не будет. Hyp не снимает удержание, взятое в рассрочку, поэтому банк освободит средства по окончании срока — примерно за [days] дн."
+
+msgctxt "Languages::hypay_j5_note_voided_instalments"
+msgid "Hypay J5: hold cancelled here. Hyp does not reverse a hold taken in instalments, so the issuer releases the funds when the authorization window ends."
+msgstr "Hypay J5: удержание отменено у нас. Hyp не снимает удержание, взятое в рассрочку, поэтому банк освободит средства по окончании срока удержания."
+
+msgctxt "Languages::hypay_j5_void_instalments_hint"
+msgid "This hold was taken in instalments, and Hyp does not reverse those through CancelTrans - a single-payment hold is released immediately, an instalment one is refused whatever payment details the request carries. Nothing was charged and the hold can never be captured; the issuer releases the funds when the authorization window ends, within about [days] days."
+msgstr "Это удержание взято в рассрочку, а такие Hyp через CancelTrans не снимает — удержание в один платёж освобождается сразу, а в рассрочку отклоняется при любых переданных данных о платежах. Деньги не списаны, списать удержание уже нельзя; банк освободит средства по окончании срока, примерно за [days] дн."

@@ -411,3 +411,15 @@ msgstr "Hypay J5: השמירה בוטלה אצלנו, Hyp דחה את הביטו
 msgctxt "Languages::hypay_j5_void_not_cancellable_hint"
 msgid "Hyp refused to reverse this hold — its answer is below. Nothing was charged and the hold can never be captured; the issuer releases the funds when the authorization window ends, within about [days] days."
 msgstr "Hyp דחה את ביטול השמירה — התשובה שלו למטה. לא בוצע חיוב ולא ניתן לגבות את השמירה; הכספים ישוחררו תוך כ-[days] ימים."
+
+msgctxt "Languages::hypay_j5_void_ok_instalments"
+msgid "The hold will not be captured. Hyp does not reverse a hold taken in instalments, so the issuer releases the funds when the authorization window ends, within about [days] days."
+msgstr "השמירה לא תיגבה. Hyp אינו מבטל שמירה שנלקחה בתשלומים, ולכן הכספים ישוחררו בתום תוקף האישור, תוך כ-[days] ימים."
+
+msgctxt "Languages::hypay_j5_note_voided_instalments"
+msgid "Hypay J5: hold cancelled here. Hyp does not reverse a hold taken in instalments, so the issuer releases the funds when the authorization window ends."
+msgstr "Hypay J5: השמירה בוטלה אצלנו. Hyp אינו מבטל שמירה בתשלומים; הכספים ישוחררו בתום תוקף האישור."
+
+msgctxt "Languages::hypay_j5_void_instalments_hint"
+msgid "This hold was taken in instalments, and Hyp does not reverse those through CancelTrans - a single-payment hold is released immediately, an instalment one is refused whatever payment details the request carries. Nothing was charged and the hold can never be captured; the issuer releases the funds when the authorization window ends, within about [days] days."
+msgstr "השמירה נלקחה בתשלומים, ו-Hyp אינו מבטל כאלה דרך CancelTrans. לא בוצע חיוב ולא ניתן לגבות את השמירה; הכספים ישוחררו תוך כ-[days] ימים."
