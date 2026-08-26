@@ -124,6 +124,54 @@ Authorizations and captures are stored in `?:hypay_transactions` (kept on uninst
 
 ---
 
+## 🔒 3-D Secure (3DS)
+
+**There is no 3DS setting in this add-on, for J5 or for anything else — by design.**
+
+3DS is switched on per *terminal*, in the Hyp Pay account, and Hyp only passes the
+authentication through between the card issuer and the acquirer. Once it is active
+on a terminal, no request parameter turns it on or off: every transaction sent to
+that terminal — J5 authorization, J4 charge, capture — follows whatever the
+terminal is configured for. A setting here would be a switch wired to nothing.
+
+Configure it in the Hyp Pay account of a **production** terminal (3DS is not
+available on test terminals), under הגדרות (Settings) → 3DS עסקה בטוחה:
+
+- פרטי עסקה בטוחה — merchant name in English (no spaces, up to 10 characters),
+  website domain, country code `376` for Israel, and the size of the OTP prompt;
+- הגדרות — per card brand: MID (10 digits starting with `972` for American
+  Express), acquirer, MCC, and both ישראל and תייר card types enabled.
+
+Two of those settings are the closest thing to the per-deal control a J5 toggle
+would have given:
+
+- a **minimum amount per currency** — 3DS only kicks in above it, so small holds
+  can skip the challenge;
+- the **fallback** checkbox — lets a transaction through without 3DS when the 3DS
+  system is temporarily unreachable.
+
+To run J5 with 3DS and regular checkout without it (or the other way round), the
+only real option is a second terminal configured differently, since the split has
+to happen at the terminal.
+
+**Reading the result.** J5 authorizations always go out with `MoreData=True`, so
+Hyp returns the `ECI` code on the redirect. It says whether the acquirer carries
+the chargeback liability:
+
+| ECI (Visa / Mastercard) | Meaning | Chargeback protection |
+|---|---|---|
+| `05` / `02` | Fully authenticated — the customer passed the challenge | Per the acquirer's rules |
+| `06` / `01` | Attempted — 3DS started, issuer or card does not support it | Per the acquirer's rules |
+| `07` / `00` | Failed — verification did not happen or did not pass | None |
+
+The add-on does not store `ECI` today; enable debug mode to see the full return in
+`var/log/hypay_ezcount.log`.
+
+See [3-D Secure on developers.hyp.co.il](https://developers.hyp.co.il/pay/advanced-features/3-d-secure)
+for the full setup guide.
+
+---
+
 ## ⚠️ Disclaimer
 
 This software is provided **AS IS**, without warranty of any kind.
