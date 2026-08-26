@@ -56,6 +56,7 @@ The addon provides configuration options for:
 - Order ID prefix
 - Authorization / capture behavior
 - EzCount document line items — itemized products or the order number alone
+- Additional order status to set after a J5 capture (needs the eCom Labs add-on)
 - Additional Hyp-specific parameters
 
 For detailed API behavior, refer to the official Hyp documentation.
@@ -103,6 +104,20 @@ The payment method setting **Payment type** offers:
 - `Hold funds (J5) for everyone`;
 - `Hold funds (J5) by usergroup` — customers of the selected usergroups (e.g.
   `Dealer` / `Shop`) get a J5 hold, everybody else pays as before.
+
+**Additional status after capture**
+
+If the [eCom Labs] Additional Order Statuses add-on is installed and active, the
+J5 settings gain an **Additional status: captured** selector. Pick one and a
+successful capture marks the order with it (`?:orders.additional_status`) right
+after the main order status changes; leave it at *do not change* and only the
+main status moves.
+
+The selector is hidden whenever that add-on is missing or disabled, since there
+would be no column to write to. A choice made earlier is not lost in the
+meantime: it stays stored, hidden, and starts working again the moment the
+add-on is switched back on. A status deleted after the fact is skipped rather
+than written, with the reason recorded in the log.
 
 **On the order page**
 

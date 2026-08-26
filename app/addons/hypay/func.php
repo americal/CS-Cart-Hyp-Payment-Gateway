@@ -18,6 +18,9 @@ if (!defined('HYPAY_API_URL')) { define('HYPAY_API_URL', 'https://pay.hyp.co.il/
 /** CCode returned in the redirect when a J5 authorization was granted */
 if (!defined('HYPAY_CCODE_J5_AUTHORIZED')) { define('HYPAY_CCODE_J5_AUTHORIZED', '700'); }
 
+/** add-on that owns ?:orders.additional_status - nothing here works without it */
+if (!defined('HYPAY_ADDITIONAL_STATUSES_ADDON')) { define('HYPAY_ADDITIONAL_STATUSES_ADDON', 'ecl_additional_order_statuses'); }
+
 /** global debug switch (filled from payment settings later) */
 if (!isset($GLOBALS['HYPAY_DEBUG'])) { $GLOBALS['HYPAY_DEBUG'] = false; }
 
@@ -1363,6 +1366,94 @@ function fn_hypay_update_payment_info($order_id, array $extra)
     return true;
 }
 
+/* ============================================================================
+ * Additional order status (eCom Labs "Additional Order Statuses" add-on)
+ * ==========================================================================*/
+
+/**
+ * Is there an add-on to write ?:orders.additional_status for?
+ *
+ * The column and the status type both come from the eCom Labs add-on: its
+ * init.php defines STATUSES_ORDER_ADDITIONAL, and CS-Cart only loads init.php
+ * of *active* add-ons. The ?:addons row is the authoritative answer - the
+ * defined() check just keeps the constant safe to reference afterwards.
+ *
+ * @return bool
+ */
+function fn_hypay_additional_statuses_available()
+{
+    static $available = null;
+
+    if ($available === null) {
+        $available = defined('STATUSES_ORDER_ADDITIONAL')
+            && db_get_field('SELECT status FROM ?:addons WHERE addon = ?s', HYPAY_ADDITIONAL_STATUSES_ADDON) === 'A';
+    }
+
+    return $available;
+}
+
+/**
+ * The additional statuses an order can be marked with.
+ *
+ * @return array [status code => description], empty when the add-on is off
+ */
+function fn_hypay_get_additional_statuses($lang_code = CART_LANGUAGE)
+{
+    if (!fn_hypay_additional_statuses_available()) {
+        return [];
+    }
+
+    return (array) fn_get_simple_statuses(STATUSES_ORDER_ADDITIONAL, false, false, $lang_code);
+}
+
+/**
+ * Mark an order with an additional status.
+ *
+ * Written straight to the column the add-on owns: it keeps no history of its
+ * own, so there is nothing else to keep in step.
+ *
+ * @return bool whether the order was actually marked
+ */
+function fn_hypay_set_additional_status($order_id, $status)
+{
+    $order_id = (int) $order_id;
+    $status   = trim((string) $status);
+
+    if ($status === '') {
+        return false;
+    }
+
+    if (!fn_hypay_additional_statuses_available()) {
+        hypay_log($order_id, 'additional_status skipped (add-on not active)', ['status' => $status]);
+
+        return false;
+    }
+
+    // the status may have been deleted long after the payment method was
+    // configured, and the column is a char(1) that would take the letter anyway
+    $statuses = fn_hypay_get_additional_statuses();
+    if (!isset($statuses[$status])) {
+        hypay_log($order_id, 'additional_status skipped (no such status)', [
+            'status' => $status,
+            'known'  => array_keys($statuses),
+        ]);
+
+        return false;
+    }
+
+    db_query('UPDATE ?:orders SET additional_status = ?s WHERE order_id = ?i', $status, $order_id);
+    hypay_log($order_id, 'additional_status set', [
+        'status'      => $status,
+        'description' => $statuses[$status],
+    ]);
+
+    return true;
+}
+
+/* ============================================================================
+ * J5 capture / void
+ * ==========================================================================*/
+
 /**
  * Step 3: capture (charge) a J5 authorization.
  *
@@ -1575,6 +1666,10 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null)
 
     $captured_status = !empty($pp['j5_captured_status']) ? $pp['j5_captured_status'] : ($pp['success_status'] ?? 'P');
     fn_change_order_status($order_id, $captured_status);
+
+    if (!empty($pp['j5_captured_additional_status'])) {
+        fn_hypay_set_additional_status($order_id, $pp['j5_captured_additional_status']);
+    }
 
     fn_hypay_order_note($order_id, __('hypay_j5_note_captured', [
         '[amount]' => number_format($amount, 2, '.', ''),

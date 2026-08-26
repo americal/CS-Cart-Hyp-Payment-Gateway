@@ -168,6 +168,18 @@ msgctxt "Languages::hypay_j5_captured_status_desc"
 msgid "Set after the held amount has been charged."
 msgstr "נקבע לאחר גביית הסכום ששמור."
 
+msgctxt "Languages::hypay_j5_captured_additional_status"
+msgid "Additional status: captured"
+msgstr "סטטוס נוסף לאחר חיוב"
+
+msgctxt "Languages::hypay_j5_captured_additional_status_none"
+msgid "— do not change —"
+msgstr "— ללא שינוי —"
+
+msgctxt "Languages::hypay_j5_captured_additional_status_desc"
+msgid "Additional order status to mark after the held amount has been charged. Leave it at \"do not change\" to touch only the main order status. Needs the [eCom Labs] Additional Order Statuses add-on: while it is disabled this setting is hidden, and the stored choice is kept until it comes back."
+msgstr "סטטוס הזמנה נוסף שיסומן לאחר חיוב הסכום שנשמר. בבחירת הערך \"ללא שינוי\" ישתנה רק הסטטוס הראשי. דורש את התוסף [eCom Labs] Additional Order Statuses: כל עוד הוא מכובה, ההגדרה מוסתרת והערך שנבחר נשמר."
+
 msgctxt "Languages::hypay_j5_void_status"
 msgid "Order status: hold cancelled"
 msgstr "סטטוס הזמנה: השמירה בוטלה"

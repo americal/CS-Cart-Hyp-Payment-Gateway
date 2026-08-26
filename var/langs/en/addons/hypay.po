@@ -370,6 +370,18 @@ msgctxt "Languages::hypay_j5_captured_status_desc"
 msgid "Set after the held amount has been charged."
 msgstr "Set after the held amount has been charged."
 
+msgctxt "Languages::hypay_j5_captured_additional_status"
+msgid "Additional status: captured"
+msgstr "Additional status: captured"
+
+msgctxt "Languages::hypay_j5_captured_additional_status_none"
+msgid "— do not change —"
+msgstr "— do not change —"
+
+msgctxt "Languages::hypay_j5_captured_additional_status_desc"
+msgid "Additional order status to mark after the held amount has been charged. Leave it at \"do not change\" to touch only the main order status. Needs the [eCom Labs] Additional Order Statuses add-on: while it is disabled this setting is hidden, and the stored choice is kept until it comes back."
+msgstr "Additional order status to mark after the held amount has been charged. Leave it at \"do not change\" to touch only the main order status. Needs the [eCom Labs] Additional Order Statuses add-on: while it is disabled this setting is hidden, and the stored choice is kept until it comes back."
+
 msgctxt "Languages::hypay_j5_void_status"
 msgid "Order status: hold cancelled"
 msgstr "Order status: hold cancelled"
