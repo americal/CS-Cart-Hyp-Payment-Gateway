@@ -1553,19 +1553,23 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null)
 /**
  * One CancelTrans call.
  *
- * @param array $extra additional parameters beyond the documented four
+ * ReversalStatus is reported raw. It is tempting to read it through the CCode
+ * table, where the documented success value 777 is "OK, you can proceed" and
+ * the 404 a held authorization comes back with is "Number of payments field
+ * was not entered" - but repeating the payment count on the request changed
+ * nothing, so 404 here means the reversal found nothing to act on, matching
+ * CCode=920. Decoding it that way only produced a misleading message.
  *
- * @return array [state, detail] where state is confirmed | needs_payments |
- *               not_cancellable | failed
+ * @return array [state, detail] where state is confirmed | not_cancellable | failed
  */
-function fn_hypay_cancel_trans($order_id, array $pp, $trans_id, array $extra = [])
+function fn_hypay_cancel_trans($order_id, array $pp, $trans_id)
 {
-    $result = fn_hypay_api_request($order_id, array_merge([
+    $result = fn_hypay_api_request($order_id, [
         'action'  => 'CancelTrans',
         'Masof'   => trim((string) ($pp['masof'] ?? '')),
         'PassP'   => trim((string) ($pp['passp'] ?? '')),
         'TransId' => (string) $trans_id,
-    ], $extra), 'j5.cancel');
+    ], 'j5.cancel');
 
     $response = $result['params'];
     $ccode    = isset($response['CCode']) ? (string) $response['CCode'] : '';
@@ -1577,17 +1581,10 @@ function fn_hypay_cancel_trans($order_id, array $pp, $trans_id, array $extra = [
 
     $detail = fn_hypay_format_error($ccode, '', $result['raw']);
     if ($reversal !== '') {
-        $meaning = fn_hypay_ccode_message($reversal);
-        $detail .= ' | ReversalStatus=' . $reversal . ($meaning !== '' ? ' — ' . $meaning : '');
+        $detail .= ' | ReversalStatus=' . $reversal;
     }
 
-    if ($reversal === '404') {
-        $state = 'needs_payments';
-    } elseif ($ccode === '920') {
-        $state = 'not_cancellable';
-    } else {
-        $state = 'failed';
-    }
+    $state = ($ccode === '920') ? 'not_cancellable' : 'failed';
 
     hypay_log($order_id, 'j5.cancel not confirmed by Hyp', ['state' => $state, 'detail' => $detail]);
 
@@ -1638,33 +1635,17 @@ function fn_hypay_void_j5($order_id)
 
     // action=CancelTrans asks Hyp to reverse the deal, so the customer sees the
     // hold drop off their card instead of waiting out the authorization window.
+    // On terminal 0010334524 every J5 hold comes back CCode=920 with
+    // ReversalStatus=404 - with and without the payment count on the request,
+    // and with one instalment as well as several - so this terminal appears not
+    // to expose held authorizations to the reversal command at all. The call is
+    // still made: it costs one request, and it is the documented way to release
+    // a hold where the terminal does support it.
     $cancel_state = 'not_attempted';
     $hyp_detail   = '';
 
     if ($tx['hyp_id'] !== '') {
-        $payments = max(1, (int) $tx['payments']);
-
         list($cancel_state, $hyp_detail) = fn_hypay_cancel_trans($order_id, $pp, $tx['hyp_id']);
-
-        // ReversalStatus carries the Shva reason behind Hyp's generic CCode=920:
-        // a successful cancellation answers 777 ("OK, you can proceed"), while
-        // 404 is "Number of payments field was not entered". An instalment deal
-        // therefore needs its payment count on the reversal - the Pay reference
-        // for CancelTrans does not mention it, but the Enterprise reference says
-        // as much for cancelDeal/refundDeal, so it is worth one retry that
-        // repeats the count under both names this API uses for it.
-        if ($cancel_state === 'needs_payments' && $payments > 1) {
-            hypay_log($order_id, 'j5.cancel retrying with the instalment count', ['payments' => $payments]);
-
-            list($cancel_state, $hyp_detail) = fn_hypay_cancel_trans($order_id, $pp, $tx['hyp_id'], [
-                'Tash'     => $payments,
-                'Payments' => $payments,
-            ]);
-        }
-
-        if ($cancel_state === 'needs_payments') {
-            $cancel_state = 'not_cancellable';
-        }
     } else {
         $cancel_state = 'failed';
         $hyp_detail   = 'no authorization Id stored, CancelTrans was not attempted';
