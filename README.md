@@ -159,6 +159,20 @@ capture deadline and the current state, plus two buttons:
   releases the funds when the authorization window (about 5 days) expires. Hyp does
   not document a server-to-server release call, so no request is sent for this.
 
+Both buttons move the order to the status configured for them **without sending
+a single notification** — not to the customer, not to the order department, not
+to the vendor. The status change here is bookkeeping that follows money which
+has already moved, and the person who moved it is looking straight at the
+result, so there is nobody left to inform: an e-mail saying "your order is now
+*Cancelled*" minutes after a hold was released is noise at best and alarming at
+worst. Every notification receiver is switched off explicitly on the call, so
+the store's own notification settings for those statuses are left untouched and
+keep working for every other way a status can change.
+
+Checkout is deliberately not part of this. The status the payment return sets —
+*funds held*, paid, or failed — is the one that carries the order confirmation
+the customer expects, and it still goes out as before.
+
 **Payment information language**
 
 The *Payment status* and *J5 hold* lines follow whoever is reading them, not
