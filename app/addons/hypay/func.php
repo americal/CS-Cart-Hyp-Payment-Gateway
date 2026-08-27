@@ -716,7 +716,6 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
     $ez_env             = $pp['ez_environment'] ?? 'demo'; // demo|live
     $ez_api_key         = trim((string) ($pp['ez_api_key'] ?? ''));
     $ez_developer_mail  = trim((string) ($pp['ez_developer_email'] ?? ''));
-    $ez_ua_uuid         = trim((string) ($pp['ez_ua_uuid'] ?? ''));
     $created_by_api_key = trim((string) ($pp['ez_created_by_api_key'] ?? '')); // optional, not hashed
     $doc_type_param     = (int) ($pp['ez_doc_type'] ?? 320);                   // 320/400
     $doc_type           = in_array($doc_type_param, [320, 400], true) ? $doc_type_param : 320;
@@ -725,6 +724,14 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
     $auto_calc          = isset($pp['ez_auto_calc_payments']) ? (int) (!empty($pp['ez_auto_calc_payments'])) : 0;
     $flow               = ($ctx['flow'] ?? 'regular') === 'j5' ? 'j5' : 'regular';
     $list_products      = hypay_ez_is_list_products_mode($pp, $flow);
+
+    // Unlike the line-items mode next to it, the UA UUID does not fall back to
+    // the regular value: a J5 document is issued into whichever EzCount account
+    // its own field names, and leaving that field empty means the document is
+    // created without ua_uuid at all.
+    $ez_ua_uuid = $flow === 'j5'
+        ? trim((string) ($pp['ez_ua_uuid_j5'] ?? ''))
+        : trim((string) ($pp['ez_ua_uuid'] ?? ''));
 
     $amount = round((float) ($ctx['amount'] ?? $order_info['total']), 2);
 
