@@ -713,3 +713,11 @@ msgstr "Off — show the buttons"
 msgctxt "Languages::hypay_j5_hide_btns_desc"
 msgid "Overrides the hideBtns checkbox above for J5 authorizations only, so a hold can show different buttons on the payment page than a charge. Leave it on \"Same as a regular charge\" to keep using the checkbox."
 msgstr "Overrides the hideBtns checkbox above for J5 authorizations only, so a hold can show different buttons on the payment page than a charge. Leave it on \"Same as a regular charge\" to keep using the checkbox."
+
+msgctxt "Languages::hypay_ez_ua_uuid_j5"
+msgid "UA UUID for J5 documents"
+msgstr "UA UUID for J5 documents"
+
+msgctxt "Languages::hypay_ez_ua_uuid_j5_desc"
+msgid "Used for the document issued after a J5 capture, instead of the UA UUID above. This field does not fall back to it: leave it empty and J5 documents are created without ua_uuid at all, even when the field above is filled in."
+msgstr "Used for the document issued after a J5 capture, instead of the UA UUID above. This field does not fall back to it: leave it empty and J5 documents are created without ua_uuid at all, even when the field above is filled in."

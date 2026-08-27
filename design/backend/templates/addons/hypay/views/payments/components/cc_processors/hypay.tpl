@@ -470,6 +470,15 @@
         </div>
     </div>
 
+    <div class="control-group">
+        <label class="control-label" for="ez_ua_uuid_j5">{__("hypay_ez_ua_uuid_j5")}</label>
+        <div class="controls">
+            <input type="text" name="payment_data[processor_params][ez_ua_uuid_j5]" id="ez_ua_uuid_j5"
+                   value="{$processor_params.ez_ua_uuid_j5|escape}" class="input-xxlarge"/>
+            <p class="muted description">{__("hypay_ez_ua_uuid_j5_desc")}</p>
+        </div>
+    </div>
+
     {* NEW: document type 320/400 *}
     <div class="control-group">
         <label class="control-label" for="ez_doc_type">{__("hypay_ez_doc_type")}</label>

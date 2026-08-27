@@ -511,3 +511,11 @@ msgstr "כבוי — להציג את הכפתורים"
 msgctxt "Languages::hypay_j5_hide_btns_desc"
 msgid "Overrides the hideBtns checkbox above for J5 authorizations only, so a hold can show different buttons on the payment page than a charge. Leave it on \"Same as a regular charge\" to keep using the checkbox."
 msgstr "דורס את סימון hideBtns שלמעלה עבור אישורי J5 בלבד, כך שדף התשלום של שמירה יציג כפתורים שונים מאשר בחיוב. השאירו על \"כמו בעסקה רגילה\" כדי להמשיך להשתמש בסימון."
+
+msgctxt "Languages::hypay_ez_ua_uuid_j5"
+msgid "UA UUID for J5 documents"
+msgstr "UA UUID עבור מסמכי J5"
+
+msgctxt "Languages::hypay_ez_ua_uuid_j5_desc"
+msgid "Used for the document issued after a J5 capture, instead of the UA UUID above. This field does not fall back to it: leave it empty and J5 documents are created without ua_uuid at all, even when the field above is filled in."
+msgstr "משמש עבור המסמך שמופק לאחר גביית J5, במקום ה-UA UUID שלמעלה. השדה אינו יורש את הערך שלמעלה: אם יישאר ריק, מסמכי J5 ייווצרו ללא ua_uuid כלל, גם אם השדה שלמעלה מלא."
