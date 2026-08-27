@@ -223,6 +223,19 @@
      </div>
  </div>
 
+ {assign var="hypay_j5_hide_btns" value=$processor_params.j5_hide_btns|default:""}
+ <div class="control-group">
+     <label class="control-label" for="hypay_j5_hide_btns">{__("hypay_j5_hide_btns")}</label>
+     <div class="controls">
+         <select name="payment_data[processor_params][j5_hide_btns]" id="hypay_j5_hide_btns" class="input-large">
+             <option value=""  {if $hypay_j5_hide_btns == ""}selected="selected"{/if}>{__("hypay_j5_hide_btns_inherit")}</option>
+             <option value="Y" {if $hypay_j5_hide_btns == "Y"}selected="selected"{/if}>{__("hypay_j5_hide_btns_on")}</option>
+             <option value="N" {if $hypay_j5_hide_btns == "N"}selected="selected"{/if}>{__("hypay_j5_hide_btns_off")}</option>
+         </select>
+         <p class="muted description">{__("hypay_j5_hide_btns_desc")}</p>
+     </div>
+ </div>
+
  <hr>
 
  {* --- Return URL (read-only) --- *}

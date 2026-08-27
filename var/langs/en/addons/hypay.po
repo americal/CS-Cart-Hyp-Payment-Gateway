@@ -693,3 +693,23 @@ msgstr "An instalment hold is not released early."
 msgctxt "Languages::hypay_j5_void_instalments_notice"
 msgid "Cancelling: this hold was taken in more than one payment, and Hyp does not release those early — cancelling still guarantees it is never captured, but the funds stay held until the authorization window ends, within about [days] days. A single-payment hold is released immediately."
 msgstr "Cancelling: this hold was taken in more than one payment, and Hyp does not release those early — cancelling still guarantees it is never captured, but the funds stay held until the authorization window ends, within about [days] days. A single-payment hold is released immediately."
+
+msgctxt "Languages::hypay_j5_hide_btns"
+msgid "hideBtns for J5"
+msgstr "hideBtns for J5"
+
+msgctxt "Languages::hypay_j5_hide_btns_inherit"
+msgid "Same as a regular charge"
+msgstr "Same as a regular charge"
+
+msgctxt "Languages::hypay_j5_hide_btns_on"
+msgid "On — hide the buttons"
+msgstr "On — hide the buttons"
+
+msgctxt "Languages::hypay_j5_hide_btns_off"
+msgid "Off — show the buttons"
+msgstr "Off — show the buttons"
+
+msgctxt "Languages::hypay_j5_hide_btns_desc"
+msgid "Overrides the hideBtns checkbox above for J5 authorizations only, so a hold can show different buttons on the payment page than a charge. Leave it on \"Same as a regular charge\" to keep using the checkbox."
+msgstr "Overrides the hideBtns checkbox above for J5 authorizations only, so a hold can show different buttons on the payment page than a charge. Leave it on \"Same as a regular charge\" to keep using the checkbox."

@@ -491,3 +491,23 @@ msgstr "שמירה בתשלומים אינה משוחררת מוקדם."
 msgctxt "Languages::hypay_j5_void_instalments_notice"
 msgid "Cancelling: this hold was taken in more than one payment, and Hyp does not release those early — cancelling still guarantees it is never captured, but the funds stay held until the authorization window ends, within about [days] days. A single-payment hold is released immediately."
 msgstr "לגבי ביטול: השמירה נלקחה ביותר מתשלום אחד, ו-Hyp אינו משחרר כאלה מוקדם — הביטול עדיין מבטיח שלא ייגבה חיוב, אך הכספים יישארו שמורים עד תום תוקף האישור, כ-[days] ימים."
+
+msgctxt "Languages::hypay_j5_hide_btns"
+msgid "hideBtns for J5"
+msgstr "hideBtns עבור J5"
+
+msgctxt "Languages::hypay_j5_hide_btns_inherit"
+msgid "Same as a regular charge"
+msgstr "כמו בעסקה רגילה"
+
+msgctxt "Languages::hypay_j5_hide_btns_on"
+msgid "On — hide the buttons"
+msgstr "מופעל — להסתיר את הכפתורים"
+
+msgctxt "Languages::hypay_j5_hide_btns_off"
+msgid "Off — show the buttons"
+msgstr "כבוי — להציג את הכפתורים"
+
+msgctxt "Languages::hypay_j5_hide_btns_desc"
+msgid "Overrides the hideBtns checkbox above for J5 authorizations only, so a hold can show different buttons on the payment page than a charge. Leave it on \"Same as a regular charge\" to keep using the checkbox."
+msgstr "דורס את סימון hideBtns שלמעלה עבור אישורי J5 בלבד, כך שדף התשלום של שמירה יציג כפתורים שונים מאשר בחיוב. השאירו על \"כמו בעסקה רגילה\" כדי להמשיך להשתמש בסימון."

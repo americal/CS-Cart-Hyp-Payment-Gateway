@@ -372,6 +372,14 @@ if ($is_j5) {
     // the number of payments during the authorization, and the capture repeats
     // that number. Dropping them here made the payment page fall back to the
     // terminal maximum instead of the configured limit.
+
+    // hideBtns can be set separately for a hold: an authorization page may want
+    // different buttons than a charge. Empty means "leave it as configured for
+    // a regular charge", which is what an existing installation expects.
+    $j5_hide_btns = (string) ($pp['j5_hide_btns'] ?? '');
+    if ($j5_hide_btns !== '') {
+        $params_sign['hideBtns'] = hypay_bool($j5_hide_btns);
+    }
 } else {
     $params_sign['J5'] = 'False';
 }
