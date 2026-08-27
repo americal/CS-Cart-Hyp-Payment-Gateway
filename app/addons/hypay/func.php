@@ -1606,6 +1606,45 @@ function fn_hypay_set_additional_status($order_id, $status)
     return true;
 }
 
+/**
+ * Move an order to another status without telling anybody about it.
+ *
+ * The J5 buttons change the status as a side effect of the money moving
+ * (captured -> paid, cancelled -> the void status), and that is bookkeeping,
+ * not news: the customer has already been told what happened by the payment
+ * itself, and the admin doing the clicking is looking straight at the result.
+ * So every notification receiver is switched off explicitly.
+ *
+ * Both spellings are passed on purpose. fn_get_notification_rules() reads
+ * 'notify_user' / 'notify_department' / 'notify_vendor' when they are there and
+ * the receiver codes ('C', 'A', 'V') otherwise, and which one it prefers has
+ * moved between CS-Cart versions; with both set to false the answer is the same
+ * either way.
+ *
+ * @param int    $order_id  order to move
+ * @param string $status_to one-letter status code
+ *
+ * @return void
+ */
+function fn_hypay_change_order_status_silently($order_id, $status_to)
+{
+    $order_id  = (int) $order_id;
+    $status_to = (string) $status_to;
+
+    $force_notification = [
+        'C' => false, // customer
+        'A' => false, // order department / admin
+        'V' => false, // vendor
+        'notify_user'       => false,
+        'notify_department' => false,
+        'notify_vendor'     => false,
+    ];
+
+    hypay_log($order_id, 'order status changed silently', ['status' => $status_to]);
+
+    fn_change_order_status($order_id, $status_to, '', $force_notification);
+}
+
 /* ============================================================================
  * J5 capture / void
  * ==========================================================================*/
@@ -1821,7 +1860,7 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null)
     ]);
 
     $captured_status = !empty($pp['j5_captured_status']) ? $pp['j5_captured_status'] : ($pp['success_status'] ?? 'P');
-    fn_change_order_status($order_id, $captured_status);
+    fn_hypay_change_order_status_silently($order_id, $captured_status);
 
     if (!empty($pp['j5_captured_additional_status'])) {
         fn_hypay_set_additional_status($order_id, $pp['j5_captured_additional_status']);
@@ -1990,7 +2029,7 @@ function fn_hypay_void_j5($order_id)
     ]);
 
     $void_status = !empty($pp['j5_void_status']) ? $pp['j5_void_status'] : 'I';
-    fn_change_order_status($order_id, $void_status);
+    fn_hypay_change_order_status_silently($order_id, $void_status);
 
     if ($confirmed) {
         $note   = __('hypay_j5_note_voided_confirmed');
