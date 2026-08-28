@@ -222,6 +222,14 @@ Text from Hyp is now made valid UTF-8 before it goes anywhere near an order:
 notifications and order log lines built from them), and the finished
 `payment_info` payload on its way to `fn_finish_payment()`.
 
+A successful charge no longer carries the gateway's note at all. It said nothing
+the row did not already say — `אושרה (0)`, Hyp's own way of repeating the
+`CCode=0` read a few lines earlier — and it was the single part of that line
+written in the terminal's encoding rather than ours. The whole return, that note
+included, is in the debug log; the order page gets the verdict. A failure still
+explains itself, mostly in the add-on's own words: the code and what this add-on
+knows it to mean, plus Hyp's wording when it survived the trip.
+
 The repair is done byte by byte rather than by decoding the whole string, because
 the string is a concatenation: `🟢 Success — ` is written here in UTF-8 and only
 the tail is legacy. Running the finished line through a windows-1255 decoder
@@ -234,6 +242,16 @@ Orders paid before this was fixed print correctly too: their stored bytes are
 repaired on the way out, in the same pass that re-renders the J5 lines. Nothing
 was migrated. Values that are already valid UTF-8 are returned byte for byte, so
 an order paid through any other processor is not touched at all.
+
+Some of those orders cannot be repaired, only cleared up. Repair puts back what
+the wrong encoding hid; it cannot put back what something upstream had already
+thrown away, and a status stored while this was broken can hold a row of
+replacement characters — `U+FFFD`, in one case written out literally as
+`&#65533;` by whatever escaped it on the way in — where the note used to be. The
+letters behind those are gone and no decoder returns them. So a note reduced to
+them is dropped from the line rather than printed, and the row reads the plain
+`🟢 Success` it was meant to. The verdict itself is never dropped: a damaged line
+still beats no line.
 
 **Said once, not twice**
 

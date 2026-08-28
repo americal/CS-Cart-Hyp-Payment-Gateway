@@ -211,11 +211,23 @@ if (defined('PAYMENT_NOTIFICATION')) {
         /* ------------------------------------------------------------------
          * Regular (J4) payment: charged right away
          * ----------------------------------------------------------------*/
+        // A charge that went through says everything it has to say in one word.
+        // Hyp's note adds nothing to it - "אושרה (0)", the gateway's own way of
+        // repeating the CCode=0 already read above - and it is the single part
+        // of this line written in the terminal's encoding rather than ours. The
+        // whole return, that note included, is in the debug log; the order page
+        // gets the verdict.
         $reason_text = $is_success ? '🟢 Success' : '🔴 Failure';
+
         if (!$is_success) {
-            $reason_text .= ' — ' . fn_hypay_format_error($ccode, $hyp_err_msg);
-        } elseif ($hyp_err_msg !== '') {
-            $reason_text .= ' — ' . $hyp_err_msg;
+            // a failure is worth explaining, and the explanation is mostly ours:
+            // the code and what this add-on knows it to mean. The gateway's own
+            // words are added when they survived the trip, and left out when
+            // they came back as replacement characters.
+            $reason_text .= ' — ' . fn_hypay_format_error(
+                $ccode,
+                hypay_text_is_lost($hyp_err_msg) ? '' : $hyp_err_msg
+            );
         }
 
         $pp_response = [

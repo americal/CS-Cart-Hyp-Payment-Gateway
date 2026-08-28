@@ -487,6 +487,71 @@ function hypay_legacy_byte_map()
 }
 
 /**
+ * Has this text already been destroyed, rather than merely mis-encoded?
+ *
+ * hypay_repair_utf8() puts back what the wrong encoding hid. It cannot put back
+ * what something upstream has already thrown away: once a byte has become
+ * U+FFFD, the replacement character, the letter it stood for is gone and no
+ * decoder gets it back. Statuses stored while the encoding was broken show
+ * exactly that - a row of replacement characters where the gateway's note used
+ * to be, in one case written out literally as "&#65533;" by whatever escaped
+ * them on the way in.
+ *
+ * Both spellings count. A note that has been reduced to this says nothing, so
+ * the callers drop it rather than print it.
+ *
+ * @param string $text
+ *
+ * @return bool
+ */
+function hypay_text_is_lost($text)
+{
+    $text = (string) $text;
+
+    if ($text === '') { return false; }
+
+    return strpos($text, "\xEF\xBF\xBD") !== false
+        || stripos($text, '&#65533;') !== false
+        || stripos($text, '&#xfffd;') !== false;
+}
+
+/**
+ * Drop the parts of a stored payment status that no longer say anything.
+ *
+ * The line is built here as "<marker> <verdict>" and, on a failure, " — " and
+ * what went wrong. Only the trailing notes ever came from the gateway, so only
+ * they can be wreckage: the verdict is dropped from consideration and every
+ * note that has been reduced to replacement characters is dropped from the line,
+ * leaving the plain "🟢 Success" the row was meant to read.
+ *
+ * This is for text already in the database. Nothing written from now on can need
+ * it - the gateway's note no longer goes into this line at all.
+ *
+ * @param string $text
+ *
+ * @return string
+ */
+function hypay_drop_lost_notes($text)
+{
+    $text = (string) $text;
+
+    if (!hypay_text_is_lost($text)) { return $text; }
+
+    $parts = explode(' — ', $text);
+    $kept  = [];
+
+    foreach ($parts as $i => $part) {
+        // the verdict itself stays even if it is damaged: a status page with a
+        // mangled line still beats one with no line
+        if ($i === 0 || !hypay_text_is_lost($part)) {
+            $kept[] = $part;
+        }
+    }
+
+    return trim(implode(' — ', $kept));
+}
+
+/**
  * The same treatment for a whole payment_info payload.
  *
  * Applied to the finished array rather than to each field as it is read, so a
@@ -506,6 +571,11 @@ function fn_hypay_clean_payment_info(array $info)
         if (is_string($value) && $value !== '' && preg_match('//u', $value) !== 1) {
             $info[$key] = hypay_utf8_text($value);
         }
+    }
+
+    // the one line that ever carried the gateway's own words
+    if (isset($info['reason_text']) && is_string($info['reason_text'])) {
+        $info['reason_text'] = hypay_drop_lost_notes($info['reason_text']);
     }
 
     return $info;
