@@ -347,6 +347,170 @@ function hypay_sanitize_url_echo($s)
     return trim($s);
 }
 
+/**
+ * Text that came from Hyp, made safe to store and to print.
+ *
+ * The gateway answers in UTF-8 while UTF8out is on, but not on every route it
+ * takes: an Apple Pay / Google Pay charge comes back with its errMsg in
+ * windows-1255, the encoding the terminal speaks natively. PHP percent-decodes
+ * that into raw 8-bit bytes, and the result is not valid UTF-8.
+ *
+ * One such byte is enough to erase a whole line on the order page. CS-Cart runs
+ * Smarty with escape_html on, so every value is printed through
+ * htmlspecialchars($v, ENT_QUOTES, 'UTF-8') - and that returns an empty string,
+ * not a replacement character and not the rest of the text, when its input is
+ * not valid UTF-8. The row itself kept rendering, because the template tests the
+ * unescaped value and finds it perfectly non-empty; only what it said was gone.
+ * That is why "Payment status" stood there blank on a wallet payment while
+ * Brand, the last four digits and the personal ID - digits and ASCII, all of
+ * them - came through untouched.
+ *
+ * Anything already valid is left exactly as it is, emoji included.
+ *
+ * @param string $text
+ *
+ * @return string valid UTF-8, free of control characters
+ */
+function hypay_utf8_text($text)
+{
+    $text = (string) $text;
+    if ($text === '') { return ''; }
+
+    // preg with /u fails outright on malformed UTF-8, which is the test we want
+    if (preg_match('//u', $text) !== 1) {
+        $text = hypay_repair_utf8($text);
+    }
+
+    $stripped = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]+/u', '', $text);
+    if ($stripped !== null) { $text = $stripped; }
+
+    return trim($text);
+}
+
+/**
+ * Rebuild a string that is UTF-8 in one half and 8-bit Hebrew in the other.
+ *
+ * Converting the whole thing from windows-1255 is the obvious move and the wrong
+ * one: the line this repairs is a concatenation - "🟢 Success — " written here,
+ * in UTF-8, followed by whatever the terminal sent - and running the finished
+ * string through a legacy decoder turns the good half into mojibake ("נ¢" for
+ * the marker, "ג€”" for the dash) while fixing the bad one.
+ *
+ * So each byte is judged where it stands. Anything that opens a well-formed
+ * UTF-8 sequence is kept exactly as it is, sequence and all; every other byte is
+ * a legacy one and is looked up in the table below. A byte with no meaning in
+ * either encoding is dropped rather than left to blank the line again.
+ *
+ * @param string $text
+ *
+ * @return string
+ */
+function hypay_repair_utf8($text)
+{
+    // one alternative per well-formed UTF-8 sequence, per the encoding's own
+    // definition: ASCII, then the 2-, 3- and 4-byte forms, overlongs and
+    // surrogates excluded
+    $utf8 = '(?:[\x00-\x7F]'
+        . '|[\xC2-\xDF][\x80-\xBF]'
+        . '|\xE0[\xA0-\xBF][\x80-\xBF]'
+        . '|[\xE1-\xEC\xEE\xEF][\x80-\xBF]{2}'
+        . '|\xED[\x80-\x9F][\x80-\xBF]'
+        . '|\xF0[\x90-\xBF][\x80-\xBF]{2}'
+        . '|[\xF1-\xF3][\x80-\xBF]{3}'
+        . '|\xF4[\x80-\x8F][\x80-\xBF]{2})';
+
+    $map = hypay_legacy_byte_map();
+
+    // no /u here on purpose: the subject is not valid UTF-8, which is the point
+    $repaired = preg_replace_callback(
+        '/' . $utf8 . '|(.)/s',
+        static function (array $m) use ($map) {
+            // group 1 is only set when the sequence branch did not match, which
+            // makes this byte a legacy one
+            if (!isset($m[1])) { return $m[0]; }
+
+            return isset($map[$m[1]]) ? $map[$m[1]] : '';
+        },
+        $text
+    );
+
+    return $repaired === null ? '' : $repaired;
+}
+
+/**
+ * Every high byte of the terminal's own encoding, as UTF-8.
+ *
+ * windows-1255 is what it speaks. ISO-8859-8 stands in where that name is not
+ * compiled in - mbstring builds without CP1255 are common - and the Hebrew
+ * letters sit at the same code points in both, which is all that is at stake in
+ * an errMsg. Built once per request: a byte at a time is what the repair above
+ * needs, and 128 conversions is a table, not a loop worth optimising.
+ *
+ * @return array<string, string> byte => UTF-8 character, unmappable bytes absent
+ */
+function hypay_legacy_byte_map()
+{
+    static $map = null;
+
+    if ($map !== null) { return $map; }
+
+    $map = [];
+
+    for ($i = 0x80; $i <= 0xFF; $i++) {
+        $byte = chr($i);
+        $char = '';
+
+        foreach (['windows-1255', 'CP1255', 'ISO-8859-8'] as $charset) {
+            if (function_exists('iconv')) {
+                $try = @iconv($charset, 'UTF-8//IGNORE', $byte);
+                if (is_string($try) && $try !== '') { $char = $try; break; }
+            }
+
+            if (function_exists('mb_convert_encoding')) {
+                try {
+                    // an unknown charset is a ValueError on PHP 8, which "@"
+                    // does not silence, and a plain false on PHP 7
+                    $try = @mb_convert_encoding($byte, 'UTF-8', $charset);
+                } catch (\Throwable $e) {
+                    $try = '';
+                }
+                if (is_string($try) && $try !== '') { $char = $try; break; }
+            }
+        }
+
+        if ($char !== '' && preg_match('//u', $char) === 1) {
+            $map[$byte] = $char;
+        }
+    }
+
+    return $map;
+}
+
+/**
+ * The same treatment for a whole payment_info payload.
+ *
+ * Applied to the finished array rather than to each field as it is read, so a
+ * value that starts being taken from the gateway later cannot quietly reopen
+ * this hole. It repairs and nothing else: a string that is already valid UTF-8
+ * comes back byte for byte, so this is a no-op on every payment method that
+ * never had the problem, and on the read path it leaves other processors'
+ * payment information exactly as they wrote it.
+ *
+ * @param array $info
+ *
+ * @return array
+ */
+function fn_hypay_clean_payment_info(array $info)
+{
+    foreach ($info as $key => $value) {
+        if (is_string($value) && $value !== '' && preg_match('//u', $value) !== 1) {
+            $info[$key] = hypay_utf8_text($value);
+        }
+    }
+
+    return $info;
+}
+
 /** Info parameter of an order, from the configured template */
 function hypay_build_info($order_id, array $pp)
 {
@@ -401,7 +565,7 @@ function hypay_brand_name($brand_code)
     ];
     $brand_code = (string) $brand_code;
 
-    return $brand_map[$brand_code] ?? $brand_code;
+    return $brand_map[$brand_code] ?? hypay_utf8_text($brand_code);
 }
 
 /** Israeli ID as Hypay wants it in the capture call (000000000 when unknown) */
@@ -1188,7 +1352,9 @@ function fn_hypay_ccode_message($ccode)
 function fn_hypay_format_error($ccode, $err_msg = '', $raw = '')
 {
     $ccode   = trim((string) $ccode);
-    $err_msg = trim((string) $err_msg);
+    // errMsg and the raw body are the gateway's own words, in whatever encoding
+    // the route that produced them happened to use
+    $err_msg = hypay_utf8_text($err_msg);
 
     $parts = [];
     if ($ccode !== '') {
@@ -1199,7 +1365,7 @@ function fn_hypay_format_error($ccode, $err_msg = '', $raw = '')
         $parts[] = $err_msg;
     }
     if (!$parts) {
-        $raw = trim((string) $raw);
+        $raw = hypay_utf8_text($raw);
         $parts[] = $raw !== '' ? $raw : 'no response';
     }
 
@@ -1387,6 +1553,8 @@ function fn_hypay_update_payment_info($order_id, array $extra)
         return false;
     }
 
+    $extra = fn_hypay_clean_payment_info($extra);
+
     fn_update_order_payment_info($order_id, $extra);
     hypay_log($order_id, 'payment_info updated', $extra);
 
@@ -1463,7 +1631,8 @@ function fn_hypay_j5_panel_is_rendered()
 }
 
 /**
- * Re-render the J5 payment info in the reader's language.
+ * Make an order's payment info printable: repair its encoding, and re-render the
+ * J5 lines in the reader's language.
  *
  * fn_update_order_payment_info stores finished strings, and the language that
  * produced them is the one the *customer* was checking out in - so a shop whose
@@ -1471,39 +1640,51 @@ function fn_hypay_j5_panel_is_rendered()
  * forever. Everything those lines say is also in ?:hypay_transactions, so they
  * are composed again on the way out instead of being read back verbatim.
  *
- * Only the two keys this add-on writes are touched, and the stored values stay
- * put: they remain the fallback for anything that reads payment_info without
- * going through fn_get_order_info.
+ * Only the two keys this add-on writes are re-rendered, and the stored values
+ * stay put: they remain the fallback for anything that reads payment_info
+ * without going through fn_get_order_info.
+ *
+ * The encoding repair runs first and for every order, J4 included, because a
+ * payment status that cannot be printed is not a J5 problem: see
+ * hypay_utf8_text(). It touches nothing that is already valid UTF-8, so an order
+ * paid through another processor entirely leaves this function unchanged.
  */
 function fn_hypay_localize_payment_info(&$order)
 {
-    // hypay_j5 is written for J5 orders only, so this skips the query for
-    // regular charges without having to ask the database first
     if (!is_array($order)
         || empty($order['order_id'])
         || empty($order['payment_info'])
         || !is_array($order['payment_info'])
-        || !isset($order['payment_info']['hypay_j5'])
     ) {
-        return false;
-    }
-
-    $tx = fn_hypay_get_transaction($order['order_id']);
-    if (empty($tx)) {
         return false;
     }
 
     $before = $order['payment_info'];
 
-    $rendered = fn_hypay_render_payment_info($tx);
-    if (!empty($rendered)) {
-        $order['payment_info'] = array_merge($order['payment_info'], $rendered);
-    }
+    // Orders paid through a wallet before this was fixed have raw windows-1255
+    // bytes sitting in their stored payment status, and print a blank line for
+    // it. Nothing is migrated: the text is repaired on the way out, exactly as
+    // the J5 lines below are re-rendered rather than read back verbatim.
+    $order['payment_info'] = fn_hypay_clean_payment_info($order['payment_info']);
 
-    // Dropped after the merge, not before, so it also covers 'capturing', where
-    // there is nothing to re-render but the panel still prints the hold.
-    if (fn_hypay_j5_panel_is_rendered()) {
-        unset($order['payment_info']['hypay_j5']);
+    // hypay_j5 is written for J5 orders only, so this skips the query for
+    // regular charges without having to ask the database first
+    if (isset($order['payment_info']['hypay_j5'])) {
+        $tx = fn_hypay_get_transaction($order['order_id']);
+
+        if (!empty($tx)) {
+            $rendered = fn_hypay_render_payment_info($tx);
+            if (!empty($rendered)) {
+                $order['payment_info'] = array_merge($order['payment_info'], $rendered);
+            }
+
+            // Dropped after the merge, not before, so it also covers 'capturing',
+            // where there is nothing to re-render but the panel still prints the
+            // hold.
+            if (fn_hypay_j5_panel_is_rendered()) {
+                unset($order['payment_info']['hypay_j5']);
+            }
+        }
     }
 
     return ($order['payment_info'] !== $before);
