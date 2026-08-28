@@ -84,6 +84,11 @@ if (defined('PAYMENT_NOTIFICATION')) {
     $hyp_first_payment      = (float) hypay_request_value(['nFirstPayment']);
     $hyp_periodical_payment = (float) hypay_request_value(['firstPayment']);
 
+    // Hyp's own note about the transaction. It rides back in whatever encoding
+    // the route used - windows-1255 on an Apple Pay / Google Pay charge - so it
+    // is made valid UTF-8 before it is allowed anywhere near the order page.
+    $hyp_err_msg = hypay_utf8_text(hypay_request_value(['errMsg', 'ErrMsg', 'errmsg']));
+
     // sanitize personal ID (display value)
     $clean_user_id = hypay_clean_personal_id($hyp_return_user);
 
@@ -189,6 +194,7 @@ if (defined('PAYMENT_NOTIFICATION')) {
                 'personal_id'    => $clean_user_id,
                 'order_status'   => $j5_auth_status,
             ];
+            $pp_response = fn_hypay_clean_payment_info($pp_response);
             hypay_log($order_id, 'fn_finish_payment payload (J5)', $pp_response);
             fn_finish_payment($order_id, $pp_response);
 
@@ -207,9 +213,9 @@ if (defined('PAYMENT_NOTIFICATION')) {
          * ----------------------------------------------------------------*/
         $reason_text = $is_success ? '🟢 Success' : '🔴 Failure';
         if (!$is_success) {
-            $reason_text .= ' — ' . fn_hypay_format_error($ccode, $_REQUEST['errMsg'] ?? '');
-        } elseif (!empty($_REQUEST['errMsg'])) {
-            $reason_text .= ' — ' . (string) $_REQUEST['errMsg'];
+            $reason_text .= ' — ' . fn_hypay_format_error($ccode, $hyp_err_msg);
+        } elseif ($hyp_err_msg !== '') {
+            $reason_text .= ' — ' . $hyp_err_msg;
         }
 
         $pp_response = [
@@ -221,6 +227,7 @@ if (defined('PAYMENT_NOTIFICATION')) {
             'personal_id'    => $clean_user_id,
             'order_status'   => $is_success ? $success_status : $fail_status,
         ];
+        $pp_response = fn_hypay_clean_payment_info($pp_response);
         hypay_log($order_id, 'fn_finish_payment payload', $pp_response);
         fn_finish_payment($order_id, $pp_response);
         hypay_log($order_id, 'fn_finish_payment done');

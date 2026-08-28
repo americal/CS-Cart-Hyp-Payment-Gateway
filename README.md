@@ -194,8 +194,46 @@ are and remain the fallback for a J5 order whose transaction row is gone, and
 for the `capturing` state, where the text written at that moment is the only
 account of what happened.
 
-Regular (J4) charges are unaffected: their *Payment status* is `Success` or
-`Failure` plus whatever Hyp said, in English, as it has always been.
+Regular (J4) charges keep their own wording: their *Payment status* is `Success`
+or `Failure` plus whatever Hyp said, in English, as it has always been. What they
+share with the J5 lines is the repair below.
+
+**A payment status that can be printed**
+
+Apple Pay and Google Pay charges arrived with a blank *Payment status* on the
+order page. Everything around it — transaction, brand, last four digits, number
+of payments, personal ID — was there and correct, and the label itself was
+printed, so nothing looked lost enough to explain it.
+
+The cause is one byte. Hyp answers in UTF-8 while `UTF8out` is on, but not on
+every route it takes: a wallet charge sends its `errMsg` in windows-1255, the
+encoding the terminal speaks natively, and the add-on appended that to
+`🟢 Success` verbatim. CS-Cart runs Smarty with `escape_html` on, so the finished
+line is printed through `htmlspecialchars($v, ENT_QUOTES, 'UTF-8')` — and that
+returns an **empty string**, not a replacement character and not the valid part,
+when its input is not valid UTF-8. The row kept rendering because the template
+tests the *unescaped* value, which is not empty; only what it said was gone.
+Regular card charges send no `errMsg`, which is why they were never affected and
+why this looked like a wallet-only fault.
+
+Text from Hyp is now made valid UTF-8 before it goes anywhere near an order:
+`errMsg` on the way in, every gateway message that goes through
+`fn_hypay_format_error()` (capture and cancel failures, `getToken`, the
+notifications and order log lines built from them), and the finished
+`payment_info` payload on its way to `fn_finish_payment()`.
+
+The repair is done byte by byte rather than by decoding the whole string, because
+the string is a concatenation: `🟢 Success — ` is written here in UTF-8 and only
+the tail is legacy. Running the finished line through a windows-1255 decoder
+fixes the tail and turns the marker into `נ¢` — so anything that opens a
+well-formed UTF-8 sequence is kept exactly as it stands, and only the bytes that
+cannot be are looked up as windows-1255. A byte with no meaning in either
+encoding is dropped rather than left to blank the line a second time.
+
+Orders paid before this was fixed print correctly too: their stored bytes are
+repaired on the way out, in the same pass that re-renders the J5 lines. Nothing
+was migrated. Values that are already valid UTF-8 are returned byte for byte, so
+an order paid through any other processor is not touched at all.
 
 **Said once, not twice**
 
