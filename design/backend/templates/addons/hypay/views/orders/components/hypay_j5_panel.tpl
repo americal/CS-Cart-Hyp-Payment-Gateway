@@ -39,6 +39,25 @@
     </div>
 </div>
 
+{if $hypay_j5.card || $hypay_j5.sp_type}
+<div class="control-group">
+    <div class="control-label">{__("hypay_j5_card")}</div>
+    <div class="controls">
+        <bdi>{$hypay_j5.card}</bdi>
+        {if $hypay_j5.sp_type}
+            <span class="muted">&mdash; <bdi>{$hypay_j5.sp_type}</bdi></span>
+        {/if}
+        {if $hypay_j5.issuer && $hypay_j5.debug}
+            <div class="muted"><small><bdi>{$hypay_j5.issuer}{if $hypay_j5.trans_type} / {$hypay_j5.trans_type}{/if}</bdi></small></div>
+        {/if}
+        {* the one card fact that changes what the buttons below can do *}
+        {if $hypay_j5.is_immediate && ($hypay_j5.status == "authorized" || $hypay_j5.status == "capturing")}
+            <p class="text-warning description">{__("hypay_j5_immediate_card_notice")}</p>
+        {/if}
+    </div>
+</div>
+{/if}
+
 {if $hypay_j5.acode}
 <div class="control-group">
     <div class="control-label">{__("hypay_j5_auth_number")}</div>
@@ -136,6 +155,21 @@
         <div class="control-group">
             <div class="control-label">{__("hypay_j5_capture_transaction")}</div>
             <div class="controls"><bdi>{$hypay_j5.capture_hyp_id}</bdi></div>
+        </div>
+    {/if}
+    {* the money came from a separate charge because the capture was refused:
+       say so, and say what became of the hold that is still on the card *}
+    {if $hypay_j5.captured_by_fallback}
+        <div class="control-group">
+            <div class="controls">
+                <p class="text-warning">{__("hypay_j5_captured_by_fallback")}</p>
+                {if $hypay_j5.hold_release_state == "confirmed"}
+                    <p class="muted">{__("hypay_j5_fallback_hold_released")}</p>
+                {else}
+                    <p class="muted">{__("hypay_j5_fallback_hold_stays", ["[days]" => $hypay_j5.hold_days])}</p>
+                {/if}
+                {if $hypay_j5.last_error}<p class="muted"><small>{$hypay_j5.last_error}</small></p>{/if}
+            </div>
         </div>
     {/if}
 {/if}

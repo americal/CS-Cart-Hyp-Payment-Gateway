@@ -543,3 +543,48 @@ msgstr "UA UUID עבור מסמכי J5"
 msgctxt "Languages::hypay_ez_ua_uuid_j5_desc"
 msgid "Used for the document issued after a J5 capture, instead of the UA UUID above. This field does not fall back to it: leave it empty and J5 documents are created without ua_uuid at all, even when the field above is filled in."
 msgstr "משמש עבור המסמך שמופק לאחר גביית J5, במקום ה-UA UUID שלמעלה. השדה אינו יורש את הערך שלמעלה: אם יישאר ריק, מסמכי J5 ייווצרו ללא ua_uuid כלל, גם אם השדה שלמעלה מלא."
+
+msgctxt "Languages::hypay_j5_card"
+msgid "Card"
+msgstr "כרטיס"
+
+msgctxt "Languages::hypay_j5_immediate_card_notice"
+msgid "Hyp reports this as an immediate-debit (Direct) card. Shva does not let a transaction on such a card carry a pre-obtained authorization number, so the capture is refused with CCode=512. The money is then taken as an ordinary charge on the saved card instead, and the hold is released if it still can be."
+msgstr "‏Hyp מדווח שזהו כרטיס חיוב מיידי (דיירקט). שב\"א אינה מאפשרת לעסקה בכרטיס כזה לשאת מספר אישור שהתקבל מראש, ולכן הגבייה נדחית עם CCode=512. במקרה כזה הסכום נגבה כעסקה רגילה בכרטיס השמור, והשמירה מבוטלת אם עדיין אפשר."
+
+msgctxt "Languages::hypay_j5_capture_fallback_also_refused"
+msgid "the ordinary charge that followed was refused too:"
+msgstr "גם החיוב הרגיל שבא אחריו נדחה:"
+
+msgctxt "Languages::hypay_j5_captured_by_fallback"
+msgid "The capture was refused, so the amount was charged as a separate transaction on the saved card."
+msgstr "הגבייה נדחתה, ולכן הסכום חויב כעסקה נפרדת בכרטיס השמור."
+
+msgctxt "Languages::hypay_j5_fallback_hold_released"
+msgid "The hold was reversed with it, and drops off the card straight away."
+msgstr "השמירה בוטלה יחד איתה ויורדת מהכרטיס מיד."
+
+msgctxt "Languages::hypay_j5_fallback_hold_stays"
+msgid "The hold could not be reversed - it is only cancellable on the day it was taken. It is never captured now, and the issuer releases it within [days] days."
+msgstr "לא ניתן היה לבטל את השמירה - היא ניתנת לביטול רק ביום שבו נעשתה. היא לא תיגבה יותר, והמנפיק משחרר אותה בתוך [days] ימים."
+
+msgctxt "Languages::hypay_j5_note_fallback_released"
+msgid "The capture was refused by the acquirer; the amount was charged as a separate transaction and the hold was reversed."
+msgstr "הגבייה נדחתה על ידי הסולק; הסכום חויב כעסקה נפרדת והשמירה בוטלה."
+
+msgctxt "Languages::hypay_j5_note_fallback_hold_stays"
+msgid "The capture was refused by the acquirer; the amount was charged as a separate transaction. The hold could not be reversed and is released by the issuer within [days] days."
+msgstr "הגבייה נדחתה על ידי הסולק; הסכום חויב כעסקה נפרדת. לא ניתן היה לבטל את השמירה, והמנפיק משחרר אותה בתוך [days] ימים."
+
+msgctxt "Languages::hypay_j5_capture_fallback"
+msgid "Refused capture"
+msgstr "גבייה שנדחתה"
+
+msgctxt "Languages::hypay_j5_capture_fallback_label"
+msgid "Charge the saved card when the capture is refused"
+msgstr "לחייב את הכרטיס השמור כשהגבייה נדחית"
+
+msgctxt "Languages::hypay_j5_capture_fallback_desc"
+msgid "An immediate-debit (Direct) card refuses a capture that carries the hold's authorization number (CCode 512, 455, 445). With this on, the amount is then charged as an ordinary transaction on the saved card, and the hold is reversed if it still can be - so the order is paid instead of stuck. Switch it off to have the refusal reported and nothing charged."
+msgstr "כרטיס חיוב מיידי (דיירקט) דוחה גבייה שנושאת את מספר האישור של השמירה (CCode‏ 512, 455, 445). כשהאפשרות פעילה, הסכום מחויב לאחר מכן כעסקה רגילה בכרטיס השמור, והשמירה מבוטלת אם עדיין אפשר - כך שההזמנה משולמת ולא נתקעת. כבו כדי שהדחייה רק תדווח ודבר לא יחויב."
+

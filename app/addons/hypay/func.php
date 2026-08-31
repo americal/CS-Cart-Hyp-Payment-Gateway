@@ -76,6 +76,11 @@ function fn_hypay_ensure_schema()
         . " card_tokef varchar(8) NOT NULL default '',"
         . " brand varchar(32) NOT NULL default '',"
         . " last4 varchar(8) NOT NULL default '',"
+        . " sp_type varchar(32) NOT NULL default '',"
+        . " trans_type varchar(32) NOT NULL default '',"
+        . " issuer varchar(64) NOT NULL default '',"
+        . " bincard varchar(16) NOT NULL default '',"
+        . " hold_release_state varchar(16) NOT NULL default '',"
         . " payments smallint(5) unsigned NOT NULL default '1',"
         . " coin tinyint(3) unsigned NOT NULL default '1',"
         . " amount_authorized decimal(12,2) NOT NULL default '0.00',"
@@ -106,6 +111,16 @@ function fn_hypay_ensure_schema()
         'void_state'        => "varchar(16) NOT NULL default ''",
         'first_payment'      => "decimal(12,2) NOT NULL default '0.00'",
         'periodical_payment' => "decimal(12,2) NOT NULL default '0.00'",
+        // what the card turned out to be, as Hyp reported it with MoreData=True.
+        // spType is the one that decides how the money can be taken: an
+        // 'Immediate' (Direct / debit) card refuses a capture that carries a
+        // pre-obtained authorization number.
+        'sp_type'            => "varchar(32) NOT NULL default ''",
+        'trans_type'         => "varchar(32) NOT NULL default ''",
+        'issuer'             => "varchar(64) NOT NULL default ''",
+        'bincard'            => "varchar(16) NOT NULL default ''",
+        // what CancelTrans said about the hold after a fallback charge
+        'hold_release_state' => "varchar(16) NOT NULL default ''",
     ];
     foreach ($added as $column => $definition) {
         if (!in_array($column, $columns, true)) {
@@ -702,6 +717,36 @@ function hypay_brand_name($brand_code)
     $brand_code = (string) $brand_code;
 
     return $brand_map[$brand_code] ?? hypay_utf8_text($brand_code);
+}
+
+/**
+ * Is this an immediate-debit (Direct) card?
+ *
+ * Hyp reports the special card type in spType when the payment page request
+ * carried MoreData=True - 'Immediate' for a card the money leaves the account
+ * on, 'Tourist' for a foreign one. It matters because Shva will not let a
+ * transaction on an immediate-debit card carry a pre-obtained authorization
+ * number: the J5 capture is refused with CCode=512, "cannot enter an approval
+ * received from voice response for this transaction", even though the request
+ * is exactly what the documentation asks for.
+ *
+ * The value is matched loosely rather than compared: it is documented by
+ * example only, it has been seen both as the English word and in Hebrew, and
+ * a card type nobody recognises must not be mistaken for an ordinary one.
+ */
+function hypay_is_immediate_card($sp_type)
+{
+    $sp_type = trim(hypay_utf8_text((string) $sp_type));
+    if ($sp_type === '') {
+        return false;
+    }
+
+    if (stripos($sp_type, 'immediate') !== false || stripos($sp_type, 'direct') !== false) {
+        return true;
+    }
+
+    // מיידי - "immediate", the word Hyp uses when it answers in Hebrew
+    return (strpos($sp_type, "\xd7\x9e\xd7\x99\xd7\x99\xd7\x93\xd7\x99") !== false);
 }
 
 /**
@@ -2232,6 +2277,11 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
     // authorization through AuthNum + inputObj.originalUid + originalAmount.
     // That is why the acquirer shows a second row next to the CCode=700 one -
     // the hold stays as the authorization record and the new row is the charge.
+    //
+    // Everything below the linkage is an ordinary token charge, which is also
+    // the fallback: strip AuthNum and the three inputObj fields and the same
+    // request becomes the "charge a saved token" call, the one way to take the
+    // money from a card that will not accept a pre-obtained authorization.
     $params = [
         'action'                          => 'soft',
         'Masof'                           => trim((string) ($pp['masof'] ?? '')),
@@ -2246,7 +2296,6 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
         'CC'                              => $token,
         'Tmonth'                          => $expiry['month'],
         'Tyear'                           => $expiry['year'],
-        'AuthNum'                         => (string) $tx['acode'],
         // same representation the payment page request uses (Amount=150, not 150.00)
         'Amount'                          => round($amount, 2),
         'Info'                            => hypay_build_info($order_id, $pp),
@@ -2255,10 +2304,6 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
         // a Hebrew name is not mangled and errMsg comes back readable
         'UTF8'                            => hypay_bool($pp['utf8']    ?? 'Y'),
         'UTF8out'                         => hypay_bool($pp['utf8out'] ?? 'Y'),
-        // the original authorization, in currency subunits (agorot)
-        'inputObj.originalAmount'         => (int) round($authorized * 100),
-        'inputObj.originalUid'            => (string) $tx['uid'],
-        'inputObj.authorizationCodeManpik' => 7,
     ];
     if ($payments > 1) {
         // charge in the same number of instalments the customer agreed to
@@ -2268,6 +2313,16 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
         }
     }
 
+    // what makes it a capture rather than a fresh charge
+    $linkage = [
+        'AuthNum'                          => (string) $tx['acode'],
+        // the original authorization, in currency subunits (agorot)
+        'inputObj.originalAmount'          => (int) round($authorized * 100),
+        'inputObj.originalUid'             => (string) $tx['uid'],
+        // documented as a constant for every capture, not a value to choose
+        'inputObj.authorizationCodeManpik' => 7,
+    ];
+
     // the authorization this capture points back at - the three values Shva
     // matches against the held transaction, spelled out so a refusal (CCode=4)
     // can be compared with the CCode=700 row in the Hyp control panel
@@ -2276,21 +2331,61 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
         'AuthNum'                 => $tx['acode'],
         'inputObj.originalUid'    => $tx['uid'],
         'UserId'                  => $user_id,
-        'inputObj.originalAmount' => $params['inputObj.originalAmount'],
+        'inputObj.originalAmount' => $linkage['inputObj.originalAmount'],
         'Amount'                  => $params['Amount'],
         'Tmonth/Tyear'            => $expiry['month'] . '/' . $expiry['year'],
         'Tokef'                   => $tokef,
     ]);
 
-    $result   = fn_hypay_api_request($order_id, $params, 'j5.capture');
+    $result   = fn_hypay_api_request($order_id, array_merge($params, $linkage), 'j5.capture');
     $response = $result['params'];
     $ccode    = isset($response['CCode']) ? (string) $response['CCode'] : '';
+
+    // Refused because the card will not carry a pre-obtained authorization.
+    //
+    // An immediate-debit (Direct) card is the one this happens on: Shva reads
+    // the AuthNum the capture attaches as an approval obtained by hand and
+    // refuses to apply it, where an ordinary credit card takes the same request
+    // without comment. The three codes below all say that, in the acquirer's
+    // words rather than the card's:
+    //
+    //   512  cannot enter an approval received from voice response
+    //   455  cannot perform a forced debit when an approval request is required
+    //   445  in an immediate debit card, only immediate debit credit is allowed
+    //
+    // The money can still be taken - as an ordinary token charge, the request
+    // already built above without the linkage. That is a new transaction and a
+    // fresh authorization, so it is only attempted on a definite refusal: an
+    // unreadable answer is handled below, where nothing is retried and the row
+    // stays locked.
+    $fallback_used = false;
+    $first_refusal = '';
+    if ($ccode !== '' && $ccode !== '0'
+        && in_array($ccode, ['512', '455', '445'], true)
+        && ($pp['j5_capture_fallback'] ?? 'Y') !== 'N'
+    ) {
+        $refusal = fn_hypay_format_error($ccode, $response['errMsg'] ?? '', $result['raw']);
+        hypay_log($order_id, 'j5.capture refused as a forced transaction, charging the token instead', [
+            'refusal' => $refusal,
+            'spType'  => (string) ($tx['sp_type'] ?? ''),
+        ]);
+
+        $result   = fn_hypay_api_request($order_id, $params, 'j5.capture.fallback');
+        $response = $result['params'];
+        $ccode    = isset($response['CCode']) ? (string) $response['CCode'] : '';
+
+        $fallback_used = true;
+        $first_refusal = $refusal;
+    }
 
     if ($ccode === '') {
         // No readable answer: the charge may or may not have happened. The row is
         // deliberately left in 'capturing' so nobody can charge the customer twice
         // before the transaction has been checked in the Hyp control panel.
-        fn_hypay_update_transaction($tx['transaction_id'], ['last_error' => 'capture: no response from Hyp']);
+        $unanswered = $fallback_used
+            ? 'capture fallback charge: no response from Hyp (refused capture: ' . $first_refusal . ')'
+            : 'capture: no response from Hyp';
+        fn_hypay_update_transaction($tx['transaction_id'], ['last_error' => $unanswered]);
         fn_set_notification('E', __('error'), __('hypay_j5_capture_unknown'));
         fn_hypay_order_note($order_id, __('hypay_j5_capture_unknown'));
 
@@ -2299,6 +2394,11 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
 
     if ($ccode !== '0') {
         $error = fn_hypay_format_error($ccode, $response['errMsg'] ?? '', $result['raw']);
+        // both refusals, in the order they happened: the second one on its own
+        // would not say why an ordinary charge was attempted at all
+        if ($fallback_used) {
+            $error = $first_refusal . ' | ' . __('hypay_j5_capture_fallback_also_refused') . ' ' . $error;
+        }
         fn_hypay_update_transaction($tx['transaction_id'], ['status' => 'authorized', 'last_error' => 'capture: ' . $error]);
         fn_set_notification('E', __('error'), __('hypay_j5_capture_failed') . ' ' . $error);
         fn_hypay_order_note($order_id, __('hypay_j5_capture_failed') . ' ' . $error);
@@ -2309,6 +2409,9 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
     $capture_id    = (string) ($response['Id'] ?? '');
     $capture_acode = (string) ($response['ACode'] ?? $tx['acode']);
 
+    // The money is recorded before anything else is attempted with it. A second
+    // call follows on the fallback path, and it must not be able to leave a
+    // charged order looking uncharged if it hangs or throws.
     fn_hypay_update_transaction($tx['transaction_id'], [
         'status'            => 'captured',
         'payments_captured' => $payments,
@@ -2316,8 +2419,36 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
         'capture_hyp_id'  => $capture_id,
         'capture_acode'   => $capture_acode,
         'captured_at'     => TIME,
-        'last_error'      => '',
+        // set as soon as the hold's fate is known; on the fallback path it also
+        // marks the row as charged by a separate transaction
+        'hold_release_state' => $fallback_used ? 'pending' : '',
+        // the refused capture is kept: it is why this order was charged with a
+        // second transaction rather than the hold, and the panel prints it
+        'last_error'      => $fallback_used ? $first_refusal : '',
     ]);
+
+    // The fallback charge does not consume the hold - it is a transaction of
+    // its own, and the authorization is still sitting on the card beside it.
+    // Ask Hyp to reverse it so the customer is not looking at both at once.
+    //
+    // It usually cannot: CancelTrans only reaches a transaction that has not
+    // been transmitted yet, and a hold is captured days after it was taken. So
+    // the outcome is recorded rather than acted on, and the panel says which of
+    // the two happened. Either way the hold is never captured again, and the
+    // issuer releases it when the authorization window runs out.
+    $release_state = '';
+    if ($fallback_used) {
+        if ((string) $tx['hyp_id'] !== '') {
+            list($release_state) = fn_hypay_cancel_trans($order_id, $pp, $tx['hyp_id']);
+        } else {
+            $release_state = 'not_attempted';
+        }
+        hypay_log($order_id, 'j5.capture fallback: hold release attempted', [
+            'hyp_id' => $tx['hyp_id'],
+            'state'  => $release_state,
+        ]);
+        fn_hypay_update_transaction($tx['transaction_id'], ['hold_release_state' => $release_state]);
+    }
 
     fn_hypay_update_payment_info($order_id, [
         'transaction_id' => $capture_id !== '' ? $capture_id : $tx['hyp_id'],
@@ -2341,8 +2472,21 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
         '[id]'     => $capture_id,
     ]));
 
-    hypay_log($order_id, 'j5.capture SUCCESS', ['amount' => $amount, 'capture_id' => $capture_id]);
+    hypay_log($order_id, 'j5.capture SUCCESS', [
+        'amount'        => $amount,
+        'capture_id'    => $capture_id,
+        'fallback'      => $fallback_used,
+        'hold_released' => $release_state,
+    ]);
     fn_set_notification('N', __('notice'), __('hypay_j5_capture_ok', ['[amount]' => number_format($amount, 2, '.', '')]));
+
+    if ($fallback_used) {
+        $fallback_note = ($release_state === 'confirmed')
+            ? __('hypay_j5_note_fallback_released')
+            : __('hypay_j5_note_fallback_hold_stays', ['[days]' => fn_hypay_hold_days($pp)]);
+        fn_hypay_order_note($order_id, $fallback_note);
+        fn_set_notification('W', __('warning'), $fallback_note);
+    }
 
     // the document is issued now, for the amount that was actually charged
     if (($pp['ez_mode'] ?? 'none') === 'direct') {
@@ -2577,6 +2721,19 @@ function fn_hypay_get_j5_panel_data($order_id)
         // string taking up a row
         'debug'             => (!empty($pp['debug_mode']) && $pp['debug_mode'] === 'Y'),
         'has_token'         => ($tx['card_token'] !== ''),
+        // The card, as Hyp described it in the redirect. spType is the one that
+        // changes what the panel can promise: on an immediate-debit card the
+        // capture is refused as a forced transaction and the money is taken by
+        // an ordinary charge instead, which leaves the hold behind.
+        'card'              => trim((string) $tx['brand'] . ($tx['last4'] !== '' ? ' ****' . $tx['last4'] : '')),
+        'sp_type'           => (string) ($tx['sp_type'] ?? ''),
+        'trans_type'        => (string) ($tx['trans_type'] ?? ''),
+        'issuer'            => (string) ($tx['issuer'] ?? ''),
+        'is_immediate'      => hypay_is_immediate_card($tx['sp_type'] ?? ''),
+        // set only when the money came from a separate charge because the
+        // capture was refused; says whether the hold was reversed with it
+        'hold_release_state' => (string) ($tx['hold_release_state'] ?? ''),
+        'captured_by_fallback' => ($tx['status'] === 'captured' && (string) ($tx['hold_release_state'] ?? '') !== ''),
         // empty when the payment page never collected one: the panel offers a
         // field to type it into, because a Direct card will not be charged
         // without it once its issuer has asked for it

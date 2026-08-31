@@ -745,3 +745,48 @@ msgstr "UA UUID для документов J5"
 msgctxt "Languages::hypay_ez_ua_uuid_j5_desc"
 msgid "Used for the document issued after a J5 capture, instead of the UA UUID above. This field does not fall back to it: leave it empty and J5 documents are created without ua_uuid at all, even when the field above is filled in."
 msgstr "Используется для документа, который создаётся после списания J5, вместо UA UUID выше. Это поле не наследует его значение: если оставить пустым, документы J5 будут создаваться вообще без ua_uuid, даже когда поле выше заполнено."
+
+msgctxt "Languages::hypay_j5_card"
+msgid "Card"
+msgstr "Карта"
+
+msgctxt "Languages::hypay_j5_immediate_card_notice"
+msgid "Hyp reports this as an immediate-debit (Direct) card. Shva does not let a transaction on such a card carry a pre-obtained authorization number, so the capture is refused with CCode=512. The money is then taken as an ordinary charge on the saved card instead, and the hold is released if it still can be."
+msgstr "Hyp сообщает, что это карта немедленного дебета (Direct). Шва не позволяет сделке по такой карте нести заранее полученный номер авторизации, поэтому capture отклоняется с CCode=512. Тогда сумма списывается обычной сделкой по сохранённой карте, а удержание отменяется, если это ещё возможно."
+
+msgctxt "Languages::hypay_j5_capture_fallback_also_refused"
+msgid "the ordinary charge that followed was refused too:"
+msgstr "последовавшее обычное списание тоже отклонено:"
+
+msgctxt "Languages::hypay_j5_captured_by_fallback"
+msgid "The capture was refused, so the amount was charged as a separate transaction on the saved card."
+msgstr "Capture был отклонён, поэтому сумма списана отдельной сделкой по сохранённой карте."
+
+msgctxt "Languages::hypay_j5_fallback_hold_released"
+msgid "The hold was reversed with it, and drops off the card straight away."
+msgstr "Удержание отменено вместе с ней и сразу снимается с карты."
+
+msgctxt "Languages::hypay_j5_fallback_hold_stays"
+msgid "The hold could not be reversed - it is only cancellable on the day it was taken. It is never captured now, and the issuer releases it within [days] days."
+msgstr "Удержание отменить не удалось — оно отменяется только в день, когда было сделано. Списать его уже нельзя, эмитент освободит средства в течение [days] дн."
+
+msgctxt "Languages::hypay_j5_note_fallback_released"
+msgid "The capture was refused by the acquirer; the amount was charged as a separate transaction and the hold was reversed."
+msgstr "Capture отклонён эквайером; сумма списана отдельной сделкой, удержание отменено."
+
+msgctxt "Languages::hypay_j5_note_fallback_hold_stays"
+msgid "The capture was refused by the acquirer; the amount was charged as a separate transaction. The hold could not be reversed and is released by the issuer within [days] days."
+msgstr "Capture отклонён эквайером; сумма списана отдельной сделкой. Удержание отменить не удалось, эмитент освободит средства в течение [days] дн."
+
+msgctxt "Languages::hypay_j5_capture_fallback"
+msgid "Refused capture"
+msgstr "Отклонённый capture"
+
+msgctxt "Languages::hypay_j5_capture_fallback_label"
+msgid "Charge the saved card when the capture is refused"
+msgstr "Списывать с сохранённой карты, когда capture отклонён"
+
+msgctxt "Languages::hypay_j5_capture_fallback_desc"
+msgid "An immediate-debit (Direct) card refuses a capture that carries the hold's authorization number (CCode 512, 455, 445). With this on, the amount is then charged as an ordinary transaction on the saved card, and the hold is reversed if it still can be - so the order is paid instead of stuck. Switch it off to have the refusal reported and nothing charged."
+msgstr "Карта немедленного дебета (Direct) отклоняет capture, несущий номер авторизации удержания (CCode 512, 455, 445). Если включено, сумма после этого списывается обычной сделкой по сохранённой карте, а удержание отменяется, если это ещё возможно — заказ оказывается оплачен, а не заблокирован. Выключите, чтобы отказ просто показывался и ничего не списывалось."
+

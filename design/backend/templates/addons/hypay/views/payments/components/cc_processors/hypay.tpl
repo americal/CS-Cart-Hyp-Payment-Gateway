@@ -236,6 +236,22 @@
      </div>
  </div>
 
+ {* the setting is stored as N only when it is switched off, so an installation
+    that never saw this field keeps the fallback - the alternative is a capture
+    that cannot be completed at all *}
+ <div class="control-group">
+     <label class="control-label" for="hypay_j5_capture_fallback">{__("hypay_j5_capture_fallback")}</label>
+     <div class="controls">
+         <label class="checkbox">
+             <input type="hidden" name="payment_data[processor_params][j5_capture_fallback]" value="N" />
+             <input type="checkbox" name="payment_data[processor_params][j5_capture_fallback]" id="hypay_j5_capture_fallback"
+                    value="Y" {if ($processor_params.j5_capture_fallback|default:"Y") != "N"}checked="checked"{/if} />
+             {__("hypay_j5_capture_fallback_label")}
+         </label>
+         <p class="muted description">{__("hypay_j5_capture_fallback_desc")}</p>
+     </div>
+ </div>
+
  <hr>
 
  {* --- Return URL (read-only) --- *}
