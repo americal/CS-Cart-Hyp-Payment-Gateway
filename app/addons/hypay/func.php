@@ -765,6 +765,43 @@ function hypay_clean_personal_id($raw_user_id)
         : HYPAY_PERSONAL_ID_UNKNOWN;
 }
 
+/**
+ * The Personal ID line of a J5 order's payment info.
+ *
+ * Two things worth reading, and neither of them replaces the other: what the
+ * capture will actually send, and - when that is not what Hyp reported - the
+ * number Hyp did report, in brackets after it.
+ *
+ *     000000000 (Original: 1577484600)
+ *
+ * The line has to answer "why is the ID a row of zeros" on an order page where
+ * a capture has just been refused, and it has to keep answering it afterwards:
+ * the value in brackets is the identifier Hyp fills UserId with when the
+ * payment page never asked the customer for an ID, and recognising it is what
+ * tells a merchant this hold needs the real number typed in rather than
+ * another attempt.
+ *
+ * The bracketed part is deliberately the same in every language, like the
+ * "Order #1234" the documents are reconciled by: it is a number and a label
+ * for it, read off the Hyp control panel beside the transaction it came from.
+ */
+function hypay_personal_id_label($value)
+{
+    $clean = hypay_clean_personal_id($value);
+    $raw   = preg_replace('/\D+/', '', ltrim((string) $value, 'Ll'));
+
+    // nothing to add: either it is a real ID, or Hyp reported nothing to
+    // report, or what it reported was already the placeholder
+    if ($clean !== HYPAY_PERSONAL_ID_UNKNOWN || $raw === '' || $raw === $clean) {
+        return $clean;
+    }
+
+    return __('hypay_j5_pi_personal_id_original', [
+        '[id]'       => $clean,
+        '[original]' => $raw,
+    ]);
+}
+
 /** payment method settings of an order */
 function fn_hypay_get_processor_params($order_info)
 {
@@ -1758,9 +1795,16 @@ function fn_hypay_render_payment_info(array $tx)
 {
     $authorized = number_format(round((float) ($tx['amount_authorized'] ?? 0), 2), 2, '.', '');
 
+    // Composed on the way out like the lines below, which is what makes it
+    // retroactive: an authorization taken before any of this was understood
+    // still has Hyp's own identifier in the row, and still reads correctly on
+    // the order page - as the placeholder the capture will send, with that
+    // identifier named as what came back. Nothing is migrated.
+    $common = ['personal_id' => hypay_personal_id_label($tx['personal_id'] ?? '')];
+
     switch ((string) ($tx['status'] ?? '')) {
         case 'authorized':
-            return [
+            return $common + [
                 'reason_text' => '🟡 ' . __('hypay_j5_pi_authorized', ['[amount]' => $authorized]),
                 'hypay_j5'    => __('hypay_j5_pi_hold_until', [
                     '[amount]' => $authorized,
@@ -1771,7 +1815,7 @@ function fn_hypay_render_payment_info(array $tx)
         case 'captured':
             $captured = number_format(round((float) ($tx['amount_captured'] ?? 0), 2), 2, '.', '');
 
-            return [
+            return $common + [
                 'reason_text' => '🟢 ' . __('hypay_j5_pi_captured', ['[amount]' => $captured]),
                 'hypay_j5'    => __('hypay_j5_pi_captured_on', [
                     '[amount]'   => $captured,
@@ -1783,7 +1827,7 @@ function fn_hypay_render_payment_info(array $tx)
         case 'voided':
             $confirmed = ((string) ($tx['void_state'] ?? '') === 'confirmed');
 
-            return [
+            return $common + [
                 'reason_text' => '⚪ ' . ($confirmed ? __('hypay_j5_pi_voided_confirmed') : __('hypay_j5_pi_voided')),
                 'hypay_j5'    => __('hypay_j5_pi_voided_on', [
                     '[amount]' => $authorized,
@@ -1793,8 +1837,10 @@ function fn_hypay_render_payment_info(array $tx)
     }
 
     // 'capturing' means a capture went out and the answer never came back. The
-    // text stored at that moment is the only account of it, so leave it alone.
-    return [];
+    // text stored at that moment is the only account of it, so leave it alone -
+    // the ID line is not part of that account, and is worth reading precisely
+    // when someone is working out what was sent.
+    return $common;
 }
 
 /**

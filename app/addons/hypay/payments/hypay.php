@@ -89,16 +89,18 @@ if (defined('PAYMENT_NOTIFICATION')) {
     // is made valid UTF-8 before it is allowed anywhere near the order page.
     $hyp_err_msg = hypay_utf8_text(hypay_request_value(['errMsg', 'ErrMsg', 'errmsg']));
 
-    // The cardholder's Israeli ID, if that is really what came back. Hyp fills
-    // UserId in either way: with the ID the payment page collected, or - when it
-    // collected none - with a ten-digit identifier of its own that belongs to
-    // nobody. Only the first kind is kept; the second is dropped for the
-    // documented "not supplied" placeholder, here and in the capture that reads
-    // it back later, because a Direct card's issuer refuses a charge that names
-    // the wrong ID (CCode=6).
-    $clean_user_id = hypay_clean_personal_id($hyp_return_user);
-    if ($clean_user_id === HYPAY_PERSONAL_ID_UNKNOWN && $hyp_return_user !== '') {
-        hypay_log($order_id, 'UserId is not an Israeli ID, stored as "not supplied"', $hyp_return_user);
+    // What Hyp reported as the cardholder's Israeli ID - digits only, and kept
+    // exactly as reported. Hyp fills UserId in either way: with the ID the
+    // payment page collected, or, when it collected none, with a ten-digit
+    // identifier of its own that belongs to nobody.
+    //
+    // Nothing is decided here. The value is judged where it is used - a J5
+    // capture sends it only if it is a real ת.ז, and the order page names it
+    // beside the placeholder that replaces it - and both of those need the
+    // number Hyp actually said, which is why this row keeps it.
+    $hyp_user_digits = preg_replace('/\D+/', '', ltrim($hyp_return_user, 'L'));
+    if ($hyp_return_user !== '' && !hypay_is_israeli_id($hyp_user_digits)) {
+        hypay_log($order_id, 'UserId is not an Israeli ID', $hyp_return_user);
     }
 
     $last4        = isset($_REQUEST['L4digit']) ? preg_replace('/\D+/', '', (string) $_REQUEST['L4digit']) : '';
@@ -151,7 +153,7 @@ if (defined('PAYMENT_NOTIFICATION')) {
                 'hyp_id'            => $hyp_return_id,
                 'acode'             => $hyp_return_acode,
                 'uid'               => $hyp_return_uid,
-                'personal_id'       => $clean_user_id,
+                'personal_id'       => $hyp_user_digits,
                 // the same spelling the authorization was made with, both halves
                 'client_name'       => hypay_sanitize_url_echo($order_info['firstname'] ?? ''),
                 'client_lname'      => hypay_sanitize_url_echo($order_info['lastname']  ?? ''),
@@ -202,7 +204,7 @@ if (defined('PAYMENT_NOTIFICATION')) {
                 'brand'          => $brand_name,
                 'card_number'    => $last4,
                 'payments'       => $num_payments,
-                'personal_id'    => $clean_user_id,
+                'personal_id'    => hypay_personal_id_label($hyp_user_digits),
                 'order_status'   => $j5_auth_status,
             ];
             $pp_response = fn_hypay_clean_payment_info($pp_response);
@@ -251,7 +253,7 @@ if (defined('PAYMENT_NOTIFICATION')) {
             'brand'          => $brand_name,
             'card_number'    => $last4,
             'payments'       => $_REQUEST['Payments'] ?? '',
-            'personal_id'    => $clean_user_id,
+            'personal_id'    => $hyp_user_digits !== '' ? $hyp_user_digits : HYPAY_PERSONAL_ID_UNKNOWN,
             'order_status'   => $is_success ? $success_status : $fail_status,
         ];
         $pp_response = fn_hypay_clean_payment_info($pp_response);

@@ -115,10 +115,23 @@ not match, where an ordinary credit card lets a wrong number through unnoticed.
 
 The payment page does not always collect an ID — when it does not, Hyp still
 fills `UserId` in the redirect, with a ten-digit identifier of its own that
-belongs to nobody. That number is not passed on as the cardholder's ID: an
-authorization only keeps a value that can actually be one, and a capture that
-has none sends the documented `000000000` placeholder, which is what the
-authorization itself was approved with.
+belongs to nobody. The authorization keeps what Hyp said, and the capture judges
+it: nothing but a real ID reaches Shva, and a hold that has none sends the
+documented `000000000` placeholder, which is what the authorization itself was
+approved with.
+
+The order page says which of the two happened, so a refused capture explains
+itself:
+
+```
+Personal ID    000000000 (Original: 1577484600)
+```
+
+That line is composed every time the order is read, not stored, so a hold taken
+before any of this was understood reads correctly too, and is captured correctly
+too — nothing has to be migrated, and no existing order has to be corrected by
+hand. Regular J4 charges are untouched: they never send an ID anywhere, so
+theirs is printed exactly as Hyp reported it, as it always was.
 
 When the issuer does want the real number, the order page has a **Cardholder's
 ID** field beside the instalments. Fill it in and capture again — the value is

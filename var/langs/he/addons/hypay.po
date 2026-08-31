@@ -364,6 +364,10 @@ msgctxt "Languages::hypay_j5_pi_authorized"
 msgid "J5 hold [amount] — awaiting capture"
 msgstr "שמירת J5 [amount] — ממתין לגבייה"
 
+msgctxt "Languages::hypay_j5_pi_personal_id_original"
+msgid "[id] (Original: [original])"
+msgstr "[id] (Original: [original])"
+
 msgctxt "Languages::hypay_j5_pi_captured"
 msgid "J5 captured [amount]"
 msgstr "J5: נגבו [amount]"
