@@ -294,6 +294,69 @@ function hypay_clean_redirect($url)
     exit;
 }
 
+/**
+ * Empty the cart the customer has just paid from.
+ *
+ * CS-Cart empties the cart inside fn_order_placement_routines('route', ...),
+ * which a redirecting processor is supposed to call when the gateway sends the
+ * customer back. This add-on brings the customer back itself, with a redirect
+ * of its own (hypay_clean_redirect), and so never reaches that call: the goods
+ * that were just paid for stayed in the cart, waiting to be ordered a second
+ * time. The same is true of a J5 hold - the order is placed, only the money is
+ * not taken yet - so both flows end here.
+ *
+ * Only a completed payment gets this far. A declined one leaves the cart as it
+ * is on purpose, so the customer can try again with the same products.
+ *
+ * Returns true when something was actually emptied.
+ */
+function fn_hypay_clear_cart($order_id)
+{
+    if (!function_exists('fn_clear_cart') || empty(\Tygh::$app['session']['cart'])) {
+        hypay_log($order_id, 'cart not cleared (no cart in this session)');
+        return false;
+    }
+
+    $cart = & \Tygh::$app['session']['cart'];
+    $auth = isset(\Tygh::$app['session']['auth']) ? \Tygh::$app['session']['auth'] : [];
+
+    // Where CS-Cart says which order this session has just placed, believe it:
+    // a customer paying an older order from "My orders" keeps whatever is in
+    // the cart right now, because that cart never produced this order. The key
+    // is absent on some flows and holds either one id or a list of them, so it
+    // only ever vetoes - it is not asked for permission.
+    $processed = isset($cart['processed_order_id']) ? $cart['processed_order_id'] : null;
+    if (!empty($processed)) {
+        $processed_ids = array_map('intval', (array) $processed);
+        if (!in_array((int) $order_id, $processed_ids, true)) {
+            hypay_log($order_id, 'cart left alone (this session placed another order)', $processed_ids);
+            return false;
+        }
+    }
+
+    $products_before = !empty($cart['products']) && is_array($cart['products']) ? count($cart['products']) : 0;
+
+    fn_clear_cart($cart);
+
+    // checkout.complete only shows an order the session is known to have just
+    // placed, and clearing the cart takes that note with it. Put back exactly
+    // what was there - the shape of this value differs between flows, and this
+    // is not the place to invent one.
+    if ($processed !== null && !isset($cart['processed_order_id'])) {
+        $cart['processed_order_id'] = $processed;
+    }
+
+    // a signed-in customer carries the cart in the database as well, and it
+    // would come back on the next visit if only the session copy were emptied
+    if (function_exists('fn_save_cart_content') && !empty($auth['user_id'])) {
+        fn_save_cart_content($cart, $auth['user_id']);
+    }
+
+    hypay_log($order_id, 'cart cleared after a completed payment', ['products_removed' => $products_before]);
+
+    return true;
+}
+
 /** checkbox -> "True"/"False" strings per Hypay API taste */
 function hypay_bool($v)
 {
