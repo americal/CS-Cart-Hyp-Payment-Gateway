@@ -106,6 +106,42 @@ The J5 setting starts at *same as regular deals* and follows the one above until
 it is set to something of its own, so an installation that configured a single
 mode before the split keeps issuing exactly what it issued before.
 
+**The cardholder's ID**
+
+Shva checks the capture against the ID number it is sent, and a **Direct (debit)
+card** is the one that makes this matter: its issuer verifies the ID against the
+account the card is drawn on and refuses the charge with `CCode=6` when it does
+not match, where an ordinary credit card lets a wrong number through unnoticed.
+
+The payment page does not always collect an ID — when it does not, Hyp still
+fills `UserId` in the redirect, with a ten-digit identifier of its own that
+belongs to nobody. The authorization keeps what Hyp said, and the capture judges
+it: nothing but a real ID reaches Shva, and a hold that has none sends the
+documented `000000000` placeholder, which is what the authorization itself was
+approved with.
+
+The order page says which of the two happened, so a refused capture explains
+itself:
+
+```
+Personal ID    000000000 (Original: 1577484600)
+```
+
+That line is composed every time the order is read, not stored, so a hold taken
+before any of this was understood reads correctly too, and is captured correctly
+too — nothing has to be migrated, and no existing order has to be corrected by
+hand. Regular J4 charges are untouched: they never send an ID anywhere, so
+theirs is printed exactly as Hyp reported it, as it always was.
+
+When the issuer does want the real number, the order page has a **Cardholder's
+ID** field beside the instalments. Fill it in and capture again — the value is
+remembered on the authorization, so a further attempt does not need it retyped.
+It is held to the same format as any other: nine digits, left-padded with zeros,
+the last of them a check digit computed from the other eight. A number that
+fails that test is not sent — the capture goes out with the placeholder and says
+so — because the issuer would refuse it just as surely as Hyp's identifier was
+refused.
+
 **Per-usergroup behaviour**
 
 The payment method setting **Payment type** offers:

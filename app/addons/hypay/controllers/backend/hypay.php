@@ -27,7 +27,12 @@ if ($order_id <= 0) {
 if ($mode === 'capture') {
     $amount   = (isset($_REQUEST['amount']) && $_REQUEST['amount'] !== '') ? (float) $_REQUEST['amount'] : null;
     $payments = (isset($_REQUEST['payments']) && $_REQUEST['payments'] !== '') ? (int) $_REQUEST['payments'] : null;
-    fn_hypay_capture_j5($order_id, $amount, $payments);
+    // only sent when the merchant typed one in: null leaves the authorization's
+    // own ID (or the lack of one) alone
+    $personal_id = (isset($_REQUEST['personal_id']) && $_REQUEST['personal_id'] !== '')
+        ? (string) $_REQUEST['personal_id']
+        : null;
+    fn_hypay_capture_j5($order_id, $amount, $payments, $personal_id);
 
     // hypay_result tells the order page it was reached from a J5 action, so the
     // notification carrying the outcome is pinned instead of fading away
