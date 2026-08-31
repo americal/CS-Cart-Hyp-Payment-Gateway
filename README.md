@@ -142,6 +142,47 @@ fails that test is not sent — the capture goes out with the placeholder and sa
 so — because the issuer would refuse it just as surely as Hyp's identifier was
 refused.
 
+**Direct (immediate-debit) cards**
+
+A capture points Shva back at the hold by carrying its authorization number.
+An immediate-debit card will not take one: Shva reads the attached number as an
+approval obtained by hand and refuses the whole transaction with `CCode=512`,
+*cannot enter an approval received from voice response for this transaction* —
+even though the request is exactly what the Hyp reference asks for, and the same
+request goes through unremarked on an ordinary credit card.
+
+Nothing on the payment page can prevent this. `J5` is fixed when the payment
+link is signed, long before a card exists; the card type first appears in the
+redirect, as `spType`, by which point the hold has already been taken. So the
+addon reads it there — along with `TransType`, `Issuer` and `bincard`, which
+ride back in the same redirect — stores it on the authorization, and names it on
+the order page, where an `Immediate` card is flagged while the hold is still
+open.
+
+The capture then handles the refusal rather than reporting it. On `CCode` 512,
+455 or 445 the same request is repeated **without** the authorization number and
+the three `inputObj` fields, which is precisely the documented *charge a saved
+token* call — so the amount is taken as an ordinary transaction on the card
+token that was saved when the hold was made. Then `CancelTrans` is asked to
+reverse the hold, which usually it cannot: a hold is captured days after it was
+taken, and only the day it was taken is it cancellable. Either way the hold is
+never captured again and the issuer releases it when the window expires; the
+order page says which of the two happened.
+
+Because that charge is a fresh sale rather than a capture, nothing ties it to
+the hold and nothing bounds it by it — so the addon does the bounding. On an
+immediate-debit card the amount is pinned to the one the customer approved:
+capture is refused, both on the order page and in the capture itself, while the
+order total says anything else. Partial captures stay available on an ordinary
+credit card, where the charge really is tied to the hold.
+
+The refused capture is kept on the transaction and printed beside the charge, so
+an order paid this way explains itself. The fallback is only tried on a definite
+refusal — an unreadable answer still locks the row, because a charge that may
+have gone through must never be repeated. It can be switched off with **Refused
+capture → Charge the saved card when the capture is refused**; with it off the
+refusal is reported and nothing is charged.
+
 **Per-usergroup behaviour**
 
 The payment method setting **Payment type** offers:

@@ -745,3 +745,69 @@ msgstr "UA UUID for J5 documents"
 msgctxt "Languages::hypay_ez_ua_uuid_j5_desc"
 msgid "Used for the document issued after a J5 capture, instead of the UA UUID above. This field does not fall back to it: leave it empty and J5 documents are created without ua_uuid at all, even when the field above is filled in."
 msgstr "Used for the document issued after a J5 capture, instead of the UA UUID above. This field does not fall back to it: leave it empty and J5 documents are created without ua_uuid at all, even when the field above is filled in."
+
+msgctxt "Languages::hypay_j5_card"
+msgid "Card"
+msgstr "Card"
+
+msgctxt "Languages::hypay_j5_immediate_card_notice"
+msgid "Hyp reports this as an immediate-debit (Direct) card. Shva does not let a transaction on such a card carry a pre-obtained authorization number, so the capture is refused with CCode=512. The money is then taken as an ordinary charge on the saved card instead, and the hold is released if it still can be."
+msgstr "Hyp reports this as an immediate-debit (Direct) card. Shva does not let a transaction on such a card carry a pre-obtained authorization number, so the capture is refused with CCode=512. The money is then taken as an ordinary charge on the saved card instead, and the hold is released if it still can be."
+
+msgctxt "Languages::hypay_j5_capture_fallback_also_refused"
+msgid "the ordinary charge that followed was refused too:"
+msgstr "the ordinary charge that followed was refused too:"
+
+msgctxt "Languages::hypay_j5_captured_by_fallback"
+msgid "The capture was refused, so the amount was charged as a separate transaction on the saved card."
+msgstr "The capture was refused, so the amount was charged as a separate transaction on the saved card."
+
+msgctxt "Languages::hypay_j5_fallback_hold_released"
+msgid "The hold was reversed with it, and drops off the card straight away."
+msgstr "The hold was reversed with it, and drops off the card straight away."
+
+msgctxt "Languages::hypay_j5_fallback_hold_stays"
+msgid "The hold could not be reversed - it is only cancellable on the day it was taken. It is never captured now, and the issuer releases it within [days] days."
+msgstr "The hold could not be reversed - it is only cancellable on the day it was taken. It is never captured now, and the issuer releases it within [days] days."
+
+msgctxt "Languages::hypay_j5_note_fallback_released"
+msgid "The capture was refused by the acquirer; the amount was charged as a separate transaction and the hold was reversed."
+msgstr "The capture was refused by the acquirer; the amount was charged as a separate transaction and the hold was reversed."
+
+msgctxt "Languages::hypay_j5_note_fallback_hold_stays"
+msgid "The capture was refused by the acquirer; the amount was charged as a separate transaction. The hold could not be reversed and is released by the issuer within [days] days."
+msgstr "The capture was refused by the acquirer; the amount was charged as a separate transaction. The hold could not be reversed and is released by the issuer within [days] days."
+
+msgctxt "Languages::hypay_j5_capture_fallback"
+msgid "Refused capture"
+msgstr "Refused capture"
+
+msgctxt "Languages::hypay_j5_capture_fallback_label"
+msgid "Charge the saved card when the capture is refused"
+msgstr "Charge the saved card when the capture is refused"
+
+msgctxt "Languages::hypay_j5_capture_fallback_desc"
+msgid "An immediate-debit (Direct) card refuses a capture that carries the hold's authorization number (CCode 512, 455, 445). With this on, the amount is then charged as an ordinary transaction on the saved card, and the hold is reversed if it still can be - so the order is paid instead of stuck. Switch it off to have the refusal reported and nothing charged."
+msgstr "An immediate-debit (Direct) card refuses a capture that carries the hold's authorization number (CCode 512, 455, 445). With this on, the amount is then charged as an ordinary transaction on the saved card, and the hold is reversed if it still can be - so the order is paid instead of stuck. Switch it off to have the refusal reported and nothing charged."
+
+
+msgctxt "Languages::hypay_j5_personal_id_desc_short"
+msgid "Sent with the capture, checked before it goes out."
+msgstr "Sent with the capture, checked before it goes out."
+
+msgctxt "Languages::hypay_j5_personal_id_bad"
+msgid "Not a valid Israeli ID — the check digit does not match. Capture as it stands and 000000000 is sent instead."
+msgstr "Not a valid Israeli ID — the check digit does not match. Capture as it stands and 000000000 is sent instead."
+
+msgctxt "Languages::hypay_j5_immediate_amount_locked"
+msgid "This is an immediate-debit card, so the charge is pinned to the amount the customer approved and the order total cannot be changed before capturing."
+msgstr "This is an immediate-debit card, so the charge is pinned to the amount the customer approved and the order total cannot be changed before capturing."
+
+msgctxt "Languages::hypay_j5_immediate_amount_locked_blocked"
+msgid "The order total no longer matches the hold, and on an immediate-debit card it must: the charge is a fresh sale on the saved card rather than a capture, so it can only be made for the amount the customer approved. Restore the order total to capture."
+msgstr "The order total no longer matches the hold, and on an immediate-debit card it must: the charge is a fresh sale on the saved card rather than a capture, so it can only be made for the amount the customer approved. Restore the order total to capture."
+
+msgctxt "Languages::hypay_j5_error_immediate_amount_locked"
+msgid "This is an immediate-debit card: the charge can only be made for the amount the customer approved, [amount]. Restore the order total and capture again."
+msgstr "This is an immediate-debit card: the charge can only be made for the amount the customer approved, [amount]. Restore the order total and capture again."
+

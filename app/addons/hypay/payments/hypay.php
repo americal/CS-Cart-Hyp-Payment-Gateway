@@ -106,6 +106,29 @@ if (defined('PAYMENT_NOTIFICATION')) {
     $last4        = isset($_REQUEST['L4digit']) ? preg_replace('/\D+/', '', (string) $_REQUEST['L4digit']) : '';
     $num_payments = max(1, (int) ($_REQUEST['Payments'] ?? 1));
 
+    // What the card turned out to be. All four ride back with MoreData=True,
+    // which a J5 request always carries, and none of them can be known before
+    // the customer has typed a card in.
+    //
+    // spType is the one that changes what can be done with the hold: on an
+    // 'Immediate' (Direct / debit) card Shva refuses a capture that carries a
+    // pre-obtained authorization number, so the money has to be taken as an
+    // ordinary token charge instead. The rest are kept because they cost
+    // nothing here and answer the next question about a refused capture -
+    // which issuer, which BIN range, how the customer paid.
+    $card_facts = [
+        'sp_type'    => hypay_utf8_text((string) ($_REQUEST['spType']    ?? '')),
+        'trans_type' => hypay_utf8_text((string) ($_REQUEST['TransType'] ?? '')),
+        'issuer'     => hypay_utf8_text((string) ($_REQUEST['Issuer']    ?? '')),
+        'bincard'    => preg_replace('/\D+/', '', (string) ($_REQUEST['bincard'] ?? '')),
+    ];
+    if ($card_facts['sp_type'] !== '') {
+        hypay_log($order_id, 'special card type reported by Hyp', [
+            'spType'       => $card_facts['sp_type'],
+            'is_immediate' => hypay_is_immediate_card($card_facts['sp_type']),
+        ]);
+    }
+
     // Did this return place the order for good - charged, or held on the card?
     // Both branches below answer it, and the cart is emptied at the end on a
     // yes. A declined payment says no and the cart survives, so the customer
@@ -159,6 +182,10 @@ if (defined('PAYMENT_NOTIFICATION')) {
                 'client_lname'      => hypay_sanitize_url_echo($order_info['lastname']  ?? ''),
                 'brand'             => $brand_name,
                 'last4'             => $last4,
+                'sp_type'           => $card_facts['sp_type'],
+                'trans_type'        => $card_facts['trans_type'],
+                'issuer'            => $card_facts['issuer'],
+                'bincard'           => $card_facts['bincard'],
                 'payments'          => $num_payments,
                 'coin'              => (int) ($pp['coin'] ?? 1),
                 'amount_authorized' => $authorized,
