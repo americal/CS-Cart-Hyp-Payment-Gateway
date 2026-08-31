@@ -128,13 +128,22 @@
             <input type="text" class="input-medium hypay-j5-personal-id" maxlength="9"
                    inputmode="numeric" autocomplete="off"
                    value="{$hypay_j5.personal_id}" placeholder="{__("hypay_j5_personal_id_unknown")}" />
-            <p class="{if $hypay_j5.personal_id_asked}text-error{else}muted{/if} description">
-                {if $hypay_j5.personal_id_asked}
-                    {__("hypay_j5_personal_id_refused")}
-                {else}
-                    {__("hypay_j5_personal_id_desc")}
-                {/if}
-            </p>
+
+            {* the last capture was refused over the ID: a standing state of the
+               hold, not a comment on what is in the field right now *}
+            {if $hypay_j5.personal_id_asked}
+                <p class="text-error description">{__("hypay_j5_personal_id_refused")}</p>
+            {/if}
+
+            {* raised by the script below, and only while what has been typed
+               cannot be an ID - an empty field is not an error, it is the
+               normal state of a hold the payment page collected none for *}
+            <p class="text-error description hypay-j5-personal-id-bad" style="display: none;">
+                {__("hypay_j5_personal_id_bad")}</p>
+
+            {capture name="hypay_hint_personal_id"}{__("hypay_j5_personal_id_desc")}{/capture}
+            <p class="muted description">{__("hypay_j5_personal_id_desc_short")}<span
+                class="cm-tooltip hypay-j5-hint" title="{$smarty.capture.hypay_hint_personal_id|escape}">i</span></p>
         </div>
     </div>
 {/if}
@@ -211,8 +220,14 @@
         <div class="controls">
             {if $hypay_j5.amount_mismatch}
                 <p class="text-error">{__("hypay_j5_warning_total_above_hold")}</p>
+            {elseif $hypay_j5.amount_locked && $hypay_j5.amount_delta != 0}
+                {* a smaller charge on such a card is a second sale, not a
+                   partial capture: it is refused rather than warned about *}
+                <p class="text-error">{__("hypay_j5_immediate_amount_locked_blocked")}</p>
             {elseif $hypay_j5.amount_delta < 0}
                 <p class="text-warning">{__("hypay_j5_notice_partial_capture")}</p>
+            {elseif $hypay_j5.amount_locked}
+                <p class="muted">{__("hypay_j5_immediate_amount_locked")}</p>
             {/if}
 
             {if !$hypay_j5.has_token}
@@ -312,17 +327,50 @@
     // two fields that shape the charge are written into its query string, and
     // rewritten together: a select that only knew about the instalments would
     // erase the ID beside it every time it changed.
-    var link = document.querySelector('.hypay-j5-capture-link');
-    if (!link) { return; }
-
+    var link     = document.querySelector('.hypay-j5-capture-link');
     var payments = document.querySelector('.hypay-j5-payments');
     var personal = document.querySelector('.hypay-j5-personal-id');
+    var bad_id   = document.querySelector('.hypay-j5-personal-id-bad');
+
+    // the link is missing whenever Capture is not on offer - a total above the
+    // hold, or an immediate-debit card the order has drifted away from. The ID
+    // beside it is still worth checking as it is typed: it is what the next
+    // attempt will carry once the order is put right.
+    if (!link && !personal) { return; }
+
+    // The same test the capture applies before it sends anything: up to nine
+    // digits, not all zeros, and the last of them a check digit computed from
+    // the other eight. Repeated here only so a mistyped number is answered
+    // while it is being typed - hypay_is_israeli_id() still has the last word,
+    // and a number this lets through is replaced by 000000000 there if it
+    // turns out not to be one after all.
+    var is_israeli_id = function (digits) {
+        if (digits === '' || digits.length > 9 || parseInt(digits, 10) === 0) { return false; }
+
+        while (digits.length < 9) { digits = '0' + digits; }
+
+        var sum = 0;
+        for (var i = 0; i < 9; i++) {
+            var n = parseInt(digits.charAt(i), 10) * ((i % 2) + 1);
+            sum += (n > 9) ? n - 9 : n;
+        }
+
+        return (sum % 10) === 0;
+    };
 
     var sync = function () {
+        var id = personal ? personal.value.replace(/\D+/g, '') : '';
+
+        // an empty field is the normal state of a hold whose payment page never
+        // asked for an ID, so only something typed and unusable is called out
+        if (bad_id) {
+            bad_id.style.display = (id !== '' && !is_israeli_id(id)) ? '' : 'none';
+        }
+
+        if (!link) { return; }
+
         var count = parseInt(payments ? payments.value : link.getAttribute('data-payments'), 10) || 1;
         var href  = link.getAttribute('data-base') + '&payments=' + count;
-
-        var id = personal ? personal.value.replace(/\D+/g, '') : '';
         if (id !== '') { href += '&personal_id=' + id; }
 
         link.href = href;

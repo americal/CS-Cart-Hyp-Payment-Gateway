@@ -169,6 +169,13 @@ taken, and only the day it was taken is it cancellable. Either way the hold is
 never captured again and the issuer releases it when the window expires; the
 order page says which of the two happened.
 
+Because that charge is a fresh sale rather than a capture, nothing ties it to
+the hold and nothing bounds it by it — so the addon does the bounding. On an
+immediate-debit card the amount is pinned to the one the customer approved:
+capture is refused, both on the order page and in the capture itself, while the
+order total says anything else. Partial captures stay available on an ordinary
+credit card, where the charge really is tied to the hold.
+
 The refused capture is kept on the transaction and printed beside the charge, so
 an order paid this way explains itself. The fallback is only tried on a definite
 refusal — an unreadable answer still locks the row, because a charge that may

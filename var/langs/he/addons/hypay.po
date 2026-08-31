@@ -588,3 +588,24 @@ msgctxt "Languages::hypay_j5_capture_fallback_desc"
 msgid "An immediate-debit (Direct) card refuses a capture that carries the hold's authorization number (CCode 512, 455, 445). With this on, the amount is then charged as an ordinary transaction on the saved card, and the hold is reversed if it still can be - so the order is paid instead of stuck. Switch it off to have the refusal reported and nothing charged."
 msgstr "כרטיס חיוב מיידי (דיירקט) דוחה גבייה שנושאת את מספר האישור של השמירה (CCode‏ 512, 455, 445). כשהאפשרות פעילה, הסכום מחויב לאחר מכן כעסקה רגילה בכרטיס השמור, והשמירה מבוטלת אם עדיין אפשר - כך שההזמנה משולמת ולא נתקעת. כבו כדי שהדחייה רק תדווח ודבר לא יחויב."
 
+
+msgctxt "Languages::hypay_j5_personal_id_desc_short"
+msgid "Sent with the capture, checked before it goes out."
+msgstr "נשלח יחד עם הגבייה, ונבדק לפני השליחה."
+
+msgctxt "Languages::hypay_j5_personal_id_bad"
+msgid "Not a valid Israeli ID — the check digit does not match. Capture as it stands and 000000000 is sent instead."
+msgstr "זו אינה תעודת זהות תקינה - ספרת הביקורת אינה מתאימה. אם תבוצע גבייה כפי שהוא, יישלח 000000000."
+
+msgctxt "Languages::hypay_j5_immediate_amount_locked"
+msgid "This is an immediate-debit card, so the charge is pinned to the amount the customer approved and the order total cannot be changed before capturing."
+msgstr "זהו כרטיס חיוב מיידי, ולכן החיוב נעול לסכום שהלקוח אישר: אין לשנות את סכום ההזמנה לפני הגבייה."
+
+msgctxt "Languages::hypay_j5_immediate_amount_locked_blocked"
+msgid "The order total no longer matches the hold, and on an immediate-debit card it must: the charge is a fresh sale on the saved card rather than a capture, so it can only be made for the amount the customer approved. Restore the order total to capture."
+msgstr "סכום ההזמנה כבר אינו תואם לשמירה, ובכרטיס חיוב מיידי הוא חייב לתאום: החיוב כאן אינו גביית השמירה אלא עסקה חדשה בכרטיס השמור, ואפשר לבצעה רק בסכום שהלקוח אישר. החזירו את סכום ההזמנה הקודם כדי לגבות."
+
+msgctxt "Languages::hypay_j5_error_immediate_amount_locked"
+msgid "This is an immediate-debit card: the charge can only be made for the amount the customer approved, [amount]. Restore the order total and capture again."
+msgstr "זהו כרטיס חיוב מיידי: ניתן לחייב רק את הסכום שהלקוח אישר - [amount]. החזירו את סכום ההזמנה הקודם ובצעו גבייה שוב."
+

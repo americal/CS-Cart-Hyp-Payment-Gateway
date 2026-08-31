@@ -2167,6 +2167,26 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
         return false;
     }
 
+    // An immediate-debit (Direct) card is not captured, it is charged again:
+    // the money comes from a fresh transaction on the saved card, because Shva
+    // refuses a capture that carries the hold's authorization number. Nothing
+    // ties that charge to the hold and nothing bounds it by it, so the amount
+    // is held to the one the customer approved, exactly. A smaller charge would
+    // be a second sale for a sum nobody agreed to, and to take less than the
+    // hold the order has to be settled with Hyp rather than edited here.
+    if (hypay_is_immediate_card($tx['sp_type'] ?? '') && abs($amount - $authorized) > 0.009) {
+        fn_set_notification('E', __('error'), __('hypay_j5_error_immediate_amount_locked', [
+            '[amount]' => number_format($authorized, 2, '.', ''),
+        ]));
+        hypay_log($order_id, 'j5.capture REFUSED: immediate-debit card, amount differs from the hold', [
+            'authorized' => $authorized,
+            'requested'  => $amount,
+            'spType'     => (string) ($tx['sp_type'] ?? ''),
+        ]);
+
+        return false;
+    }
+
     // number of instalments: the one the customer picked, unless the admin
     // changed it before capturing
     $max_payments = fn_hypay_max_payments($pp, $tx);
@@ -2757,7 +2777,11 @@ function fn_hypay_get_j5_panel_data($order_id)
         'voided_at'         => (int) $tx['voided_at'],
         'expires_at'        => $expires_at,
         'is_expired'        => ($is_open && $expires_at > 0 && $expires_at < TIME),
-        'can_capture'       => ($tx['status'] === 'authorized' && $order_total > 0 && $order_total <= $authorized + 0.009),
+        // on an immediate-debit card the charge is a fresh sale rather than a
+        // capture, so it is pinned to the amount the customer approved
+        'amount_locked'     => ($tx['status'] === 'authorized' && hypay_is_immediate_card($tx['sp_type'] ?? '')),
+        'can_capture'       => ($tx['status'] === 'authorized' && $order_total > 0 && $order_total <= $authorized + 0.009
+            && (!hypay_is_immediate_card($tx['sp_type'] ?? '') || abs($order_total - $authorized) <= 0.009)),
         'can_void'          => ($tx['status'] === 'authorized'),
         'amount_mismatch'   => ($tx['status'] === 'authorized' && $order_total > $authorized + 0.009),
         'amount_delta'      => $delta,
