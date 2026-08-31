@@ -99,6 +99,12 @@ if (defined('PAYMENT_NOTIFICATION')) {
     $last4        = isset($_REQUEST['L4digit']) ? preg_replace('/\D+/', '', (string) $_REQUEST['L4digit']) : '';
     $num_payments = max(1, (int) ($_REQUEST['Payments'] ?? 1));
 
+    // Did this return place the order for good - charged, or held on the card?
+    // Both branches below answer it, and the cart is emptied at the end on a
+    // yes. A declined payment says no and the cart survives, so the customer
+    // can pay for the same basket again.
+    $order_completed = false;
+
     /* ----------------------------------------------------------------------
      * J5: funds are held, nothing is charged yet
      * --------------------------------------------------------------------*/
@@ -198,6 +204,10 @@ if (defined('PAYMENT_NOTIFICATION')) {
             hypay_log($order_id, 'fn_finish_payment payload (J5)', $pp_response);
             fn_finish_payment($order_id, $pp_response);
 
+            // the hold went through, so the order stands: the money is only
+            // waiting to be captured from the order page
+            $order_completed = true;
+
             // inside this branch on purpose: a replayed return takes the other
             // one and leaves the order alone, additional status included
             if (!empty($pp['j5_auth_additional_status'])) {
@@ -244,6 +254,8 @@ if (defined('PAYMENT_NOTIFICATION')) {
         fn_finish_payment($order_id, $pp_response);
         hypay_log($order_id, 'fn_finish_payment done');
 
+        $order_completed = $is_success;
+
         // EzCount: direct API (optional, based on settings)
         if ($is_success) {
             $ez_mode = $pp['ez_mode'] ?? 'none'; // none | integrated | direct
@@ -265,6 +277,19 @@ if (defined('PAYMENT_NOTIFICATION')) {
     // where to bounce back (admin or storefront)?
     $back = hypay_get_back_marker($order_id);
     hypay_clear_back_marker($order_id);
+
+    // The order is paid for and the customer is about to be sent to the "thank
+    // you" page, so the basket that produced it has done its job. CS-Cart would
+    // have emptied it in fn_order_placement_routines('route', ...); the redirect
+    // below replaces that call, so the cart is emptied here instead.
+    //
+    // Only on the marker set when the payment link was built, and only the
+    // storefront one: an order paid from the admin panel has no customer cart
+    // behind it, and a replayed return finds the marker already consumed - by
+    // then the cart may hold the next order's products.
+    if ($order_completed && $back === 'front') {
+        fn_hypay_clear_cart($order_id);
+    }
 
     if ($back === 'admin') {
         $admin_index = Registry::get('config.admin_index'); // e.g. admin.php
