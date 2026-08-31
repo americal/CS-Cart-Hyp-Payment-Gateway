@@ -730,14 +730,19 @@ function hypay_brand_name($brand_code)
  * received from voice response for this transaction", even though the request
  * is exactly what the documentation asks for.
  *
- * The value is matched loosely rather than compared: it is documented by
- * example only, it has been seen both as the English word and in Hebrew, and
- * a card type nobody recognises must not be mistaken for an ordinary one.
+ * The value is matched loosely rather than compared, because the reference
+ * describes it by example twice over and the two examples disagree: the
+ * parameter table names 'Tourist' and 'Immediate' as words, while the worked
+ * redirect returns SpType=0 for an ordinary card. So a word is read as a word,
+ * 0 is read as "nothing special", and anything else is reported unrecognised
+ * rather than quietly taken for an ordinary card - see the log line in
+ * payments/hypay.php, which prints whatever came back so a numeric code for a
+ * Direct card can be recognised the first time one appears.
  */
 function hypay_is_immediate_card($sp_type)
 {
     $sp_type = trim(hypay_utf8_text((string) $sp_type));
-    if ($sp_type === '') {
+    if ($sp_type === '' || $sp_type === '0') {
         return false;
     }
 
@@ -747,6 +752,25 @@ function hypay_is_immediate_card($sp_type)
 
     // מיידי - "immediate", the word Hyp uses when it answers in Hebrew
     return (strpos($sp_type, "\xd7\x9e\xd7\x99\xd7\x99\xd7\x93\xd7\x99") !== false);
+}
+
+/**
+ * Is this an spType value nothing here knows how to read?
+ *
+ * '' and '0' both mean "no special type", and the words are understood. What
+ * is left is a code this add-on has never seen, and it is worth saying so out
+ * loud: a Direct card reported as a number rather than a word would otherwise
+ * pass for an ordinary one and take the amount lock with it.
+ */
+function hypay_sp_type_is_unknown($sp_type)
+{
+    $sp_type = trim(hypay_utf8_text((string) $sp_type));
+
+    if ($sp_type === '' || $sp_type === '0' || hypay_is_immediate_card($sp_type)) {
+        return false;
+    }
+
+    return (stripos($sp_type, 'tourist') === false);
 }
 
 /**

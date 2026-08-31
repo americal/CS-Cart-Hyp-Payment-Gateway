@@ -167,6 +167,12 @@ approval obtained by hand and refuses the whole transaction with `CCode=512`,
 even though the request is exactly what the Hyp reference asks for, and the same
 request goes through unremarked on an ordinary credit card.
 
+Hyp's own reference says as much: two-phase commits *"require pre-approval from
+the issuer and may not support all card types"*, where postponing *"works
+independently of the issuer and supports all credit cards without special
+configuration"*. So a terminal that cannot capture a debit card is behaving as
+documented, and the fix is with the acquirer, not in this code.
+
 Nothing on the payment page can prevent this. `J5` is fixed when the payment
 link is signed, long before a card exists; the card type first appears in the
 redirect, as `spType`, by which point the hold has already been taken. So the

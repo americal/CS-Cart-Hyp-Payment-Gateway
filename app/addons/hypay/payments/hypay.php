@@ -116,17 +116,28 @@ if (defined('PAYMENT_NOTIFICATION')) {
     // ordinary token charge instead. The rest are kept because they cost
     // nothing here and answer the next question about a refused capture -
     // which issuer, which BIN range, how the customer paid.
+    //
+    // Read through hypay_request_value() rather than $_REQUEST directly,
+    // because the two spellings do not agree even inside Hyp's own reference:
+    // the parameter table calls them spType and bincard, while the worked
+    // example of a redirect further down the same page returns SpType and
+    // BinCard. $_REQUEST keys are case-sensitive, so reading the documented
+    // spelling found nothing at all and the card looked like one Hyp had
+    // declined to describe.
     $card_facts = [
-        'sp_type'    => hypay_utf8_text((string) ($_REQUEST['spType']    ?? '')),
-        'trans_type' => hypay_utf8_text((string) ($_REQUEST['TransType'] ?? '')),
-        'issuer'     => hypay_utf8_text((string) ($_REQUEST['Issuer']    ?? '')),
-        'bincard'    => preg_replace('/\D+/', '', (string) ($_REQUEST['bincard'] ?? '')),
+        'sp_type'    => hypay_utf8_text(hypay_request_value(['SpType', 'spType'])),
+        'trans_type' => hypay_utf8_text(hypay_request_value(['TransType', 'transType'])),
+        'issuer'     => hypay_utf8_text(hypay_request_value(['Issuer', 'issuer'])),
+        'bincard'    => preg_replace('/\D+/', '', hypay_request_value(['BinCard', 'bincard'])),
     ];
     // logged even when empty: Hyp does not always fill spType, and an absence
     // that leaves no trace reads like a card nobody asked about
     hypay_log($order_id, 'special card type reported by Hyp', [
         'spType'       => $card_facts['sp_type'] !== '' ? $card_facts['sp_type'] : '(not reported)',
         'is_immediate' => hypay_is_immediate_card($card_facts['sp_type']),
+        // loud on purpose: a Direct card reported as a code rather than a word
+        // would otherwise pass for an ordinary one
+        'unrecognised' => hypay_sp_type_is_unknown($card_facts['sp_type']),
     ]);
 
     // Did this return place the order for good - charged, or held on the card?
