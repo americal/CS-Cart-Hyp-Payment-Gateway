@@ -133,9 +133,12 @@ too — nothing has to be migrated, and no existing order has to be corrected by
 hand. Regular J4 charges are untouched: they never send an ID anywhere, so
 theirs is printed exactly as Hyp reported it, as it always was.
 
-When the issuer does want the real number, the order page has a **Cardholder's
-ID** field beside the instalments. Fill it in and capture again — the value is
-remembered on the authorization, so a further attempt does not need it retyped.
+When the issuer does want the real number, the order page offers a
+**Cardholder's ID** field beside the instalments. It appears only where there is
+something to do about it — the hold carries no valid ID, or a capture was just
+refused over one — so a hold that already has a real number shows no field to
+mistype it into. Fill it in and capture again; the value is remembered on the
+authorization, so a further attempt does not need it retyped.
 It is held to the same format as any other: nine digits, left-padded with zeros,
 the last of them a check digit computed from the other eight. A number that
 fails that test is not sent — the capture goes out with the placeholder and says

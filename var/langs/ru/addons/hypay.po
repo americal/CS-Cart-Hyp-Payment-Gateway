@@ -626,6 +626,14 @@ msgctxt "Languages::hypay_j5_personal_id_unknown"
 msgid "Not supplied"
 msgstr "Не указано"
 
+msgctxt "Languages::hypay_j5_personal_id_desc_short"
+msgid "The payment page did not collect one."
+msgstr "Платёжная страница его не запросила."
+
+msgctxt "Languages::hypay_j5_personal_id_refused_short"
+msgid "The capture was refused over the ID."
+msgstr "Списание отклонено из-за удостоверения."
+
 msgctxt "Languages::hypay_j5_personal_id_desc"
 msgid "Israeli ID of the cardholder, checked for a valid check digit before the capture is sent. The payment page does not always ask for one, and a Direct (debit) card is charged only when the ID matches the account it is drawn on. Anything that is not a real ID goes out as 000000000, which tells the issuer none was supplied."
 msgstr "Израильский номер удостоверения держателя карты, перед отправкой списания проверяется по контрольной цифре. Платёжная страница запрашивает его не всегда, а дебетовая карта Direct списывается только при совпадении с владельцем счёта. Всё, что не является настоящим номером, уходит как 000000000 — это сообщает эмитенту, что удостоверение не предъявлено."

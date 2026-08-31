@@ -424,6 +424,14 @@ msgctxt "Languages::hypay_j5_personal_id_unknown"
 msgid "Not supplied"
 msgstr "לא הוזן"
 
+msgctxt "Languages::hypay_j5_personal_id_desc_short"
+msgid "The payment page did not collect one."
+msgstr "דף התשלום לא ביקש אותו."
+
+msgctxt "Languages::hypay_j5_personal_id_refused_short"
+msgid "The capture was refused over the ID."
+msgstr "הגבייה נדחתה בשל הת.ז."
+
 msgctxt "Languages::hypay_j5_personal_id_desc"
 msgid "Israeli ID of the cardholder, checked for a valid check digit before the capture is sent. The payment page does not always ask for one, and a Direct (debit) card is charged only when the ID matches the account it is drawn on. Anything that is not a real ID goes out as 000000000, which tells the issuer none was supplied."
 msgstr "מספר תעודת הזהות של בעל הכרטיס, נבדק מול ספרת הביקורת לפני שליחת הגבייה. דף התשלום אינו מבקש אותו תמיד, וכרטיס דיירקט (דביט) מחויב רק כאשר הת.ז תואמת לבעל החשבון. כל ערך שאינו ת.ז אמיתית נשלח כ-000000000, שמשמעו שלא נמסרה תעודת זהות."

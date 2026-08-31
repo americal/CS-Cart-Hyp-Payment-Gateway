@@ -98,24 +98,24 @@
     </div>
 {/if}
 
-{if $hypay_j5.status == "authorized"}
-    {* The cardholder's ID. The payment page does not always ask for one, and
-       a Direct (debit) card's issuer refuses the capture when it is missing or
-       wrong - the one refusal the merchant can undo from here, by reading the
-       number off the customer. *}
+{* The cardholder's ID, offered only where there is something to do about it:
+   the hold carries no valid one, or a capture was just refused over it. A hold
+   that already has a real ת.ז needs nothing from anybody, and a field asking
+   for one it has would only invite a typo into it. *}
+{if $hypay_j5.status == "authorized" && (!$hypay_j5.personal_id || $hypay_j5.personal_id_asked)}
     <div class="control-group">
         <div class="control-label">{__("hypay_j5_personal_id")}</div>
         <div class="controls">
             <input type="text" class="input-medium hypay-j5-personal-id" maxlength="9"
                    inputmode="numeric" autocomplete="off"
                    value="{$hypay_j5.personal_id}" placeholder="{__("hypay_j5_personal_id_unknown")}" />
-            <p class="{if $hypay_j5.personal_id_asked}text-error{else}muted{/if} description">
-                {if $hypay_j5.personal_id_asked}
-                    {__("hypay_j5_personal_id_refused")}
-                {else}
-                    {__("hypay_j5_personal_id_desc")}
-                {/if}
-            </p>
+
+            {* one short line, with the rest of it on the marker - the same way
+               the two hints under the buttons are folded away *}
+            {capture name="hypay_personal_id_line"}{if $hypay_j5.personal_id_asked}{__("hypay_j5_personal_id_refused_short")}{else}{__("hypay_j5_personal_id_desc_short")}{/if}{/capture}
+            {capture name="hypay_personal_id_hint"}{if $hypay_j5.personal_id_asked}{__("hypay_j5_personal_id_refused")}{else}{__("hypay_j5_personal_id_desc")}{/if}{/capture}
+            <p class="{if $hypay_j5.personal_id_asked}text-error{else}muted{/if} description">{$smarty.capture.hypay_personal_id_line}<span
+                class="cm-tooltip hypay-j5-hint" title="{$smarty.capture.hypay_personal_id_hint|escape}">i</span></p>
         </div>
     </div>
 {/if}
