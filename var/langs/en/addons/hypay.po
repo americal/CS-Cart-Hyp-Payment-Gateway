@@ -746,13 +746,7 @@ msgctxt "Languages::hypay_ez_ua_uuid_j5_desc"
 msgid "Used for the document issued after a J5 capture, instead of the UA UUID above. This field does not fall back to it: leave it empty and J5 documents are created without ua_uuid at all, even when the field above is filled in."
 msgstr "Used for the document issued after a J5 capture, instead of the UA UUID above. This field does not fall back to it: leave it empty and J5 documents are created without ua_uuid at all, even when the field above is filled in."
 
-msgctxt "Languages::hypay_j5_card"
-msgid "Card"
-msgstr "Card"
 
-msgctxt "Languages::hypay_j5_immediate_card_notice"
-msgid "Hyp reports this as an immediate-debit (Direct) card. Shva does not let a transaction on such a card carry a pre-obtained authorization number, so the capture is refused with CCode=512. The money is then taken as an ordinary charge on the saved card instead, and the hold is released if it still can be."
-msgstr "Hyp reports this as an immediate-debit (Direct) card. Shva does not let a transaction on such a card carry a pre-obtained authorization number, so the capture is refused with CCode=512. The money is then taken as an ordinary charge on the saved card instead, and the hold is released if it still can be."
 
 msgctxt "Languages::hypay_j5_capture_fallback_also_refused"
 msgid "the ordinary charge that followed was refused too:"
@@ -810,4 +804,8 @@ msgstr "The order total no longer matches the hold, and on an immediate-debit ca
 msgctxt "Languages::hypay_j5_error_immediate_amount_locked"
 msgid "This is an immediate-debit card: the charge can only be made for the amount the customer approved, [amount]. Restore the order total and capture again."
 msgstr "This is an immediate-debit card: the charge can only be made for the amount the customer approved, [amount]. Restore the order total and capture again."
+
+msgctxt "Languages::hypay_card"
+msgid "Card"
+msgstr "Card"
 
