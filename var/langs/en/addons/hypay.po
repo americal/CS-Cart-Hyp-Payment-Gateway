@@ -623,16 +623,16 @@ msgid "Not supplied"
 msgstr "Not supplied"
 
 msgctxt "Languages::hypay_j5_personal_id_desc"
-msgid "Israeli ID of the cardholder, sent with the capture. The payment page does not always ask for one, and a Direct (debit) card is charged only when the ID matches the account it is drawn on."
-msgstr "Israeli ID of the cardholder, sent with the capture. The payment page does not always ask for one, and a Direct (debit) card is charged only when the ID matches the account it is drawn on."
+msgid "Israeli ID of the cardholder, checked for a valid check digit before the capture is sent. The payment page does not always ask for one, and a Direct (debit) card is charged only when the ID matches the account it is drawn on. Anything that is not a real ID goes out as 000000000, which tells the issuer none was supplied."
+msgstr "Israeli ID of the cardholder, checked for a valid check digit before the capture is sent. The payment page does not always ask for one, and a Direct (debit) card is charged only when the ID matches the account it is drawn on. Anything that is not a real ID goes out as 000000000, which tells the issuer none was supplied."
 
 msgctxt "Languages::hypay_j5_personal_id_refused"
 msgid "The capture was refused over the ID or the CVV. A token charge carries no CVV, so fill in the cardholder's Israeli ID here and capture again."
 msgstr "The capture was refused over the ID or the CVV. A token charge carries no CVV, so fill in the cardholder's Israeli ID here and capture again."
 
-msgctxt "Languages::hypay_j5_error_bad_personal_id"
-msgid "That is not an ID number: an Israeli ID is at most nine digits."
-msgstr "That is not an ID number: an Israeli ID is at most nine digits."
+msgctxt "Languages::hypay_j5_warning_bad_personal_id"
+msgid "That is not a valid Israeli ID: nine digits, left-padded with zeros, the last of them a check digit computed from the other eight. The capture was sent without an ID."
+msgstr "That is not a valid Israeli ID: nine digits, left-padded with zeros, the last of them a check digit computed from the other eight. The capture was sent without an ID."
 
 msgctxt "Languages::hypay_j5_error_payments_range"
 msgid "The number of payments must be between 1 and [max]."

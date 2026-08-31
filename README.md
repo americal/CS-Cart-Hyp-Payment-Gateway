@@ -123,6 +123,11 @@ authorization itself was approved with.
 When the issuer does want the real number, the order page has a **Cardholder's
 ID** field beside the instalments. Fill it in and capture again — the value is
 remembered on the authorization, so a further attempt does not need it retyped.
+It is held to the same format as any other: nine digits, left-padded with zeros,
+the last of them a check digit computed from the other eight. A number that
+fails that test is not sent — the capture goes out with the placeholder and says
+so — because the issuer would refuse it just as surely as Hyp's identifier was
+refused.
 
 **Per-usergroup behaviour**
 

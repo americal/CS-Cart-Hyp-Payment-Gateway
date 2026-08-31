@@ -727,9 +727,11 @@ function hypay_personal_id_digits($value)
 /**
  * Does this number carry a valid Israeli ID check digit?
  *
- * A ת.ז - and a ח.פ, which is numbered the same way - is nine digits, the last
- * of them computed from the other eight by the Luhn variant below. Used on what
- * Hyp echoes back, where there is no human to have meant anything by it.
+ * A ת.ז - and a ח.פ, which is numbered the same way - is nine digits, shorter
+ * ones left-padded with zeros, the last digit computed from the other eight by
+ * the Luhn variant below. Every number the capture could send is put through
+ * this, whether Hyp echoed it back or a person typed it on the order page:
+ * Shva makes no allowance for where it came from either.
  */
 function hypay_is_israeli_id($value)
 {
@@ -2098,42 +2100,49 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
 
     // An ID typed on the order page wins over whatever came back with the
     // authorization: it is the only thing that can rescue a hold the payment
-    // page never collected an ID for. Taken as given - a merchant reading it
-    // off the customer's card or invoice knows better than a check digit,
-    // which a ח.פ of fewer than nine digits would fail - and only refused when
-    // it cannot be an ID at all.
+    // page never collected an ID for. It is held to the same format as any
+    // other, though - a number that fails the check digit would be refused by
+    // the issuer just as surely as Hyp's own identifier was.
     if ($personal_id !== null && trim((string) $personal_id) !== '') {
-        $typed = hypay_personal_id_digits($personal_id);
-        if ($typed === '') {
-            fn_set_notification('E', __('error'), __('hypay_j5_error_bad_personal_id'));
-            hypay_log($order_id, 'j5.capture ABORTED (unusable personal id)', (string) $personal_id);
-
-            return false;
-        }
-        if ($typed !== (string) $tx['personal_id']) {
-            fn_hypay_update_transaction($tx['transaction_id'], ['personal_id' => $typed]);
-            $tx['personal_id'] = $typed;
-            hypay_log($order_id, 'j5.capture personal id supplied by the merchant');
+        if (hypay_is_israeli_id($personal_id)) {
+            $typed = hypay_personal_id_digits($personal_id);
+            if ($typed !== (string) $tx['personal_id']) {
+                fn_hypay_update_transaction($tx['transaction_id'], ['personal_id' => $typed]);
+                $tx['personal_id'] = $typed;
+                hypay_log($order_id, 'j5.capture personal id supplied on the order page');
+            }
+        } else {
+            // said out loud rather than treated as a refusal: the capture still
+            // goes out, with the placeholder, which is the better of the two
+            // numbers Shva could be given
+            fn_set_notification('W', __('warning'), __('hypay_j5_warning_bad_personal_id'));
+            hypay_log($order_id, 'j5.capture: the ID typed on the order page is not a valid one, ignored');
         }
     }
 
-    // What Shva is told the cardholder's ID is. A Direct (debit) card is the
-    // one that makes this matter: its issuer checks the ID against the account
-    // and refuses the charge with CCode=6 when it does not match, where an
-    // ordinary credit card would let a wrong number through. So a stored value
-    // that cannot be an ID - Hyp's own ten-digit identifier, echoed back in
-    // UserId when the payment page never asked for one, and kept by every
-    // authorization made before this was understood - is sent as the documented
-    // "not supplied" placeholder instead, which is exactly what the
-    // authorization itself went through with.
-    $user_id = hypay_personal_id_digits($tx['personal_id']);
-    if ($user_id === '') {
-        if ((string) $tx['personal_id'] !== '' && (string) $tx['personal_id'] !== HYPAY_PERSONAL_ID_UNKNOWN) {
-            hypay_log($order_id, 'j5.capture: stored personal id is not an ID, sending the placeholder', [
-                'stored' => (string) $tx['personal_id'],
-            ]);
-        }
-        $user_id = HYPAY_PERSONAL_ID_UNKNOWN;
+    // The last gate before the money moves: what Shva is told the cardholder's
+    // ID is. Nothing but a real ת.ז - nine digits, left-padded, with a matching
+    // check digit - passes it.
+    //
+    // A Direct (debit) card is what makes this matter. Its issuer checks the ID
+    // against the account the card is drawn on and refuses the charge with
+    // CCode=6 when it does not match, where an ordinary credit card lets a wrong
+    // number through unnoticed. And a wrong number is exactly what was being
+    // sent: Hyp's own ten-digit identifier, echoed back in UserId when the
+    // payment page never asked the customer for an ID, and kept by every
+    // authorization made before this was understood. It fails the check here on
+    // the way out, so those holds are captured correctly without the stored row
+    // having to be corrected first.
+    //
+    // What goes instead is the documented 000000000, which says the ID was not
+    // supplied - the terms the authorization itself was approved on when the
+    // payment page collected none.
+    $user_id = hypay_clean_personal_id($tx['personal_id']);
+    $stored_id = (string) $tx['personal_id'];
+    if ($user_id === HYPAY_PERSONAL_ID_UNKNOWN && $stored_id !== '' && $stored_id !== HYPAY_PERSONAL_ID_UNKNOWN) {
+        hypay_log($order_id, 'j5.capture: the stored ID is not a valid one, sending the placeholder', [
+            'stored' => $stored_id,
+        ]);
     }
 
     // claim the row so a double click cannot charge the customer twice
@@ -2525,7 +2534,9 @@ function fn_hypay_get_j5_panel_data($order_id)
         // empty when the payment page never collected one: the panel offers a
         // field to type it into, because a Direct card will not be charged
         // without it once its issuer has asked for it
-        'personal_id'       => hypay_personal_id_digits($tx['personal_id']),
+        'personal_id'       => hypay_is_israeli_id($tx['personal_id'])
+            ? hypay_personal_id_digits($tx['personal_id'])
+            : '',
         // the last capture was refused over the ID (or the CVV, which a token
         // charge does not send) - the one refusal a typed-in ID can undo
         'personal_id_asked' => ($tx['status'] === 'authorized'
