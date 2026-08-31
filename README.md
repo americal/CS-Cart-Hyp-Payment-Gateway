@@ -216,24 +216,30 @@ checkout, as if the type were `Regular charge (J4)`.
 
 **Additional statuses**
 
-If the [eCom Labs] Additional Order Statuses add-on is installed and active, each
-of the two J5 order statuses gains an additional-status selector beside it:
+If the [eCom Labs] Additional Order Statuses add-on is installed and active,
+each order status the payment method sets on a successful payment gains an
+additional-status selector beside it — the ordinary charge included, not only
+the two J5 ones:
 
 | Selector | Applied when | Alongside |
 |---|---|---|
+| **Additional status: successful payment** | an ordinary (J4) charge goes through | *Order status on success* |
 | **Additional status: funds held** | Hyp confirms the hold at checkout | *Order status: funds held* |
 | **Additional status: captured** | the held amount is charged | *Order status: captured* |
 
 Each writes the chosen status to `?:orders.additional_status` right after the
 main order status moves. Left at *do not change*, only the main status moves —
-that is the default for both, so nothing changes until you pick something.
+that is the default for all three, so nothing changes until you pick something.
+
+The J4 selector follows the charge, not the return: a failed payment takes the
+failure status alone, and the additional status stays where it was.
 
 The hold selector fires only on a genuine authorization. A replayed return — a
 refresh, or the back button on an order already captured or cancelled — leaves
 the order alone, additional status included, the same way it already leaves the
 main status alone.
 
-Both selectors are hidden whenever the add-on is missing or disabled, since
+All three selectors are hidden whenever the add-on is missing or disabled, since
 there would be no column to write to. Choices made earlier are not lost in the
 meantime: they stay stored, hidden, and start working again the moment the
 add-on is switched back on. A status deleted after the fact is skipped rather

@@ -196,6 +196,14 @@ msgctxt "Languages::hypay_success_status_desc"
 msgid "Select which order status to set when Hypay reports a successful charge."
 msgstr "Статус, который будет присвоен заказу при успешном платеже Hypay."
 
+msgctxt "Languages::hypay_success_additional_status"
+msgid "Additional status: successful payment"
+msgstr "Доп. статус: успешная оплата"
+
+msgctxt "Languages::hypay_success_additional_status_desc"
+msgid "Additional order status to mark after an ordinary (J4) charge goes through and the order takes the status above. Left at \"do not change\", only the main order status moves — that is the default. Needs the [eCom Labs] Additional Order Statuses add-on: while it is disabled this selector is hidden and the stored choice is kept until it comes back."
+msgstr "Дополнительный статус заказа, который проставится после успешной обычной оплаты (J4), когда заказ получит статус выше. При «не менять» трогается только основной статус — это значение по умолчанию. Требует аддон [eCom Labs] Additional Order Statuses: пока он отключён, список скрыт, а выбранное значение сохраняется до его возврата."
+
 msgctxt "Languages::hypay_fail_status"
 msgid "Order status on failure"
 msgstr "Статус заказа при неудаче"
@@ -394,7 +402,7 @@ msgctxt "Languages::hypay_j5_auth_additional_status_desc"
 msgid "Additional order status to mark once Hyp confirms the hold and the order takes the status above. Left at \"do not change\", only the main order status moves. Needs the [eCom Labs] Additional Order Statuses add-on: while it is disabled both of these selectors are hidden and the stored choices are kept until it comes back."
 msgstr "Дополнительный статус заказа, который проставится, когда Hyp подтвердит удержание и заказ получит статус выше. При «не менять» трогается только основной статус. Требует аддон [eCom Labs] Additional Order Statuses: пока он отключён, оба этих списка скрыты, а выбранные значения сохраняются до его возврата."
 
-msgctxt "Languages::hypay_j5_additional_status_none"
+msgctxt "Languages::hypay_additional_status_none"
 msgid "— do not change —"
 msgstr "— не менять —"
 

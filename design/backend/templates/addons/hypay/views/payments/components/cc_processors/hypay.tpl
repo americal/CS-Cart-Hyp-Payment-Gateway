@@ -64,6 +64,29 @@
      </div>
  </div>
 
+ {* Additional status alongside the status above, for an ordinary (J4) charge.
+    Same rule as the J5 pair below: rendered only while the add-on that owns
+    ?:orders.additional_status is active, otherwise the stored value rides
+    through in a hidden field, because processor_params are replaced wholesale
+    on save and would otherwise be wiped by an unrelated edit. *}
+ {assign var="succ_add_status" value=$processor_params.success_additional_status|default:""}
+ {if $hypay_additional_statuses}
+     <div class="control-group">
+         <label class="control-label" for="elm_hypay_success_additional_status">{__("hypay_success_additional_status")}:</label>
+         <div class="controls">
+             <select name="payment_data[processor_params][success_additional_status]" id="elm_hypay_success_additional_status">
+                 <option value="">{__("hypay_additional_status_none")}</option>
+                 {foreach from=$hypay_additional_statuses item="status" key="s_key"}
+                     <option value="{$s_key}" {if $s_key == $succ_add_status}selected="selected"{/if}>{$status}</option>
+                 {/foreach}
+             </select>
+             <p class="muted description">{__("hypay_success_additional_status_desc")}</p>
+         </div>
+     </div>
+ {elseif $succ_add_status}
+     <input type="hidden" name="payment_data[processor_params][success_additional_status]" value="{$succ_add_status|escape}" />
+ {/if}
+
  {assign var="fail_status" value=$processor_params.fail_status|default:"F"}
  <div class="control-group">
      <label class="control-label" for="elm_hypay_fail_status">{__("hypay_fail_status")}:</label>
@@ -158,7 +181,7 @@
          <label class="control-label" for="elm_hypay_j5_auth_additional_status">{__("hypay_j5_auth_additional_status")}</label>
          <div class="controls">
              <select name="payment_data[processor_params][j5_auth_additional_status]" id="elm_hypay_j5_auth_additional_status">
-                 <option value="">{__("hypay_j5_additional_status_none")}</option>
+                 <option value="">{__("hypay_additional_status_none")}</option>
                  {foreach from=$hypay_additional_statuses item="status" key="s_key"}
                      <option value="{$s_key}" {if $s_key == $hypay_j5_auth_add_status}selected="selected"{/if}>{$status}</option>
                  {/foreach}
@@ -189,7 +212,7 @@
          <label class="control-label" for="elm_hypay_j5_captured_additional_status">{__("hypay_j5_captured_additional_status")}</label>
          <div class="controls">
              <select name="payment_data[processor_params][j5_captured_additional_status]" id="elm_hypay_j5_captured_additional_status">
-                 <option value="">{__("hypay_j5_additional_status_none")}</option>
+                 <option value="">{__("hypay_additional_status_none")}</option>
                  {foreach from=$hypay_additional_statuses item="status" key="s_key"}
                      <option value="{$s_key}" {if $s_key == $hypay_j5_add_status}selected="selected"{/if}>{$status}</option>
                  {/foreach}

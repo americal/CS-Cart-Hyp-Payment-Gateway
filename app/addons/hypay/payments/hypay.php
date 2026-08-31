@@ -290,6 +290,12 @@ if (defined('PAYMENT_NOTIFICATION')) {
 
         $order_completed = $is_success;
 
+        // the J4 counterpart of the J5 pair: the additional status follows the
+        // main one, and only a charge that actually went through gets it
+        if ($is_success && !empty($pp['success_additional_status'])) {
+            fn_hypay_set_additional_status($order_id, $pp['success_additional_status']);
+        }
+
         // EzCount: direct API (optional, based on settings)
         if ($is_success) {
             $ez_mode = $pp['ez_mode'] ?? 'none'; // none | integrated | direct
