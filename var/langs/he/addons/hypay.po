@@ -184,6 +184,14 @@ msgctxt "Languages::hypay_j5_captured_status_desc"
 msgid "Set after the held amount has been charged."
 msgstr "נקבע לאחר גביית הסכום ששמור."
 
+msgctxt "Languages::hypay_success_additional_status"
+msgid "Additional status: successful payment"
+msgstr "סטטוס נוסף: תשלום מוצלח"
+
+msgctxt "Languages::hypay_success_additional_status_desc"
+msgid "Additional order status to mark after an ordinary (J4) charge goes through and the order takes the status above. Left at \"do not change\", only the main order status moves — that is the default. Needs the [eCom Labs] Additional Order Statuses add-on: while it is disabled this selector is hidden and the stored choice is kept until it comes back."
+msgstr "סטטוס הזמנה נוסף שיסומן לאחר חיוב רגיל (J4) שעבר בהצלחה וההזמנה מקבלת את הסטטוס שלמעלה. בערך \"ללא שינוי\" ישתנה רק הסטטוס הראשי — וזו ברירת המחדל. דורש את התוסף [eCom Labs] Additional Order Statuses: כל עוד הוא מכובה הרשימה מוסתרת והערך שנבחר נשמר."
+
 msgctxt "Languages::hypay_j5_auth_additional_status"
 msgid "Additional status: funds held"
 msgstr "סטטוס נוסף: הכספים נשמרו"
@@ -192,7 +200,7 @@ msgctxt "Languages::hypay_j5_auth_additional_status_desc"
 msgid "Additional order status to mark once Hyp confirms the hold and the order takes the status above. Left at \"do not change\", only the main order status moves. Needs the [eCom Labs] Additional Order Statuses add-on: while it is disabled both of these selectors are hidden and the stored choices are kept until it comes back."
 msgstr "סטטוס הזמנה נוסף שיסומן כאשר Hyp מאשר את השמירה וההזמנה מקבלת את הסטטוס שלמעלה. בערך \"ללא שינוי\" ישתנה רק הסטטוס הראשי. דורש את התוסף [eCom Labs] Additional Order Statuses: כל עוד הוא מכובה שתי הרשימות מוסתרות והערכים שנבחרו נשמרים."
 
-msgctxt "Languages::hypay_j5_additional_status_none"
+msgctxt "Languages::hypay_additional_status_none"
 msgid "— do not change —"
 msgstr "— ללא שינוי —"
 
