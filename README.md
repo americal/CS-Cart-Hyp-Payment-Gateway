@@ -133,14 +133,30 @@ too — nothing has to be migrated, and no existing order has to be corrected by
 hand. Regular J4 charges are untouched: they never send an ID anywhere, so
 theirs is printed exactly as Hyp reported it, as it always was.
 
-When the issuer does want the real number, the order page has a **Cardholder's
-ID** field beside the instalments. Fill it in and capture again — the value is
-remembered on the authorization, so a further attempt does not need it retyped.
-It is held to the same format as any other: nine digits, left-padded with zeros,
-the last of them a check digit computed from the other eight. A number that
-fails that test is not sent — the capture goes out with the placeholder and says
-so — because the issuer would refuse it just as surely as Hyp's identifier was
-refused.
+When the issuer does want the real number, the order page offers a
+**Cardholder's ID** field beside the instalments. Fill it in and capture again —
+the value is remembered on the authorization, so a further attempt does not need
+it retyped. It is held to the same format as any other: nine digits, left-padded
+with zeros, the last of them a check digit computed from the other eight, and a
+number that fails is answered as it is typed. One that fails is not sent either:
+the capture goes out with the placeholder and says so, because the issuer would
+refuse it just as surely as Hyp's identifier was refused.
+
+The field appears only when there is something to do about it — no usable ID on
+the hold, or a capture already refused over one. A hold that has a real ID needs
+no field: the number is printed in the **Payment information** block above, and
+retyping it cannot make it any more correct.
+
+**One row for the card**
+
+Hyp reports the brand and the last four digits separately, and `fn_finish_payment`
+stores them that way, so the order page used to print `Brand: MasterCard` above
+`Credit card: 5956` — two rows saying one thing between them, and neither quite
+readable alone. They are composed into a single **Card** row on the way out
+(`MasterCard ****5956`), joined by the special card type when Hyp reported one,
+so a Direct card is named beside the card rather than further down the page.
+Nothing is migrated: an order paid before this reads exactly like one paid after,
+and an order paid through another processor is left alone.
 
 **Direct (immediate-debit) cards**
 

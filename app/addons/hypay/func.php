@@ -1926,6 +1926,60 @@ function fn_hypay_j5_panel_is_rendered()
  * hypay_utf8_text(). It touches nothing that is already valid UTF-8, so an order
  * paid through another processor entirely leaves this function unchanged.
  */
+/**
+ * Brand and card number as one line, in the place the first of them held.
+ *
+ * Stored separately because that is what Hyp reports and what fn_finish_payment
+ * takes, and the order page prints one row for each - "Brand: MasterCard" above
+ * "Credit card: 5956", two rows saying one thing between them, and neither
+ * quite readable alone. This composes the line they add up to on the way out,
+ * so nothing has to be migrated and an order paid before it reads the same as
+ * one paid after.
+ *
+ * The special card type joins it when Hyp reported one: a Direct card is the
+ * reason a capture can be refused, so it belongs beside the card rather than
+ * further down the page.
+ *
+ * @param array $tx the J5 transaction, when the order has one
+ */
+function fn_hypay_merge_card_line(array $info, $order_id, array $tx = [])
+{
+    $brand = trim((string) ($info['brand'] ?? ''));
+    $last4 = preg_replace('/\D+/', '', (string) ($info['card_number'] ?? ''));
+
+    if ($brand === '' && $last4 === '') {
+        return $info;
+    }
+
+    // brand / card_number are ordinary payment_info keys any processor may
+    // write, so the order has to be one of ours before they are rewritten
+    if (!fn_check_payment_script('hypay.php', $order_id)) {
+        return $info;
+    }
+
+    $line = trim($brand . ($last4 !== '' ? ' ****' . $last4 : ''));
+
+    $sp_type = trim((string) ($tx['sp_type'] ?? ''));
+    if ($sp_type !== '') {
+        $line .= ' — ' . $sp_type;
+    }
+
+    $merged = [];
+    $placed = false;
+    foreach ($info as $key => $value) {
+        if ($key === 'brand' || $key === 'card_number') {
+            if (!$placed) {
+                $merged['hypay_card'] = $line;
+                $placed = true;
+            }
+            continue;
+        }
+        $merged[$key] = $value;
+    }
+
+    return $merged;
+}
+
 function fn_hypay_localize_payment_info(&$order)
 {
     if (!is_array($order)
@@ -1946,6 +2000,7 @@ function fn_hypay_localize_payment_info(&$order)
 
     // hypay_j5 is written for J5 orders only, so this skips the query for
     // regular charges without having to ask the database first
+    $tx = [];
     if (isset($order['payment_info']['hypay_j5'])) {
         $tx = fn_hypay_get_transaction($order['order_id']);
 
@@ -1963,6 +2018,14 @@ function fn_hypay_localize_payment_info(&$order)
             }
         }
     }
+
+    // last, so it sees whatever the J5 branch merged in, and so the special
+    // card type it prints comes from the transaction that branch already read
+    $order['payment_info'] = fn_hypay_merge_card_line(
+        $order['payment_info'],
+        $order['order_id'],
+        is_array($tx) ? $tx : []
+    );
 
     return ($order['payment_info'] !== $before);
 }
@@ -2741,14 +2804,11 @@ function fn_hypay_get_j5_panel_data($order_id)
         // string taking up a row
         'debug'             => (!empty($pp['debug_mode']) && $pp['debug_mode'] === 'Y'),
         'has_token'         => ($tx['card_token'] !== ''),
-        // The card, as Hyp described it in the redirect. spType is the one that
-        // changes what the panel can promise: on an immediate-debit card the
+        // The card itself is printed once, in the Payment information block above
+        // - see fn_hypay_merge_card_line(). What the panel keeps is the one fact
+        // that changes what its buttons can do: on an immediate-debit card the
         // capture is refused as a forced transaction and the money is taken by
-        // an ordinary charge instead, which leaves the hold behind.
-        'card'              => trim((string) $tx['brand'] . ($tx['last4'] !== '' ? ' ****' . $tx['last4'] : '')),
-        'sp_type'           => (string) ($tx['sp_type'] ?? ''),
-        'trans_type'        => (string) ($tx['trans_type'] ?? ''),
-        'issuer'            => (string) ($tx['issuer'] ?? ''),
+        // an ordinary charge instead, for the approved amount and no other.
         'is_immediate'      => hypay_is_immediate_card($tx['sp_type'] ?? ''),
         // set only when the money came from a separate charge because the
         // capture was refused; says whether the hold was reversed with it
@@ -2760,6 +2820,13 @@ function fn_hypay_get_j5_panel_data($order_id)
         'personal_id'       => hypay_is_israeli_id($tx['personal_id'])
             ? hypay_personal_id_digits($tx['personal_id'])
             : '',
+        // Shown only when there is something to do about it. A hold whose ID is
+        // a real one needs no field: it is already printed in the Payment
+        // information block, and typing it again cannot improve it. What brings
+        // the field back is an ID the capture cannot use - missing, or Hyp's own
+        // identifier, or a number whose check digit does not hold - and a
+        // capture already refused over the ID.
+        'personal_id_needed' => ($tx['status'] === 'authorized' && !hypay_is_israeli_id($tx['personal_id'])),
         // the last capture was refused over the ID (or the CVV, which a token
         // charge does not send) - the one refusal a typed-in ID can undo
         'personal_id_asked' => ($tx['status'] === 'authorized'

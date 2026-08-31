@@ -39,25 +39,8 @@
     </div>
 </div>
 
-{if $hypay_j5.card || $hypay_j5.sp_type}
-<div class="control-group">
-    <div class="control-label">{__("hypay_j5_card")}</div>
-    <div class="controls">
-        <bdi>{$hypay_j5.card}</bdi>
-        {if $hypay_j5.sp_type}
-            <span class="muted">&mdash; <bdi>{$hypay_j5.sp_type}</bdi></span>
-        {/if}
-        {if $hypay_j5.issuer && $hypay_j5.debug}
-            <div class="muted"><small><bdi>{$hypay_j5.issuer}{if $hypay_j5.trans_type} / {$hypay_j5.trans_type}{/if}</bdi></small></div>
-        {/if}
-        {* the one card fact that changes what the buttons below can do *}
-        {if $hypay_j5.is_immediate && ($hypay_j5.status == "authorized" || $hypay_j5.status == "capturing")}
-            <p class="text-warning description">{__("hypay_j5_immediate_card_notice")}</p>
-        {/if}
-    </div>
-</div>
-{/if}
-
+{* The card is printed once, in the Payment information block above. What it
+   means for the capture is said where the buttons are. *}
 {if $hypay_j5.acode}
 <div class="control-group">
     <div class="control-label">{__("hypay_j5_auth_number")}</div>
@@ -117,11 +100,14 @@
     </div>
 {/if}
 
-{if $hypay_j5.status == "authorized"}
-    {* The cardholder's ID. The payment page does not always ask for one, and
-       a Direct (debit) card's issuer refuses the capture when it is missing or
-       wrong - the one refusal the merchant can undo from here, by reading the
-       number off the customer. *}
+{if $hypay_j5.personal_id_needed || $hypay_j5.personal_id_asked}
+    {* The cardholder's ID, offered only when the capture cannot use the one it
+       has. The payment page does not always ask for one, and a Direct (debit)
+       card's issuer refuses the capture when it is missing or wrong - the one
+       refusal the merchant can undo from here, by reading the number off the
+       customer. A hold whose ID is already a real one shows no field: it is
+       printed in the Payment information block above, and retyping it cannot
+       make it any more correct. *}
     <div class="control-group">
         <div class="control-label">{__("hypay_j5_personal_id")}</div>
         <div class="controls">

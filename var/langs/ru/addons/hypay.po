@@ -746,13 +746,7 @@ msgctxt "Languages::hypay_ez_ua_uuid_j5_desc"
 msgid "Used for the document issued after a J5 capture, instead of the UA UUID above. This field does not fall back to it: leave it empty and J5 documents are created without ua_uuid at all, even when the field above is filled in."
 msgstr "Используется для документа, который создаётся после списания J5, вместо UA UUID выше. Это поле не наследует его значение: если оставить пустым, документы J5 будут создаваться вообще без ua_uuid, даже когда поле выше заполнено."
 
-msgctxt "Languages::hypay_j5_card"
-msgid "Card"
-msgstr "Карта"
 
-msgctxt "Languages::hypay_j5_immediate_card_notice"
-msgid "Hyp reports this as an immediate-debit (Direct) card. Shva does not let a transaction on such a card carry a pre-obtained authorization number, so the capture is refused with CCode=512. The money is then taken as an ordinary charge on the saved card instead, and the hold is released if it still can be."
-msgstr "Hyp сообщает, что это карта немедленного дебета (Direct). Шва не позволяет сделке по такой карте нести заранее полученный номер авторизации, поэтому capture отклоняется с CCode=512. Тогда сумма списывается обычной сделкой по сохранённой карте, а удержание отменяется, если это ещё возможно."
 
 msgctxt "Languages::hypay_j5_capture_fallback_also_refused"
 msgid "the ordinary charge that followed was refused too:"
@@ -810,4 +804,8 @@ msgstr "Итог заказа больше не совпадает с удерж
 msgctxt "Languages::hypay_j5_error_immediate_amount_locked"
 msgid "This is an immediate-debit card: the charge can only be made for the amount the customer approved, [amount]. Restore the order total and capture again."
 msgstr "Это карта немедленного дебета: списать можно только сумму, на которую дал согласие клиент — [amount]. Верните прежний итог заказа и повторите списание."
+
+msgctxt "Languages::hypay_card"
+msgid "Card"
+msgstr "Карта"
 
