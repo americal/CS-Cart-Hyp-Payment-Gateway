@@ -85,12 +85,7 @@
         <div class="control-label">{__("hypay_j5_payments")}</div>
         <div class="controls">
             {if $hypay_j5.status == "authorized" && $hypay_j5.max_payments > 1}
-                <select id="hypay_j5_payments_{$hypay_j5.order_id}" class="input-mini"
-                        onchange="var a = document.getElementById('hypay_j5_capture_{$hypay_j5.order_id}');
-                                  if (a) {ldelim}
-                                      a.href = a.getAttribute('data-base') + '&payments=' + this.value;
-                                      a.innerHTML = a.getAttribute('data-label') + (this.value > 1 ? ' (' + this.value + ')' : '');
-                                  {rdelim}">
+                <select class="input-mini hypay-j5-payments">
                     {for $p = 1 to $hypay_j5.max_payments}
                         <option value="{$p}" {if $p == $hypay_j5.payments}selected="selected"{/if}>{$p}</option>
                     {/for}
@@ -99,6 +94,28 @@
             {else}
                 {$hypay_j5.payments}
             {/if}
+        </div>
+    </div>
+{/if}
+
+{if $hypay_j5.status == "authorized"}
+    {* The cardholder's ID. The payment page does not always ask for one, and
+       a Direct (debit) card's issuer refuses the capture when it is missing or
+       wrong - the one refusal the merchant can undo from here, by reading the
+       number off the customer. *}
+    <div class="control-group">
+        <div class="control-label">{__("hypay_j5_personal_id")}</div>
+        <div class="controls">
+            <input type="text" class="input-medium hypay-j5-personal-id" maxlength="9"
+                   inputmode="numeric" autocomplete="off"
+                   value="{$hypay_j5.personal_id}" placeholder="{__("hypay_j5_personal_id_unknown")}" />
+            <p class="{if $hypay_j5.personal_id_asked}text-error{else}muted{/if} description">
+                {if $hypay_j5.personal_id_asked}
+                    {__("hypay_j5_personal_id_refused")}
+                {else}
+                    {__("hypay_j5_personal_id_desc")}
+                {/if}
+            </p>
         </div>
     </div>
 {/if}
@@ -174,10 +191,10 @@
 
             {* plain links, not a form: this block lives inside order_info_form *}
             {if $hypay_j5.can_capture}
-                <a class="btn btn-primary cm-post cm-confirm hypay-j5-action" title="{__("hypay_j5_confirm_capture")}"
-                   id="hypay_j5_capture_{$hypay_j5.order_id}"
+                <a class="btn btn-primary cm-post cm-confirm hypay-j5-action hypay-j5-capture-link" title="{__("hypay_j5_confirm_capture")}"
                    data-base="{"hypay.capture?order_id=`$hypay_j5.order_id`&amount=`$hypay_j5.order_total`"|fn_url}"
                    data-label="{__("hypay_j5_btn_capture")}"
+                   data-payments="{$hypay_j5.payments}"
                    href="{"hypay.capture?order_id=`$hypay_j5.order_id`&amount=`$hypay_j5.order_total`&payments=`$hypay_j5.payments`"|fn_url}">{__("hypay_j5_btn_capture")}</a>
             {else}
                 <span class="btn disabled">{__("hypay_j5_btn_capture")}</span>
@@ -252,6 +269,41 @@
         <span>{__("hypay_j5_working")}</span>
     </div>
 </div>
+
+{literal}
+<script type="text/javascript">
+(function () {
+    // Capture is a link, not a submit button - the panel is rendered inside
+    // order_info_form and a nested form would be dropped by the browser. So the
+    // two fields that shape the charge are written into its query string, and
+    // rewritten together: a select that only knew about the instalments would
+    // erase the ID beside it every time it changed.
+    var link = document.querySelector('.hypay-j5-capture-link');
+    if (!link) { return; }
+
+    var payments = document.querySelector('.hypay-j5-payments');
+    var personal = document.querySelector('.hypay-j5-personal-id');
+
+    var sync = function () {
+        var count = parseInt(payments ? payments.value : link.getAttribute('data-payments'), 10) || 1;
+        var href  = link.getAttribute('data-base') + '&payments=' + count;
+
+        var id = personal ? personal.value.replace(/\D+/g, '') : '';
+        if (id !== '') { href += '&personal_id=' + id; }
+
+        link.href = href;
+        link.innerHTML = link.getAttribute('data-label') + (count > 1 ? ' (' + count + ')' : '');
+    };
+
+    if (payments) { payments.addEventListener('change', sync); }
+    if (personal) {
+        personal.addEventListener('input', sync);
+        personal.addEventListener('change', sync);
+    }
+    sync();
+})();
+</script>
+{/literal}
 
 {literal}
 <script type="text/javascript">

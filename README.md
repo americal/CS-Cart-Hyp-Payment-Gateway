@@ -106,6 +106,24 @@ The J5 setting starts at *same as regular deals* and follows the one above until
 it is set to something of its own, so an installation that configured a single
 mode before the split keeps issuing exactly what it issued before.
 
+**The cardholder's ID**
+
+Shva checks the capture against the ID number it is sent, and a **Direct (debit)
+card** is the one that makes this matter: its issuer verifies the ID against the
+account the card is drawn on and refuses the charge with `CCode=6` when it does
+not match, where an ordinary credit card lets a wrong number through unnoticed.
+
+The payment page does not always collect an ID — when it does not, Hyp still
+fills `UserId` in the redirect, with a ten-digit identifier of its own that
+belongs to nobody. That number is not passed on as the cardholder's ID: an
+authorization only keeps a value that can actually be one, and a capture that
+has none sends the documented `000000000` placeholder, which is what the
+authorization itself was approved with.
+
+When the issuer does want the real number, the order page has a **Cardholder's
+ID** field beside the instalments. Fill it in and capture again — the value is
+remembered on the authorization, so a further attempt does not need it retyped.
+
 **Per-usergroup behaviour**
 
 The payment method setting **Payment type** offers:

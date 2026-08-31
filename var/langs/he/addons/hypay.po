@@ -412,6 +412,26 @@ msgctxt "Languages::hypay_j5_payments_desc"
 msgid "Number of instalments the capture is charged in."
 msgstr "מספר התשלומים לגבייה."
 
+msgctxt "Languages::hypay_j5_personal_id"
+msgid "Cardholder's ID"
+msgstr "ת.ז של בעל הכרטיס"
+
+msgctxt "Languages::hypay_j5_personal_id_unknown"
+msgid "Not supplied"
+msgstr "לא הוזן"
+
+msgctxt "Languages::hypay_j5_personal_id_desc"
+msgid "Israeli ID of the cardholder, sent with the capture. The payment page does not always ask for one, and a Direct (debit) card is charged only when the ID matches the account it is drawn on."
+msgstr "מספר תעודת הזהות של בעל הכרטיס, נשלח יחד עם הגבייה. דף התשלום אינו מבקש אותו תמיד, וכרטיס דיירקט (דביט) מחויב רק כאשר הת.ז תואמת לבעל החשבון."
+
+msgctxt "Languages::hypay_j5_personal_id_refused"
+msgid "The capture was refused over the ID or the CVV. A token charge carries no CVV, so fill in the cardholder's Israeli ID here and capture again."
+msgstr "הגבייה נדחתה בשל הת.ז או ה-CVV. חיוב באמצעות טוקן אינו שולח CVV, לכן הזינו כאן את ת.ז של בעל הכרטיס ונסו לגבות שוב."
+
+msgctxt "Languages::hypay_j5_error_bad_personal_id"
+msgid "That is not an ID number: an Israeli ID is at most nine digits."
+msgstr "זה אינו מספר תעודת זהות: ת.ז מכילה עד תשע ספרות."
+
 msgctxt "Languages::hypay_j5_error_payments_range"
 msgid "The number of payments must be between 1 and [max]."
 msgstr "מספר התשלומים חייב להיות בין 1 ל-[max]."

@@ -89,12 +89,17 @@ if (defined('PAYMENT_NOTIFICATION')) {
     // is made valid UTF-8 before it is allowed anywhere near the order page.
     $hyp_err_msg = hypay_utf8_text(hypay_request_value(['errMsg', 'ErrMsg', 'errmsg']));
 
-    // sanitize personal ID (display value)
+    // The cardholder's Israeli ID, if that is really what came back. Hyp fills
+    // UserId in either way: with the ID the payment page collected, or - when it
+    // collected none - with a ten-digit identifier of its own that belongs to
+    // nobody. Only the first kind is kept; the second is dropped for the
+    // documented "not supplied" placeholder, here and in the capture that reads
+    // it back later, because a Direct card's issuer refuses a charge that names
+    // the wrong ID (CCode=6).
     $clean_user_id = hypay_clean_personal_id($hyp_return_user);
-
-    // ...and the raw one, which is what the capture request must send back
-    $raw_user_id = preg_replace('/\D+/', '', ltrim($hyp_return_user, 'L'));
-    if ($raw_user_id === '') { $raw_user_id = '000000000'; }
+    if ($clean_user_id === HYPAY_PERSONAL_ID_UNKNOWN && $hyp_return_user !== '') {
+        hypay_log($order_id, 'UserId is not an Israeli ID, stored as "not supplied"', $hyp_return_user);
+    }
 
     $last4        = isset($_REQUEST['L4digit']) ? preg_replace('/\D+/', '', (string) $_REQUEST['L4digit']) : '';
     $num_payments = max(1, (int) ($_REQUEST['Payments'] ?? 1));
@@ -146,7 +151,7 @@ if (defined('PAYMENT_NOTIFICATION')) {
                 'hyp_id'            => $hyp_return_id,
                 'acode'             => $hyp_return_acode,
                 'uid'               => $hyp_return_uid,
-                'personal_id'       => $raw_user_id,
+                'personal_id'       => $clean_user_id,
                 // the same spelling the authorization was made with, both halves
                 'client_name'       => hypay_sanitize_url_echo($order_info['firstname'] ?? ''),
                 'client_lname'      => hypay_sanitize_url_echo($order_info['lastname']  ?? ''),

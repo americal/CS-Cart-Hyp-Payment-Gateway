@@ -614,6 +614,26 @@ msgctxt "Languages::hypay_j5_payments_desc"
 msgid "Number of instalments the capture is charged in."
 msgstr "В скольких платежах будет списана сумма."
 
+msgctxt "Languages::hypay_j5_personal_id"
+msgid "Cardholder's ID"
+msgstr "Удостоверение личности держателя карты"
+
+msgctxt "Languages::hypay_j5_personal_id_unknown"
+msgid "Not supplied"
+msgstr "Не указано"
+
+msgctxt "Languages::hypay_j5_personal_id_desc"
+msgid "Israeli ID of the cardholder, sent with the capture. The payment page does not always ask for one, and a Direct (debit) card is charged only when the ID matches the account it is drawn on."
+msgstr "Израильский номер удостоверения держателя карты, отправляется вместе со списанием. Платёжная страница запрашивает его не всегда, а дебетовая карта Direct списывается только при совпадении с владельцем счёта."
+
+msgctxt "Languages::hypay_j5_personal_id_refused"
+msgid "The capture was refused over the ID or the CVV. A token charge carries no CVV, so fill in the cardholder's Israeli ID here and capture again."
+msgstr "Списание отклонено из-за удостоверения личности или CVV. Списание по токену CVV не передаёт, поэтому укажите здесь номер удостоверения держателя карты и повторите списание."
+
+msgctxt "Languages::hypay_j5_error_bad_personal_id"
+msgid "That is not an ID number: an Israeli ID is at most nine digits."
+msgstr "Это не номер удостоверения: израильский номер содержит не более девяти цифр."
+
 msgctxt "Languages::hypay_j5_error_payments_range"
 msgid "The number of payments must be between 1 and [max]."
 msgstr "Количество платежей должно быть от 1 до [max]."
