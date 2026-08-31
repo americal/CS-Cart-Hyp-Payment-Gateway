@@ -118,7 +118,13 @@
             {* the last capture was refused over the ID: a standing state of the
                hold, not a comment on what is in the field right now *}
             {if $hypay_j5.personal_id_asked}
-                <p class="text-error description">{__("hypay_j5_personal_id_refused")}</p>
+                {if $hypay_j5.personal_id_was_valid}
+                    {* the number sent had already passed the check digit, so
+                       retyping the same one changes nothing - say what is left *}
+                    <p class="text-error description">{__("hypay_j5_personal_id_refused_valid")}</p>
+                {else}
+                    <p class="text-error description">{__("hypay_j5_personal_id_refused")}</p>
+                {/if}
             {/if}
 
             {* raised by the script below, and only while what has been typed

@@ -2827,11 +2827,16 @@ function fn_hypay_get_j5_panel_data($order_id)
         // identifier, or a number whose check digit does not hold - and a
         // capture already refused over the ID.
         'personal_id_needed' => ($tx['status'] === 'authorized' && !hypay_is_israeli_id($tx['personal_id'])),
-        // the last capture was refused over the ID (or the CVV, which a token
-        // charge does not send) - the one refusal a typed-in ID can undo
+        // the last capture was refused over the ID or the CVV, which a token
+        // charge does not send
         'personal_id_asked' => ($tx['status'] === 'authorized'
             && (strpos((string) $tx['last_error'], 'CCode=6 ') !== false
                 || strpos((string) $tx['last_error'], 'CCode=26 ') !== false)),
+        // ...and the number that was sent had already passed the check digit.
+        // Then retyping it is not the answer and should not be presented as
+        // one: either it is not the number this card is drawn on, or the
+        // refusal is about the CVV, which nothing sent from here can carry.
+        'personal_id_was_valid' => hypay_is_israeli_id($tx['personal_id']),
         'amount_authorized' => $authorized,
         'amount_captured'   => round((float) $tx['amount_captured'], 2),
         'payments'          => max(1, (int) $tx['payments']),

@@ -192,6 +192,17 @@ capture is refused, both on the order page and in the capture itself, while the
 order total says anything else. Partial captures stay available on an ordinary
 credit card, where the charge really is tied to the hold.
 
+The fallback is not a guarantee, and a terminal can refuse both ways out. A bare
+token charge carries no CVV, and a terminal that requires one for a standalone
+card-not-present transaction answers `CCode=6` — *incorrect CVV2, may also
+indicate a missing Israeli ID number* — even when the ID sent was a real one. A
+capture inside the two-phase flow does not need a CVV, because Shva reads it as
+a follow-on to the authenticated payment page; a fresh charge is not that. When
+both refusals land, the order page says so rather than inviting the same ID to
+be typed again, and the way out is to cancel the hold and take the payment as a
+regular charge. Whether either path can be opened is a terminal permission, and
+a question for Hyp.
+
 The refused capture is kept on the transaction and printed beside the charge, so
 an order paid this way explains itself. The fallback is only tried on a definite
 refusal — an unreadable answer still locks the row, because a charge that may

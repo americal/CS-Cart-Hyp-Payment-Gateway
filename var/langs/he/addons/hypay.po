@@ -607,3 +607,7 @@ msgctxt "Languages::hypay_card"
 msgid "Card"
 msgstr "כרטיס"
 
+msgctxt "Languages::hypay_j5_personal_id_refused_valid"
+msgid "The capture was refused over the ID or the CVV, but the ID it sent had already passed the check digit — so retyping the same number changes nothing. Either it is not the number this card is drawn on, or the refusal is about the CVV, which a token charge cannot carry: then the hold has to be cancelled and the payment taken as a regular charge."
+msgstr "הגבייה נדחתה בגלל תעודת הזהות או ה-CVV, אך תעודת הזהות שנשלחה כבר עברה את בדיקת ספרת הביקורת - ולכן הקלדה חוזרת של אותו מספר לא תשנה דבר. או שזה אינו המספר שהכרטיס רשום עליו, או שהדחייה נוגעת ל-CVV, שחיוב בטוקן אינו יכול לשאת: אז יש לבטל את השמירה ולבצע את התשלום כעסקה רגילה."
+

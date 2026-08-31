@@ -809,3 +809,7 @@ msgctxt "Languages::hypay_card"
 msgid "Card"
 msgstr "Карта"
 
+msgctxt "Languages::hypay_j5_personal_id_refused_valid"
+msgid "The capture was refused over the ID or the CVV, but the ID it sent had already passed the check digit — so retyping the same number changes nothing. Either it is not the number this card is drawn on, or the refusal is about the CVV, which a token charge cannot carry: then the hold has to be cancelled and the payment taken as a regular charge."
+msgstr "Списание отклонено из-за ת.ז или CVV, но отправленный ת.ז уже прошёл проверку контрольной цифры — значит повторный ввод того же номера ничего не изменит. Либо это не тот номер, на который оформлена карта, либо отказ из-за CVV, которого списание по токену нести не может: тогда удержание нужно отменить и провести оплату обычной сделкой."
+

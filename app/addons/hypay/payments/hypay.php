@@ -122,12 +122,12 @@ if (defined('PAYMENT_NOTIFICATION')) {
         'issuer'     => hypay_utf8_text((string) ($_REQUEST['Issuer']    ?? '')),
         'bincard'    => preg_replace('/\D+/', '', (string) ($_REQUEST['bincard'] ?? '')),
     ];
-    if ($card_facts['sp_type'] !== '') {
-        hypay_log($order_id, 'special card type reported by Hyp', [
-            'spType'       => $card_facts['sp_type'],
-            'is_immediate' => hypay_is_immediate_card($card_facts['sp_type']),
-        ]);
-    }
+    // logged even when empty: Hyp does not always fill spType, and an absence
+    // that leaves no trace reads like a card nobody asked about
+    hypay_log($order_id, 'special card type reported by Hyp', [
+        'spType'       => $card_facts['sp_type'] !== '' ? $card_facts['sp_type'] : '(not reported)',
+        'is_immediate' => hypay_is_immediate_card($card_facts['sp_type']),
+    ]);
 
     // Did this return place the order for good - charged, or held on the card?
     // Both branches below answer it, and the cart is emptied at the end on a
