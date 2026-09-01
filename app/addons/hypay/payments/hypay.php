@@ -385,6 +385,21 @@ list($heshDesc, $sum_items) = hypay_build_heshdesc($order_info);
 // hypay_sanitize_url_echo().
 $info_val = hypay_build_info($order_id, $pp);
 
+// EzCount details for the document Hyp issues itself. Only an ordinary charge
+// in integrated mode produces one - "direct" issues the document from here
+// after the return instead, and a J5 hold issues none at all - so nothing else
+// has its request touched by these settings.
+$ez_customer = (($pp['ez_mode'] ?? 'none') === 'integrated' && !$is_j5)
+    ? hypay_ez_customer($pp, $order_info, 'ez_int')
+    : [];
+$ez_name = (string) ($ez_customer['ezcount_name'] ?? '');
+if ($ez_customer) {
+    hypay_log($order_id, 'ezcount.integrated customer', [
+        'ClientName' => $ez_name !== '' ? $ez_name : '(profile name)',
+        'UserId'     => ($ez_customer['vat'] ?? '') !== '' ? $ez_customer['vat'] : '(not sent)',
+    ]);
+}
+
 // page language
 $page_lang_setting = $pp['page_lang'] ?? 'auto'; // auto|ENG|HEB
 if ($page_lang_setting === 'ENG' || $page_lang_setting === 'HEB') {
@@ -411,8 +426,12 @@ $params_sign = [
     // customer meta. Hyp echoes ClientName/ClientLName (as Fild1), street and
     // city back in the redirect URL unencoded, so they are sanitized too: an
     // address like "Herzl 5 #12" would truncate the return exactly like Info.
-    'ClientName'  => hypay_sanitize_url_echo($order_info['firstname'] ?? ''),
-    'ClientLName' => hypay_sanitize_url_echo($order_info['lastname']  ?? ''),
+    //
+    // An EzCount name replaces both halves rather than the first one: it is a
+    // whole name - usually the company's - and appending the buyer's surname to
+    // it would print a name that belongs to nobody.
+    'ClientName'  => hypay_sanitize_url_echo($ez_name !== '' ? $ez_name : ($order_info['firstname'] ?? '')),
+    'ClientLName' => hypay_sanitize_url_echo($ez_name !== '' ? ''       : ($order_info['lastname']  ?? '')),
     'email'       => (string) ($order_info['email']     ?? ''),
     'phone'       => (string) ($order_info['phone']     ?? ''),
     'cell'        => (string) ($order_info['phone']     ?? $order_info['s_phone'] ?? ''),
@@ -442,6 +461,13 @@ hypay_put($params_sign, 'tashType',         isset($pp['tashtype'])   && $pp['tas
 hypay_put($params_sign, 'TashFirstPayment', isset($pp['tash_first']) && $pp['tash_first'] !== '' ? (float) $pp['tash_first'] : null);
 hypay_put($params_sign, 'sendemail',        hypay_bool($pp['sendemail'] ?? 'N'));
 hypay_put($params_sign, 'Postpone',         hypay_bool($pp['postpone']  ?? 'N'));
+
+// The customer's VAT ID, when the settings ask for it: Hyp files the document
+// it issues under this number. It is deliberately absent from a J5 request -
+// UserId there is the cardholder ID Shva checks the later capture against, and
+// a company number is not that.
+hypay_put($params_sign, 'UserId',           (string) ($ez_customer['vat'] ?? ''));
+
 if ($is_j5) {
     // Step 1 of the two-phase commit: hold the funds instead of charging them.
     // MoreData=True is mandatory here — without it Hypay does not return UID and

@@ -465,6 +465,46 @@
          </div>
      </div>
 
+     {* Customer details Hyp copies onto the document it issues. Only the two the
+        payment request can carry - see the description below the second one. *}
+     <div class="control-group">
+         <label class="control-label" for="ez_int_customer_name">{__("hypay_ez_customer_name")}</label>
+         <div class="controls">
+             <input type="hidden" name="payment_data[processor_params][ez_int_customer_name]" value="N" />
+             <label class="checkbox">
+                 <input type="checkbox"
+                        id="ez_int_customer_name"
+                        name="payment_data[processor_params][ez_int_customer_name]"
+                        value="Y"
+                        {if $processor_params.ez_int_customer_name == "Y"}checked{/if} />
+                 {__("hypay_ez_customer_name_label")}
+             </label>
+             <p class="muted description">{__("hypay_ez_customer_name_desc")}</p>
+         </div>
+     </div>
+
+     <div class="control-group">
+         <label class="control-label" for="ez_int_customer_vat">{__("hypay_ez_customer_vat")}</label>
+         <div class="controls">
+             <input type="hidden" name="payment_data[processor_params][ez_int_customer_vat]" value="N" />
+             <label class="checkbox">
+                 <input type="checkbox"
+                        id="ez_int_customer_vat"
+                        name="payment_data[processor_params][ez_int_customer_vat]"
+                        value="Y"
+                        {if $processor_params.ez_int_customer_vat == "Y"}checked{/if} />
+                 {__("hypay_ez_customer_vat_label")}
+             </label>
+             <p class="muted description">{__("hypay_ez_int_customer_vat_desc")}</p>
+         </div>
+     </div>
+
+     <div class="control-group">
+         <div class="controls">
+             <p class="muted description">{__("hypay_ez_int_customer_limits")}</p>
+         </div>
+     </div>
+
 
 <hr>
 
@@ -605,6 +645,82 @@
                 <option value="en" {if $processor_params.ez_doc_lang == 'en'}selected{/if}>en</option>
             </select>
             <p class="muted description">{__("hypay_ez_doc_lang_desc")}</p>
+        </div>
+    </div>
+
+    {* Customer details taken from the buyer's profile. Each one is opt-in, so an
+       installation that issued documents before these settings existed keeps
+       issuing exactly the same ones until it asks for more. *}
+    <div class="control-group">
+        <label class="control-label" for="ez_customer_name">{__("hypay_ez_customer_name")}</label>
+        <div class="controls">
+            <input type="hidden" name="payment_data[processor_params][ez_customer_name]" value="N" />
+            <label class="checkbox">
+                <input type="checkbox"
+                       id="ez_customer_name"
+                       name="payment_data[processor_params][ez_customer_name]"
+                       value="Y"
+                       {if $processor_params.ez_customer_name == "Y"}checked{/if} />
+                {__("hypay_ez_customer_name_label")}
+            </label>
+            <p class="muted description">{__("hypay_ez_customer_name_desc")}</p>
+        </div>
+    </div>
+
+    <div class="control-group">
+        <label class="control-label" for="ez_customer_vat">{__("hypay_ez_customer_vat")}</label>
+        <div class="controls">
+            <input type="hidden" name="payment_data[processor_params][ez_customer_vat]" value="N" />
+            <label class="checkbox">
+                <input type="checkbox"
+                       id="ez_customer_vat"
+                       name="payment_data[processor_params][ez_customer_vat]"
+                       value="Y"
+                       {if $processor_params.ez_customer_vat == "Y"}checked{/if} />
+                {__("hypay_ez_customer_vat_label")}
+            </label>
+            <p class="muted description">{__("hypay_ez_customer_vat_desc")}</p>
+        </div>
+    </div>
+
+    <div class="control-group">
+        <label class="control-label" for="ez_customer_assoc">{__("hypay_ez_customer_assoc")}</label>
+        <div class="controls">
+            <input type="hidden" name="payment_data[processor_params][ez_customer_assoc]" value="N" />
+            <label class="checkbox">
+                <input type="checkbox"
+                       id="ez_customer_assoc"
+                       name="payment_data[processor_params][ez_customer_assoc]"
+                       value="Y"
+                       {if $processor_params.ez_customer_assoc == "Y"}checked{/if} />
+                {__("hypay_ez_customer_assoc_label")}
+            </label>
+            <p class="muted description">{__("hypay_ez_customer_assoc_desc")}</p>
+        </div>
+    </div>
+
+    <div class="control-group">
+        <label class="control-label" for="ez_customer_cc_emails">{__("hypay_ez_customer_cc_emails")}</label>
+        <div class="controls">
+            <input type="hidden" name="payment_data[processor_params][ez_customer_cc_emails]" value="N" />
+            <label class="checkbox">
+                <input type="checkbox"
+                       id="ez_customer_cc_emails"
+                       name="payment_data[processor_params][ez_customer_cc_emails]"
+                       value="Y"
+                       {if $processor_params.ez_customer_cc_emails == "Y"}checked{/if} />
+                {__("hypay_ez_customer_cc_emails_label")}
+            </label>
+            <p class="muted description">{__("hypay_ez_customer_cc_emails_desc")}</p>
+        </div>
+    </div>
+
+    <div class="control-group">
+        <label class="control-label" for="ez_cc_email_field_id">{__("hypay_ez_cc_email_field_id")}</label>
+        <div class="controls">
+            <input type="text" name="payment_data[processor_params][ez_cc_email_field_id]" id="ez_cc_email_field_id"
+                   value="{$processor_params.ez_cc_email_field_id|escape}" class="input-small"/>
+            <p class="muted description">{__("hypay_ez_cc_email_field_id_desc")}</p>
         </div>
     </div>
 

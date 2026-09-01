@@ -817,3 +817,67 @@ msgctxt "Languages::hypay_card"
 msgid "Card"
 msgstr "Карта"
 
+
+msgctxt "Languages::hypay_ez_customer_name"
+msgid "EzCount name"
+msgstr "Имя в EzCount"
+
+msgctxt "Languages::hypay_ez_customer_name_label"
+msgid "Use the customer's EzCount name instead of the profile name"
+msgstr "Использовать имя клиента в EzCount вместо имени профиля"
+
+msgctxt "Languages::hypay_ez_customer_name_desc"
+msgid "Names the document after the customer's EzCount name - the profile \"Fax\" field, the same one the EzCount Invoice Generator add-on reads. A customer who never filled it in is still named on the document, by their profile name."
+msgstr "Документ выписывается на имя клиента в EzCount - поле профиля \"Факс\", то же, которое читает модуль EzCount Invoice Generator. Если клиент его не заполнил, документ всё равно выписывается на имя из профиля."
+
+msgctxt "Languages::hypay_ez_customer_vat"
+msgid "VAT ID"
+msgstr "VAT ID"
+
+msgctxt "Languages::hypay_ez_customer_vat_label"
+msgid "Send the customer's VAT ID"
+msgstr "Передавать VAT ID клиента"
+
+msgctxt "Languages::hypay_ez_customer_vat_desc"
+msgid "Sends the VAT ID from the profile \"URL\" field as customer_crn, so the document is made out to the company rather than to a private buyer."
+msgstr "Передаёт VAT ID из поля профиля \"URL\" как customer_crn, и документ выписывается на компанию, а не на частное лицо."
+
+msgctxt "Languages::hypay_ez_int_customer_vat_desc"
+msgid "Sends the VAT ID from the profile \"URL\" field to Hyp as UserId, which is the number the document it issues is filed under. It is never sent with a J5 authorization: UserId there is the cardholder ID Shva checks the later capture against, and a company number is not that."
+msgstr "Передаёт VAT ID из поля профиля \"URL\" в Hyp как UserId - номер, под которым выписывается созданный им документ. С авторизацией J5 не передаётся никогда: там UserId - это удостоверение держателя карты, по которому Shva проверяет последующее списание, а номер компании им не является."
+
+msgctxt "Languages::hypay_ez_int_customer_limits"
+msgid "Only these two travel with a payment request. The EzCount CC e-mail and filing the document under an existing customer card are set on the document itself, which Hyp - not this add-on - issues in integrated mode; the direct API settings below cover both."
+msgstr "С запросом на оплату уходят только эти два параметра. CC-адрес EzCount и привязка документа к карточке клиента задаются на самом документе, а в режиме integrated его выписывает Hyp, а не этот модуль; в настройках прямого API ниже есть и то, и другое."
+
+msgctxt "Languages::hypay_ez_customer_assoc"
+msgid "Customer card"
+msgstr "Карточка клиента"
+
+msgctxt "Languages::hypay_ez_customer_assoc_label"
+msgid "File the document under the customer's EzCount card"
+msgstr "Привязывать документ к карточке клиента в EzCount"
+
+msgctxt "Languages::hypay_ez_customer_assoc_desc"
+msgid "Sends customerAction=ASSOC_ONLY, so EzCount attaches the document to a customer card that already matches and does not create a new one. This is what the EzCount Invoice Generator add-on does."
+msgstr "Передаёт customerAction=ASSOC_ONLY: EzCount привяжет документ к уже подходящей карточке клиента и не создаст новую. Так же поступает модуль EzCount Invoice Generator."
+
+msgctxt "Languages::hypay_ez_customer_cc_emails"
+msgid "CC e-mail"
+msgstr "CC-адрес"
+
+msgctxt "Languages::hypay_ez_customer_cc_emails_label"
+msgid "Send the customer's EzCount CC e-mail"
+msgstr "Передавать CC-адрес клиента в EzCount"
+
+msgctxt "Languages::hypay_ez_customer_cc_emails_desc"
+msgid "Copies the document to the addresses in the customer's EzCount CC e-mail profile field. Several addresses may be separated by commas."
+msgstr "Копия документа уходит на адреса из поля профиля с CC-адресом EzCount. Несколько адресов разделяются запятыми."
+
+msgctxt "Languages::hypay_ez_cc_email_field_id"
+msgid "CC e-mail profile field ID"
+msgstr "ID поля профиля с CC-адресом"
+
+msgctxt "Languages::hypay_ez_cc_email_field_id_desc"
+msgid "The ID of the profile field holding the EzCount CC e-mail. Leave it empty to use the field named ezcount_additional_email, which is the one the EzCount Invoice Generator add-on reads."
+msgstr "ID поля профиля, в котором хранится CC-адрес EzCount. Оставьте пустым, чтобы использовать поле с именем ezcount_additional_email - то же, которое читает модуль EzCount Invoice Generator."
