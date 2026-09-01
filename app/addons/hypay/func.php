@@ -1131,6 +1131,139 @@ function hypay_build_ez_items($order_info, $list_products = true) {
 }
 
 /* ============================================================================
+ * EzCount customer details
+ * ==========================================================================*/
+
+/**
+ * The buyer's account, read once per order.
+ *
+ * @return array empty for a guest order
+ */
+function hypay_ez_user_info($order_info)
+{
+    static $cache = [];
+
+    $user_id = (int) ($order_info['user_id'] ?? 0);
+    if ($user_id <= 0) { return []; }
+
+    if (!array_key_exists($user_id, $cache)) {
+        $cache[$user_id] = fn_get_user_info($user_id) ?: [];
+    }
+
+    return $cache[$user_id];
+}
+
+/**
+ * One profile value for the EzCount document.
+ *
+ * The order carries a snapshot of the profile as it stood when the order was
+ * placed, and that snapshot is what the document should say. A field filled in
+ * after the order - or one the snapshot never carried - is read from the
+ * account itself, so switching the setting on has an effect on old orders too.
+ */
+function hypay_ez_profile_value($order_info, $key)
+{
+    $value = trim((string) ($order_info['user_data'][$key] ?? ''));
+    if ($value !== '') { return $value; }
+
+    $user_info = hypay_ez_user_info($order_info);
+
+    return trim((string) ($user_info[$key] ?? ''));
+}
+
+/** The same, for a custom profile field addressed by id. */
+function hypay_ez_profile_field($order_info, $field_id)
+{
+    $field_id = (int) $field_id;
+    if ($field_id <= 0) { return ''; }
+
+    foreach ([$order_info['user_data']['fields'] ?? [], $order_info['fields'] ?? []] as $fields) {
+        $value = trim((string) ($fields[$field_id] ?? ''));
+        if ($value !== '') { return $value; }
+    }
+
+    $user_info = hypay_ez_user_info($order_info);
+
+    return trim((string) ($user_info['fields'][$field_id] ?? ''));
+}
+
+/**
+ * The profile field holding the EzCount CC e-mail.
+ *
+ * An installation that knows its own field id names it in the settings; left
+ * empty, the field is looked up by the name the EzCount Doc Generator add-on
+ * gives it, so the two add-ons read one field without being told about it
+ * twice.
+ *
+ * @return int 0 when there is no such field
+ */
+function hypay_ez_cc_email_field_id(array $pp)
+{
+    $configured = (int) ($pp['ez_cc_email_field_id'] ?? 0);
+    if ($configured > 0) { return $configured; }
+
+    static $by_name = null;
+    if ($by_name === null) {
+        $by_name = (int) db_get_field(
+            "SELECT field_id FROM ?:profile_fields WHERE field_name = ?s",
+            'ezcount_additional_email'
+        );
+    }
+
+    return $by_name;
+}
+
+/**
+ * What the settings say to tell EzCount about the customer.
+ *
+ * The profile fields are the ones the EzCount Doc Generator add-on reads, so a
+ * document issued from here names the customer exactly as a document issued
+ * from there does:
+ *
+ *   VAT ID        the profile "url" field  -> customer_crn
+ *   EzCount name  the profile "fax" field  -> customer_name
+ *   CC e-mail     a custom profile field   -> cc_emails
+ *
+ * Every one of them is opt-in and off by default, so an installation that
+ * issued documents before these settings existed keeps issuing the same ones.
+ * The two ways of producing a document are configured separately: $prefix is
+ * "ez" for the direct API and "ez_int" for the document Hyp issues itself.
+ *
+ * The name falls back to the profile name: a customer who never filled the
+ * EzCount name field is still named on the document, rather than not at all.
+ *
+ * @return array{name: string, ezcount_name: string, vat: string, cc_emails: array, assoc: bool}
+ */
+function hypay_ez_customer(array $pp, $order_info, $prefix = 'ez')
+{
+    $ezcount_name = '';
+    if (($pp[$prefix . '_customer_name'] ?? 'N') === 'Y') {
+        $ezcount_name = hypay_ez_profile_value($order_info, 'fax');
+    }
+
+    $vat = '';
+    if (($pp[$prefix . '_customer_vat'] ?? 'N') === 'Y') {
+        $vat = hypay_ez_profile_value($order_info, 'url');
+    }
+
+    $cc_emails = [];
+    if (($pp[$prefix . '_customer_cc_emails'] ?? 'N') === 'Y') {
+        $raw       = hypay_ez_profile_field($order_info, hypay_ez_cc_email_field_id($pp));
+        $cc_emails = array_values(array_filter(array_map('trim', explode(',', $raw))));
+    }
+
+    $profile_name = trim(((string) ($order_info['lastname'] ?? '')) . ' ' . ((string) ($order_info['firstname'] ?? '')));
+
+    return [
+        'name'         => $ezcount_name !== '' ? $ezcount_name : $profile_name,
+        'ezcount_name' => $ezcount_name,
+        'vat'          => $vat,
+        'cc_emails'    => $cc_emails,
+        'assoc'        => ($pp[$prefix . '_customer_assoc'] ?? 'N') === 'Y',
+    ];
+}
+
+/* ============================================================================
  * EzCount (Direct API) document
  * ==========================================================================*/
 
@@ -1156,6 +1289,7 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
     $auto_calc          = isset($pp['ez_auto_calc_payments']) ? (int) (!empty($pp['ez_auto_calc_payments'])) : 0;
     $flow               = ($ctx['flow'] ?? 'regular') === 'j5' ? 'j5' : 'regular';
     $list_products      = hypay_ez_is_list_products_mode($pp, $flow);
+    $customer           = hypay_ez_customer($pp, $order_info, 'ez');
 
     // Unlike the line-items mode next to it, the UA UUID does not fall back to
     // the regular value: a J5 document is issued into whichever EzCount account
@@ -1226,7 +1360,7 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
         'ua_uuid'                  => $ez_ua_uuid ?: null, // dropped if empty
         'lang'                     => $doc_lang,           // he/en
         'description'              => 'Order #' . $order_id,
-        'customer_name'            => trim(($order_info['lastname'] ?? '') . ' ' . ($order_info['firstname'] ?? '')),
+        'customer_name'            => $customer['name'],
         'customer_email'           => (string) ($order_info['email'] ?? ''),
         'customer_phone'           => (string) ($order_info['phone'] ?? ''),
         'customer_address'         => $customer_address,
@@ -1241,6 +1375,30 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
         $payload['created_by_api_key'] = $created_by_api_key; // distributors only; plain text, server hashes
     }
     if (empty($payload['ua_uuid'])) { unset($payload['ua_uuid']); }
+
+    // Customer details, each one only when its setting asks for it. A VAT ID
+    // makes the document out to the company rather than to a private buyer,
+    // ASSOC_ONLY files it under the matching EzCount customer card instead of
+    // creating a new one, and the CC list copies the document onward.
+    if ($customer['vat'] !== '') {
+        $payload['customer_crn'] = $customer['vat'];
+    }
+    if ($customer['assoc']) {
+        $payload['customerAction'] = 'ASSOC_ONLY';
+    }
+    if (!empty($customer['cc_emails'])) {
+        $payload['cc_emails'] = count($customer['cc_emails']) === 1
+            ? reset($customer['cc_emails'])
+            : $customer['cc_emails'];
+    }
+
+    hypay_log($order_id, 'ezcount.customer', [
+        'customer_name'  => $customer['name'],
+        'name_from'      => $customer['ezcount_name'] !== '' ? 'ezcount name' : 'profile name',
+        'customer_crn'   => $customer['vat'],
+        'customerAction' => $customer['assoc'] ? 'ASSOC_ONLY' : '(none)',
+        'cc_emails'      => $customer['cc_emails'],
+    ]);
 
     // tax exempt toggle
     if (!empty($order_info['user_data']['tax_exempt']) && $order_info['user_data']['tax_exempt'] === 'Y') {

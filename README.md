@@ -60,8 +60,51 @@ The addon provides configuration options for:
 - Additional order status to set when a J5 hold is confirmed and when it is
   captured (needs the eCom Labs add-on)
 - Additional Hyp-specific parameters
+- Which of the buyer's EzCount details travel onto the document — see below
 
 For detailed API behavior, refer to the official Hyp documentation.
+
+---
+
+## 🧾 EzCount — who the document is made out to
+
+A document names its customer by the buyer's CS-Cart profile. Three of those
+fields are EzCount's rather than CS-Cart's, and they live where the
+[EzCount Invoice Generator](https://github.com/americal/EzCount-Doc-Generator)
+add-on keeps them, so a document issued here and a document issued there name
+the same customer the same way:
+
+| On the document | Profile field | Sent as |
+| --- | --- | --- |
+| EzCount name | **Fax** | `customer_name` |
+| VAT ID | **URL** | `customer_crn` |
+| CC e-mail | a custom field, `ezcount_additional_email` by default | `cc_emails` |
+
+Each is off until it is switched on, so an installation that issued documents
+before these settings existed keeps issuing exactly the same ones. The name
+falls back to the profile name: a customer who never filled the EzCount name
+field in is still named on the document rather than not at all.
+
+A fourth setting, **Customer card**, sends `customerAction=ASSOC_ONLY` — EzCount
+then files the document under a customer card that already matches instead of
+creating a new one.
+
+The custom field holding the CC e-mail is found by the name the EzCount Invoice
+Generator gives it, so neither add-on has to be told about it twice. An
+installation whose field is named something else can name its ID outright in
+**CC e-mail profile field ID**.
+
+**Integrated mode is not the same set.** In `direct` mode this add-on issues the
+document itself and can send all four. In `integrated` mode Hyp issues it, and a
+payment request carries only two of them: the EzCount name (as `ClientName`, in
+place of both halves of the profile name — it is a whole name, usually the
+company's) and the VAT ID (as `UserId`, the number Hyp files the document
+under). They are configured separately from the direct ones, under
+**EzCount (Integrated)**.
+
+The VAT ID is deliberately never sent with a J5 authorization: `UserId` there is
+the cardholder's ID, which Shva checks the later capture against — a company
+number is not that — and a hold issues no document to put it on anyway.
 
 ---
 

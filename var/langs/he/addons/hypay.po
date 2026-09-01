@@ -615,3 +615,67 @@ msgctxt "Languages::hypay_card"
 msgid "Card"
 msgstr "כרטיס"
 
+
+msgctxt "Languages::hypay_ez_customer_name"
+msgid "EzCount name"
+msgstr "שם ב-EzCount"
+
+msgctxt "Languages::hypay_ez_customer_name_label"
+msgid "Use the customer's EzCount name instead of the profile name"
+msgstr "להשתמש בשם הלקוח ב-EzCount במקום בשם מהפרופיל"
+
+msgctxt "Languages::hypay_ez_customer_name_desc"
+msgid "Names the document after the customer's EzCount name - the profile \"Fax\" field, the same one the EzCount Invoice Generator add-on reads. A customer who never filled it in is still named on the document, by their profile name."
+msgstr "המסמך יוצא על שם הלקוח ב-EzCount - שדה ה\"פקס\" בפרופיל, אותו שדה שתוסף EzCount Invoice Generator קורא. לקוח שלא מילא אותו עדיין מקבל מסמך על שמו מהפרופיל."
+
+msgctxt "Languages::hypay_ez_customer_vat"
+msgid "VAT ID"
+msgstr "ח.פ / ע.מ"
+
+msgctxt "Languages::hypay_ez_customer_vat_label"
+msgid "Send the customer's VAT ID"
+msgstr "לשלוח את מספר ה-ח.פ של הלקוח"
+
+msgctxt "Languages::hypay_ez_customer_vat_desc"
+msgid "Sends the VAT ID from the profile \"URL\" field as customer_crn, so the document is made out to the company rather than to a private buyer."
+msgstr "שולח את המספר משדה ה\"URL\" בפרופיל כ-customer_crn, כך שהמסמך יוצא על שם החברה ולא על שם לקוח פרטי."
+
+msgctxt "Languages::hypay_ez_int_customer_vat_desc"
+msgid "Sends the VAT ID from the profile \"URL\" field to Hyp as UserId, which is the number the document it issues is filed under. It is never sent with a J5 authorization: UserId there is the cardholder ID Shva checks the later capture against, and a company number is not that."
+msgstr "שולח את המספר משדה ה\"URL\" בפרופיל ל-Hyp כ-UserId - המספר שתחתיו נרשם המסמך ש-Hyp מפיקה. לעולם לא נשלח עם אישור J5: שם UserId הוא תעודת הזהות של בעל הכרטיס ש-Shva בודקת מולה את הגבייה שלאחר מכן, ומספר חברה אינו זה."
+
+msgctxt "Languages::hypay_ez_int_customer_limits"
+msgid "Only these two travel with a payment request. The EzCount CC e-mail and filing the document under an existing customer card are set on the document itself, which Hyp - not this add-on - issues in integrated mode; the direct API settings below cover both."
+msgstr "רק שני אלה נוסעים עם בקשת התשלום. כתובת ה-CC ב-EzCount ושיוך המסמך לכרטיס לקוח קיים נקבעים על המסמך עצמו, ובמצב integrated מפיקה אותו Hyp ולא התוסף הזה; הגדרות ה-API הישיר שלמטה כוללות את שניהם."
+
+msgctxt "Languages::hypay_ez_customer_assoc"
+msgid "Customer card"
+msgstr "כרטיס לקוח"
+
+msgctxt "Languages::hypay_ez_customer_assoc_label"
+msgid "File the document under the customer's EzCount card"
+msgstr "לשייך את המסמך לכרטיס הלקוח ב-EzCount"
+
+msgctxt "Languages::hypay_ez_customer_assoc_desc"
+msgid "Sends customerAction=ASSOC_ONLY, so EzCount attaches the document to a customer card that already matches and does not create a new one. This is what the EzCount Invoice Generator add-on does."
+msgstr "שולח customerAction=ASSOC_ONLY, כך ש-EzCount משייכת את המסמך לכרטיס לקוח מתאים שכבר קיים ואינה יוצרת חדש. כך נוהג גם תוסף EzCount Invoice Generator."
+
+msgctxt "Languages::hypay_ez_customer_cc_emails"
+msgid "CC e-mail"
+msgstr "כתובת CC"
+
+msgctxt "Languages::hypay_ez_customer_cc_emails_label"
+msgid "Send the customer's EzCount CC e-mail"
+msgstr "לשלוח את כתובת ה-CC של הלקוח ב-EzCount"
+
+msgctxt "Languages::hypay_ez_customer_cc_emails_desc"
+msgid "Copies the document to the addresses in the customer's EzCount CC e-mail profile field. Several addresses may be separated by commas."
+msgstr "העתק של המסמך נשלח לכתובות שבשדה הפרופיל של כתובת ה-CC ב-EzCount. כמה כתובות מופרדות בפסיקים."
+
+msgctxt "Languages::hypay_ez_cc_email_field_id"
+msgid "CC e-mail profile field ID"
+msgstr "מזהה שדה הפרופיל של כתובת ה-CC"
+
+msgctxt "Languages::hypay_ez_cc_email_field_id_desc"
+msgid "The ID of the profile field holding the EzCount CC e-mail. Leave it empty to use the field named ezcount_additional_email, which is the one the EzCount Invoice Generator add-on reads."
+msgstr "המזהה של שדה הפרופיל שמחזיק את כתובת ה-CC ב-EzCount. השאירו ריק כדי להשתמש בשדה בשם ezcount_additional_email - אותו שדה שתוסף EzCount Invoice Generator קורא."
