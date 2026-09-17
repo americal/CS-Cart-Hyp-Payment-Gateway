@@ -134,6 +134,29 @@
     </div>
 {/if}
 
+{if $hypay_j5.capture_failed}
+    {* A fresh authorization number, offered only once a capture has actually
+       been refused. The one that came back with the hold is what the capture
+       normally carries, and re-sending a number Shva already turned down would
+       only be refused again - so when the credit company issues a new approval
+       by phone, it is typed in here and the capture is tried with it instead.
+       Empty leaves the stored number in place. *}
+    <div class="control-group">
+        <div class="control-label">{__("hypay_j5_auth_number_new")}</div>
+        <div class="controls">
+            <input type="text" class="input-medium hypay-j5-acode" maxlength="64"
+                   inputmode="numeric" autocomplete="off"
+                   value="" placeholder="{$hypay_j5.acode|escape}" />
+
+            <p class="text-error description">{__("hypay_j5_auth_number_refused")}</p>
+
+            {capture name="hypay_hint_acode"}{__("hypay_j5_auth_number_new_desc")}{/capture}
+            <p class="muted description">{__("hypay_j5_auth_number_new_desc_short")}<span
+                class="cm-tooltip hypay-j5-hint" title="{$smarty.capture.hypay_hint_acode|escape}">i</span></p>
+        </div>
+    </div>
+{/if}
+
 {if $hypay_j5.status == "captured"}
     <div class="control-group">
         <div class="control-label">{__("hypay_j5_captured_amount")}</div>
@@ -317,6 +340,7 @@
     var payments = document.querySelector('.hypay-j5-payments');
     var personal = document.querySelector('.hypay-j5-personal-id');
     var bad_id   = document.querySelector('.hypay-j5-personal-id-bad');
+    var acode    = document.querySelector('.hypay-j5-acode');
 
     // the link is missing whenever Capture is not on offer - a total above the
     // hold, or an immediate-debit card the order has drifted away from. The ID
@@ -359,6 +383,14 @@
         var href  = link.getAttribute('data-base') + '&payments=' + count;
         if (id !== '') { href += '&personal_id=' + id; }
 
+        // a fresh authorization number typed in after a refused capture; digits
+        // only, so a copy-paste that brought spaces or a dash does not slip a
+        // stray character into the query string
+        if (acode) {
+            var auth = acode.value.replace(/\D+/g, '');
+            if (auth !== '') { href += '&acode=' + auth; }
+        }
+
         link.href = href;
         link.innerHTML = link.getAttribute('data-label') + (count > 1 ? ' (' + count + ')' : '');
     };
@@ -367,6 +399,10 @@
     if (personal) {
         personal.addEventListener('input', sync);
         personal.addEventListener('change', sync);
+    }
+    if (acode) {
+        acode.addEventListener('input', sync);
+        acode.addEventListener('change', sync);
     }
     sync();
 })();
