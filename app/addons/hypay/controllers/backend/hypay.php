@@ -32,7 +32,12 @@ if ($mode === 'capture') {
     $personal_id = (isset($_REQUEST['personal_id']) && $_REQUEST['personal_id'] !== '')
         ? (string) $_REQUEST['personal_id']
         : null;
-    fn_hypay_capture_j5($order_id, $amount, $payments, $personal_id);
+    // a fresh authorization number, typed in only after a capture was refused;
+    // null leaves the one that came back with the hold in place
+    $acode = (isset($_REQUEST['acode']) && $_REQUEST['acode'] !== '')
+        ? (string) $_REQUEST['acode']
+        : null;
+    fn_hypay_capture_j5($order_id, $amount, $payments, $personal_id, $acode);
 
     // hypay_result tells the order page it was reached from a J5 action, so the
     // notification carrying the outcome is pinned instead of fading away

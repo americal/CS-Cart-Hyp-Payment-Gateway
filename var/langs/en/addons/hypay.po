@@ -462,6 +462,26 @@ msgctxt "Languages::hypay_j5_auth_number"
 msgid "Authorization number"
 msgstr "Authorization number"
 
+msgctxt "Languages::hypay_j5_auth_number_new"
+msgid "New authorization number"
+msgstr "New authorization number"
+
+msgctxt "Languages::hypay_j5_auth_number_refused"
+msgid "The capture was refused with the authorization number this hold carries. If the credit company issued a new approval number, enter it here and capture again."
+msgstr "The capture was refused with the authorization number this hold carries. If the credit company issued a new approval number, enter it here and capture again."
+
+msgctxt "Languages::hypay_j5_auth_number_new_desc"
+msgid "The authorization number the capture sends back to Shva. It comes back with the hold, but a capture the credit company refused can be retried with a fresh approval number obtained from them by phone. Leave it empty to keep the number shown here. Digits only."
+msgstr "The authorization number the capture sends back to Shva. It comes back with the hold, but a capture the credit company refused can be retried with a fresh approval number obtained from them by phone. Leave it empty to keep the number shown here. Digits only."
+
+msgctxt "Languages::hypay_j5_auth_number_new_desc_short"
+msgid "Enter a new approval number from the credit company, or leave empty to reuse the current one."
+msgstr "Enter a new approval number from the credit company, or leave empty to reuse the current one."
+
+msgctxt "Languages::hypay_j5_error_bad_acode"
+msgid "That is not a usable authorization number. It should be the digits of the approval the credit company gave you."
+msgstr "That is not a usable authorization number. It should be the digits of the approval the credit company gave you."
+
 msgctxt "Languages::hypay_j5_expires_at"
 msgid "Capture before"
 msgstr "Capture before"

@@ -811,6 +811,25 @@ function hypay_clean_personal_id($raw_user_id)
 }
 
 /**
+ * An authorization number fit to send back to Shva as AuthNum.
+ *
+ * The one that came back with the hold is what the capture normally carries,
+ * but a refused capture can be retried with a fresh number the merchant reads
+ * off the credit company by hand. Shva's authorization numbers are digits, so
+ * anything else - the spaces a copy-paste brings, a stray letter - is stripped,
+ * and the result is held to the width of the column that stores it. An empty
+ * string means there was nothing usable in what was typed.
+ *
+ * @param string $value what the merchant typed on the order page
+ *
+ * @return string the cleaned number, or '' when none of it was usable
+ */
+function fn_hypay_clean_acode($value)
+{
+    return substr(preg_replace('/\D+/', '', (string) $value), 0, 64);
+}
+
+/**
  * The Personal ID line of a J5 order's payment info.
  *
  * Two things worth reading, and neither of them replaces the other: what the
@@ -2346,7 +2365,7 @@ function fn_hypay_change_order_status_silently($order_id, $status_to)
  *
  * @return bool
  */
-function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $personal_id = null)
+function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $personal_id = null, $acode = null)
 {
     fn_hypay_ensure_schema();
 
@@ -2417,6 +2436,29 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
         fn_set_notification('E', __('error'), __('hypay_j5_error_payments_range', ['[max]' => $max_payments]));
 
         return false;
+    }
+
+    // A new authorization number the merchant obtained from the credit company
+    // by hand, after a previous capture was refused. It replaces the one that
+    // came back with the hold: the old number is what Shva turned down, and
+    // re-sending it would only be refused again. The order page offers the field
+    // to type it into only once a capture has actually failed - nothing to
+    // re-authorize before then - but it is accepted here whenever it is supplied
+    // and cleans down to a real number. Garbage is refused loudly rather than
+    // sent, so a mistyped number is not mistaken for the credit company's answer.
+    if ($acode !== null && trim((string) $acode) !== '') {
+        $new_acode = fn_hypay_clean_acode($acode);
+        if ($new_acode === '') {
+            fn_set_notification('E', __('error'), __('hypay_j5_error_bad_acode'));
+            hypay_log($order_id, 'j5.capture: the authorization number typed on the order page is not usable, ignored');
+
+            return false;
+        }
+        if ($new_acode !== (string) $tx['acode']) {
+            fn_hypay_update_transaction($tx['transaction_id'], ['acode' => $new_acode]);
+            $tx['acode'] = $new_acode;
+            hypay_log($order_id, 'j5.capture: authorization number replaced by hand from the order page');
+        }
     }
 
     // everything the capture needs must have come back with the authorization
@@ -2990,6 +3032,14 @@ function fn_hypay_get_j5_panel_data($order_id)
         'personal_id_asked' => ($tx['status'] === 'authorized'
             && (strpos((string) $tx['last_error'], 'CCode=6 ') !== false
                 || strpos((string) $tx['last_error'], 'CCode=26 ') !== false)),
+        // A capture has already gone out and been refused, so the hold is back
+        // to 'authorized' with the refusal on the row (every capture error is
+        // stored prefixed with "capture:"). Only then does the order page offer
+        // a field for a fresh authorization number: before the first attempt
+        // there is nothing to re-authorize, and the one that came back with the
+        // hold is the number to use.
+        'capture_failed' => ($tx['status'] === 'authorized'
+            && strncmp((string) $tx['last_error'], 'capture:', 8) === 0),
         'amount_authorized' => $authorized,
         'amount_captured'   => round((float) $tx['amount_captured'], 2),
         'payments'          => max(1, (int) $tx['payments']),

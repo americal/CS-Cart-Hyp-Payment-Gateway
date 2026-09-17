@@ -190,6 +190,22 @@ the hold, or a capture already refused over one. A hold that has a real ID needs
 no field: the number is printed in the **Payment information** block above, and
 retyping it cannot make it any more correct.
 
+**A new authorization number for a refused capture**
+
+The capture sends Shva the authorization number the hold came back with. When
+the credit company refuses that capture, they can sometimes issue a fresh
+approval number over the phone — re-sending the one they already turned down
+would only be refused again. So once a capture has failed, the order page offers
+a **New authorization number** field beside the instalments. Type the number the
+credit company gave you and capture again; it replaces the one on the hold and is
+remembered, so a further attempt does not need it retyped. Leaving it empty keeps
+the current number (shown as the field's placeholder). Digits only, and anything
+that does not clean down to a number is refused rather than sent.
+
+The field appears only after a capture has actually been refused — before the
+first attempt there is nothing to re-authorize, and the number that came back
+with the hold is the one to use.
+
 **One row for the card**
 
 Hyp reports the brand and the last four digits separately, and `fn_finish_payment`

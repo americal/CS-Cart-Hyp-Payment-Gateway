@@ -260,6 +260,26 @@ msgctxt "Languages::hypay_j5_auth_number"
 msgid "Authorization number"
 msgstr "מספר אישור"
 
+msgctxt "Languages::hypay_j5_auth_number_new"
+msgid "New authorization number"
+msgstr "מספר אישור חדש"
+
+msgctxt "Languages::hypay_j5_auth_number_refused"
+msgid "The capture was refused with the authorization number this hold carries. If the credit company issued a new approval number, enter it here and capture again."
+msgstr "הגבייה נדחתה עם מספר האישור שנשמר בשריון הזה. אם חברת האשראי נתנה מספר אישור חדש, הזינו אותו כאן ובצעו גבייה שוב."
+
+msgctxt "Languages::hypay_j5_auth_number_new_desc"
+msgid "The authorization number the capture sends back to Shva. It comes back with the hold, but a capture the credit company refused can be retried with a fresh approval number obtained from them by phone. Leave it empty to keep the number shown here. Digits only."
+msgstr "מספר האישור שהגבייה שולחת לשב\"א. הוא חוזר יחד עם השריון, אך גבייה שחברת האשראי דחתה אפשר לנסות שוב עם מספר אישור חדש שמתקבל מהם טלפונית. השאירו ריק כדי לשמור על המספר המוצג כאן. ספרות בלבד."
+
+msgctxt "Languages::hypay_j5_auth_number_new_desc_short"
+msgid "Enter a new approval number from the credit company, or leave empty to reuse the current one."
+msgstr "הזינו מספר אישור חדש מחברת האשראי, או השאירו ריק כדי להשתמש בקיים."
+
+msgctxt "Languages::hypay_j5_error_bad_acode"
+msgid "That is not a usable authorization number. It should be the digits of the approval the credit company gave you."
+msgstr "זה אינו מספר אישור תקין. יש להזין את ספרות האישור שחברת האשראי נתנה לכם."
+
 msgctxt "Languages::hypay_j5_expires_at"
 msgid "Capture before"
 msgstr "לגבות עד"
