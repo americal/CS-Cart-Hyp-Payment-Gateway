@@ -352,6 +352,31 @@ if (defined('PAYMENT_NOTIFICATION')) {
 $pp = $processor_data['processor_params'] ?? [];
 $GLOBALS['HYPAY_DEBUG'] = (!empty($pp['debug_mode']) && $pp['debug_mode'] === 'Y');
 
+// Safety net for CS-Cart's payment contract.
+//
+// fn_start_payment() include()s this script and then, unconditionally, runs
+//     return fn_finish_payment($order_id, $pp_response, ...);
+// with whatever this script left in $pp_response - and fn_finish_payment()
+// finalizes the order (updates payment info, changes status, empties the "S"
+// pending marker). A redirect processor like this one is therefore expected to
+// hand the customer to the gateway and exit before that line is ever reached.
+//
+// If it does not - the script returns early, or the redirect call below fails
+// to stop execution - CS-Cart would finalize the order with an UNSET
+// $pp_response: the order would be placed and treated as paid even though the
+// customer never saw the payment page. That is exactly the "payment skipped,
+// order completed" failure this guards against, and it applies to the regular
+// and the J5 flow alike, since both reach the gateway through the same redirect.
+//
+// So $pp_response starts life as an explicit failure. Any fall-through can then
+// only ever leave the order unpaid and retryable, never silently completed. The
+// only path that really places the order is the redirect itself, which exits
+// before this value is read; the SIGN-failure branch sets its own status too.
+$pp_response = [
+    'order_status' => $pp['fail_status'] ?? 'D',
+    'reason_text'  => '🔴 Hypay: the payment page was not reached',
+];
+
 $order_id = (int) ($order_info['order_id'] ?? 0);
 if (!$order_id) { return; }
 
@@ -501,12 +526,46 @@ if (!empty($log_params['PassP'])) { $log_params['PassP'] = substr($log_params['P
 hypay_log($order_id, 'SIGN request params', $log_params);
 
 // call SIGN
+//
+// The redirect below cannot happen without a signed payment link, so this is
+// where the system has to WAIT for that link rather than let the customer
+// through without one. A single failed call is not the end of it: a transient
+// network hiccup on the way to Hyp would otherwise send the order down the
+// failure branch for nothing. The call is retried a few times, with a short
+// backoff, before it is treated as a real failure.
+//
+// A usable answer is one that actually carries "signature=". Anything else - an
+// empty body, a timeout, an error page, a truncated response - is "no link yet",
+// so it is retried and, if it never arrives, handled as a failure below. It is
+// never mistaken for a link the customer could be sent to.
 $sign_url = $base . http_build_query($params_sign);
-$response = Http::get($sign_url, ['timeout' => 30]);
+
+$response     = '';
+$have_link    = false;
+$max_attempts = 3;
+for ($attempt = 1; $attempt <= $max_attempts; $attempt++) {
+    $response  = Http::get($sign_url, ['timeout' => 30]);
+    $have_link = ($response && strpos($response, 'signature=') !== false);
+
+    if ($have_link) {
+        break;
+    }
+
+    hypay_log($order_id, 'SIGN attempt did not return a link', [
+        'attempt'  => $attempt,
+        'of'       => $max_attempts,
+        'response' => $response,
+    ]);
+
+    // back off before trying again, but not after the final attempt
+    if ($attempt < $max_attempts) {
+        sleep($attempt);
+    }
+}
 hypay_log($order_id, 'SIGN response raw', $response);
 
-if (!$response || strpos($response, 'signature=') === false) {
-    hypay_log($order_id, 'SIGN failed');
+if (!$have_link) {
+    hypay_log($order_id, 'SIGN failed - no payment link after ' . $max_attempts . ' attempt(s)');
     $pp_response = [
         'order_status' => $pp['fail_status'] ?? 'D',
         'reason_text'  => '🔴 Hypay SIGN failed',
@@ -519,5 +578,14 @@ if (!$response || strpos($response, 'signature=') === false) {
 // ready: off you go
 $payment_link = $base . $response;
 hypay_log($order_id, 'redirect to payment', $payment_link);
+
+// Hand the customer to Hyp. fn_create_payment_form() renders the redirect page
+// and exits, so nothing after it runs on the normal path. The exit() is repeated
+// here on purpose: should that call ever return instead of stopping - a template
+// error, output already flushed - this script must still stop here rather than
+// fall through to fn_start_payment()'s fn_finish_payment() and let CS-Cart
+// finalize an unpaid order. Reaching the gateway is the only way the order is
+// allowed to proceed; the $pp_response set at the top keeps every other outcome
+// a failure, not a sale.
 fn_create_payment_form($payment_link, [], 'Hypay', true, 'get');
-return;
+exit;
