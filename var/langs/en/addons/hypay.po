@@ -901,3 +901,200 @@ msgstr "CC e-mail profile field ID"
 msgctxt "Languages::hypay_ez_cc_email_field_id_desc"
 msgid "The ID of the profile field holding the EzCount CC e-mail. Leave it empty to use the field named ezcount_additional_email, which is the one the EzCount Invoice Generator add-on reads."
 msgstr "The ID of the profile field holding the EzCount CC e-mail. Leave it empty to use the field named ezcount_additional_email, which is the one the EzCount Invoice Generator add-on reads."
+
+# Payment links (payRequest)
+msgctxt "Languages::hypay_link_title"
+msgid "Payment link"
+msgstr "Payment link"
+
+msgctxt "Languages::hypay_link"
+msgid "Payment link"
+msgstr "Payment link"
+
+msgctxt "Languages::hypay_link_btn"
+msgid "Payment Link"
+msgstr "Payment Link"
+
+msgctxt "Languages::hypay_link_panel_title"
+msgid "Payment link for order #[order_id]"
+msgstr "Payment link for order #[order_id]"
+
+msgctxt "Languages::hypay_link_url"
+msgid "Link"
+msgstr "Link"
+
+msgctxt "Languages::hypay_link_copy"
+msgid "Copy"
+msgstr "Copy"
+
+msgctxt "Languages::hypay_link_copied"
+msgid "Copied"
+msgstr "Copied"
+
+msgctxt "Languages::hypay_link_cancel"
+msgid "Cancel link"
+msgstr "Cancel link"
+
+msgctxt "Languages::hypay_link_check"
+msgid "Check payment"
+msgstr "Check payment"
+
+msgctxt "Languages::hypay_link_close"
+msgid "Close"
+msgstr "Close"
+
+msgctxt "Languages::hypay_link_create"
+msgid "Create and send link"
+msgstr "Create and send link"
+
+msgctxt "Languages::hypay_link_send_email"
+msgid "Send by e-mail"
+msgstr "Send by e-mail"
+
+msgctxt "Languages::hypay_link_send_sms"
+msgid "Send by SMS"
+msgstr "Send by SMS"
+
+msgctxt "Languages::hypay_link_amount"
+msgid "Amount"
+msgstr "Amount"
+
+msgctxt "Languages::hypay_link_sent_to"
+msgid "Sent to"
+msgstr "Sent to"
+
+msgctxt "Languages::hypay_link_transaction"
+msgid "Transaction"
+msgstr "Transaction"
+
+msgctxt "Languages::hypay_link_state_active"
+msgid "Link created on [date]"
+msgstr "Link created on [date]"
+
+msgctxt "Languages::hypay_link_state_cancelled"
+msgid "Link cancelled on [date]"
+msgstr "Link cancelled on [date]"
+
+msgctxt "Languages::hypay_link_paid_on"
+msgid "Paid by payment link on [date]"
+msgstr "Paid by payment link on [date]"
+
+msgctxt "Languages::hypay_link_pi_paid"
+msgid "Paid by payment link on [date]"
+msgstr "Paid by payment link on [date]"
+
+msgctxt "Languages::hypay_link_confirm_create"
+msgid "The payment link will be sent to the customer. Continue?"
+msgstr "The payment link will be sent to the customer. Continue?"
+
+msgctxt "Languages::hypay_link_confirm_cancel"
+msgid "Cancel this payment link? The customer will no longer be able to pay with it."
+msgstr "Cancel this payment link? The customer will no longer be able to pay with it."
+
+msgctxt "Languages::hypay_link_hint_short"
+msgid "Hyp sends the link to the customer by e-mail and/or SMS."
+msgstr "Hyp sends the link to the customer by e-mail and/or SMS."
+
+msgctxt "Languages::hypay_link_hint"
+msgid "The link is for the current order total. When the customer pays, the payment details appear in Payment information and the order gets the success status, as after a payment on the site. Requires the payment links feature to be enabled for the terminal in Hyp Market."
+msgstr "The link is for the current order total. When the customer pays, the payment details appear in Payment information and the order gets the success status, as after a payment on the site. Requires the payment links feature to be enabled for the terminal in Hyp Market."
+
+msgctxt "Languages::hypay_link_created_ok"
+msgid "Payment link created and sent to [sent_to]."
+msgstr "Payment link created and sent to [sent_to]."
+
+msgctxt "Languages::hypay_link_create_failed"
+msgid "Hyp did not create the payment link:"
+msgstr "Hyp did not create the payment link:"
+
+msgctxt "Languages::hypay_link_cancel_ok"
+msgid "Payment link cancelled."
+msgstr "Payment link cancelled."
+
+msgctxt "Languages::hypay_link_cancel_failed"
+msgid "Hyp did not cancel the payment link:"
+msgstr "Hyp did not cancel the payment link:"
+
+msgctxt "Languages::hypay_link_cancel_not_found"
+msgid "Hyp does not know this payment link any more, so it has been marked as cancelled."
+msgstr "Hyp does not know this payment link any more, so it has been marked as cancelled."
+
+msgctxt "Languages::hypay_link_already_paid"
+msgid "Hyp says the link has already been paid, but the payment could not be looked up yet. Use \"Check payment\" in a minute."
+msgstr "Hyp says the link has already been paid, but the payment could not be looked up yet. Use \"Check payment\" in a minute."
+
+msgctxt "Languages::hypay_link_check_paid"
+msgid "The payment link has been paid. The payment has been recorded on the order."
+msgstr "The payment link has been paid. The payment has been recorded on the order."
+
+msgctxt "Languages::hypay_link_check_unpaid"
+msgid "The payment link has not been paid yet."
+msgstr "The payment link has not been paid yet."
+
+msgctxt "Languages::hypay_link_check_not_found"
+msgid "This link is not among the recent payment links Hyp returned."
+msgstr "This link is not among the recent payment links Hyp returned."
+
+msgctxt "Languages::hypay_link_check_failed"
+msgid "Could not get the list of payment links from Hyp:"
+msgstr "Could not get the list of payment links from Hyp:"
+
+msgctxt "Languages::hypay_link_check_cancelled_remote"
+msgid "The payment link was cancelled in the Hyp portal."
+msgstr "The payment link was cancelled in the Hyp portal."
+
+msgctxt "Languages::hypay_link_retired"
+msgid "Cancelled automatically: the order was paid at checkout."
+msgstr "Cancelled automatically: the order was paid at checkout."
+
+msgctxt "Languages::hypay_link_double_payment"
+msgid "The order was paid at checkout AND through this payment link. Check both transactions in the Hyp portal and refund one of them."
+msgstr "The order was paid at checkout AND through this payment link. Check both transactions in the Hyp portal and refund one of them."
+
+msgctxt "Languages::hypay_link_warning_total_changed"
+msgid "The order total has changed since the link was created. Cancel the link and create a new one, or the customer will pay the old amount."
+msgstr "The order total has changed since the link was created. Cancel the link and create a new one, or the customer will pay the old amount."
+
+msgctxt "Languages::hypay_link_error_no_contact"
+msgid "Choose at least one way to send the link: e-mail or SMS."
+msgstr "Choose at least one way to send the link: e-mail or SMS."
+
+msgctxt "Languages::hypay_link_error_bad_email"
+msgid "The e-mail address is not valid."
+msgstr "The e-mail address is not valid."
+
+msgctxt "Languages::hypay_link_error_bad_cell"
+msgid "The mobile number is not valid (for example: 0501234567)."
+msgstr "The mobile number is not valid (for example: 0501234567)."
+
+msgctxt "Languages::hypay_link_error_order_paid"
+msgid "This order has already been paid."
+msgstr "This order has already been paid."
+
+msgctxt "Languages::hypay_link_error_active_exists"
+msgid "This order already has an active payment link. Cancel it first."
+msgstr "This order already has an active payment link. Cancel it first."
+
+msgctxt "Languages::hypay_link_error_no_active"
+msgid "This order has no active payment link."
+msgstr "This order has no active payment link."
+
+msgctxt "Languages::hypay_link_error_zero_amount"
+msgid "The order total must be greater than zero."
+msgstr "The order total must be greater than zero."
+
+msgctxt "Languages::hypay_link_error_no_credentials"
+msgid "The terminal number or the API password (PassP) is not set in the payment method settings."
+msgstr "The terminal number or the API password (PassP) is not set in the payment method settings."
+
+msgctxt "Languages::hypay_link_error_not_hypay"
+msgid "This order is not paid with Hypay."
+msgstr "This order is not paid with Hypay."
+
+msgctxt "Languages::hypay_link_customer_paid"
+msgid "Thank you! The payment for order #[order_id] has been received."
+msgstr "Thank you! The payment for order #[order_id] has been received."
+
+msgctxt "Languages::hypay_link_customer_failed"
+msgid "The payment was not completed. You can try again using the same link."
+msgstr "The payment was not completed. You can try again using the same link."

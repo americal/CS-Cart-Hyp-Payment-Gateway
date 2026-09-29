@@ -24,6 +24,7 @@ https://hypay.docs.apiary.io/
 - Sandbox (test) and production modes
 - Configurable merchant credentials
 - Support for authorization and capture flows
+- Payment links sent to the customer by SMS / e-mail from the order page
 - Compatible with CS-Cart payment processor architecture
 
 ---
@@ -436,6 +437,63 @@ row of its own.
 
 Authorizations and captures are stored in `?:hypay_transactions` (kept on uninstall).
 
+
+---
+
+## 🔗 Payment links (pay by SMS / e-mail)
+
+An order that has not been paid yet gets a **Payment Link** button in the
+order's payment information block. It opens a panel where the merchant can:
+
+- **create and send** a link for the current order total — Hyp sends it to the
+  customer by e-mail, by SMS, or both (`action=payRequest&iCommand=CREATE`);
+- **copy** the link, to send it any other way;
+- **cancel** the link (`iCommand=DELETE`) — the customer can no longer pay with it;
+- **check payment** (`iCommand=LIST`) — ask Hyp whether the link has been paid;
+- **close** the panel.
+
+Under the button the order page says what became of the last link — *created
+on …* or *cancelled on …*. Once the link is paid, the button is replaced with
+**Paid by payment link on *date, time***.
+
+**How the payment reaches the order**
+
+The link is paid on Hyp's own payment page, and the result comes back two ways:
+
+1. **The customer's return.** Hyp redirects the customer to the terminal's
+   success / failure URL — the same `payment_notification` the checkout payment
+   page returns to. The return is recognised as a link payment (by the order
+   number, or by the `Info` text and amount the link was created with) and is
+   recorded exactly like a checkout payment: transaction Id, card brand and last
+   four digits, number of payments, personal ID, the success status and the
+   additional status, and the EzCount document in direct mode. The customer is
+   sent to the storefront home page with a "payment received" message rather than
+   to the checkout "thank you" page — they did not come from a checkout.
+   A declined card on the link page does not change the order: the link stays
+   open for another attempt, and the refusal is shown in the panel.
+2. **The LIST lookup.** When the return never arrives, the order page asks Hyp
+   about the link by itself when it is opened (at most once a minute, with a
+   short timeout), and on **Check payment**. `status=3` settles the order with
+   what LIST knows — its transaction Id, but no card details; if the return
+   turns up afterwards, it fills them in.
+
+Whichever arrives first moves the order; the other one never moves it again.
+
+**Safeguards**
+
+- A link is only offered for an unpaid Hypay order, and only one link can be
+  active per order.
+- If the order total changes after the link was sent, the panel says so: the
+  customer would pay the old amount, so cancel the link and send a new one.
+- An order paid at checkout while a link is still out has its link cancelled
+  automatically; if Hyp answers that the link was paid too, the panel warns
+  about the double payment.
+
+**Before you start:** enable the *payment links* feature for your terminal in
+Hyp Market, and make sure the terminal's success / failure URL points at the
+store's `payment_notification` URL (the same one the checkout payment page
+uses). Links, their state and dates are kept in `?:hypay_payment_links`, which
+is created automatically.
 
 ---
 

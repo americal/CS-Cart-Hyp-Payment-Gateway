@@ -901,3 +901,200 @@ msgstr "ID поля профиля с CC-адресом"
 msgctxt "Languages::hypay_ez_cc_email_field_id_desc"
 msgid "The ID of the profile field holding the EzCount CC e-mail. Leave it empty to use the field named ezcount_additional_email, which is the one the EzCount Invoice Generator add-on reads."
 msgstr "ID поля профиля, в котором хранится CC-адрес EzCount. Оставьте пустым, чтобы использовать поле с именем ezcount_additional_email - то же, которое читает модуль EzCount Invoice Generator."
+
+# Payment links (payRequest)
+msgctxt "Languages::hypay_link_title"
+msgid "Payment link"
+msgstr "Ссылка на оплату"
+
+msgctxt "Languages::hypay_link"
+msgid "Payment link"
+msgstr "Ссылка на оплату"
+
+msgctxt "Languages::hypay_link_btn"
+msgid "Payment Link"
+msgstr "Payment Link"
+
+msgctxt "Languages::hypay_link_panel_title"
+msgid "Payment link for order #[order_id]"
+msgstr "Ссылка на оплату заказа #[order_id]"
+
+msgctxt "Languages::hypay_link_url"
+msgid "Link"
+msgstr "Ссылка"
+
+msgctxt "Languages::hypay_link_copy"
+msgid "Copy"
+msgstr "Скопировать"
+
+msgctxt "Languages::hypay_link_copied"
+msgid "Copied"
+msgstr "Скопировано"
+
+msgctxt "Languages::hypay_link_cancel"
+msgid "Cancel link"
+msgstr "Отменить ссылку"
+
+msgctxt "Languages::hypay_link_check"
+msgid "Check payment"
+msgstr "Проверить оплату"
+
+msgctxt "Languages::hypay_link_close"
+msgid "Close"
+msgstr "Закрыть"
+
+msgctxt "Languages::hypay_link_create"
+msgid "Create and send link"
+msgstr "Создать и отправить ссылку"
+
+msgctxt "Languages::hypay_link_send_email"
+msgid "Send by e-mail"
+msgstr "Отправить по e-mail"
+
+msgctxt "Languages::hypay_link_send_sms"
+msgid "Send by SMS"
+msgstr "Отправить по SMS"
+
+msgctxt "Languages::hypay_link_amount"
+msgid "Amount"
+msgstr "Сумма"
+
+msgctxt "Languages::hypay_link_sent_to"
+msgid "Sent to"
+msgstr "Отправлено"
+
+msgctxt "Languages::hypay_link_transaction"
+msgid "Transaction"
+msgstr "Транзакция"
+
+msgctxt "Languages::hypay_link_state_active"
+msgid "Link created on [date]"
+msgstr "Ссылка создана [date]"
+
+msgctxt "Languages::hypay_link_state_cancelled"
+msgid "Link cancelled on [date]"
+msgstr "Ссылка отменена [date]"
+
+msgctxt "Languages::hypay_link_paid_on"
+msgid "Paid by payment link on [date]"
+msgstr "Оплачен по ссылке [date]"
+
+msgctxt "Languages::hypay_link_pi_paid"
+msgid "Paid by payment link on [date]"
+msgstr "Оплачен по ссылке [date]"
+
+msgctxt "Languages::hypay_link_confirm_create"
+msgid "The payment link will be sent to the customer. Continue?"
+msgstr "Ссылка на оплату будет отправлена покупателю. Продолжить?"
+
+msgctxt "Languages::hypay_link_confirm_cancel"
+msgid "Cancel this payment link? The customer will no longer be able to pay with it."
+msgstr "Отменить ссылку на оплату? Покупатель больше не сможет по ней заплатить."
+
+msgctxt "Languages::hypay_link_hint_short"
+msgid "Hyp sends the link to the customer by e-mail and/or SMS."
+msgstr "Hyp отправит ссылку покупателю по e-mail и/или SMS."
+
+msgctxt "Languages::hypay_link_hint"
+msgid "The link is for the current order total. When the customer pays, the payment details appear in Payment information and the order gets the success status, as after a payment on the site. Requires the payment links feature to be enabled for the terminal in Hyp Market."
+msgstr "Ссылка создаётся на текущую сумму заказа. Когда покупатель оплатит, данные платежа появятся в Payment information, а заказ получит статус успешной оплаты — как после оплаты на сайте. Нужно, чтобы для терминала была включена функция платёжных ссылок в Hyp Market."
+
+msgctxt "Languages::hypay_link_created_ok"
+msgid "Payment link created and sent to [sent_to]."
+msgstr "Ссылка на оплату создана и отправлена: [sent_to]."
+
+msgctxt "Languages::hypay_link_create_failed"
+msgid "Hyp did not create the payment link:"
+msgstr "Hyp не создал ссылку на оплату:"
+
+msgctxt "Languages::hypay_link_cancel_ok"
+msgid "Payment link cancelled."
+msgstr "Ссылка на оплату отменена."
+
+msgctxt "Languages::hypay_link_cancel_failed"
+msgid "Hyp did not cancel the payment link:"
+msgstr "Hyp не отменил ссылку на оплату:"
+
+msgctxt "Languages::hypay_link_cancel_not_found"
+msgid "Hyp does not know this payment link any more, so it has been marked as cancelled."
+msgstr "Hyp больше не знает эту ссылку, поэтому она отмечена как отменённая."
+
+msgctxt "Languages::hypay_link_already_paid"
+msgid "Hyp says the link has already been paid, but the payment could not be looked up yet. Use \"Check payment\" in a minute."
+msgstr "Hyp сообщает, что ссылка уже оплачена, но найти платёж пока не удалось. Нажмите «Проверить оплату» через минуту."
+
+msgctxt "Languages::hypay_link_check_paid"
+msgid "The payment link has been paid. The payment has been recorded on the order."
+msgstr "Ссылка оплачена. Платёж записан в заказ."
+
+msgctxt "Languages::hypay_link_check_unpaid"
+msgid "The payment link has not been paid yet."
+msgstr "Ссылка ещё не оплачена."
+
+msgctxt "Languages::hypay_link_check_not_found"
+msgid "This link is not among the recent payment links Hyp returned."
+msgstr "Этой ссылки нет среди последних ссылок, которые вернул Hyp."
+
+msgctxt "Languages::hypay_link_check_failed"
+msgid "Could not get the list of payment links from Hyp:"
+msgstr "Не удалось получить список ссылок от Hyp:"
+
+msgctxt "Languages::hypay_link_check_cancelled_remote"
+msgid "The payment link was cancelled in the Hyp portal."
+msgstr "Ссылка была отменена в портале Hyp."
+
+msgctxt "Languages::hypay_link_retired"
+msgid "Cancelled automatically: the order was paid at checkout."
+msgstr "Отменена автоматически: заказ оплачен на сайте."
+
+msgctxt "Languages::hypay_link_double_payment"
+msgid "The order was paid at checkout AND through this payment link. Check both transactions in the Hyp portal and refund one of them."
+msgstr "Заказ оплачен И на сайте, И по этой ссылке. Проверьте обе транзакции в портале Hyp и верните одну из них."
+
+msgctxt "Languages::hypay_link_warning_total_changed"
+msgid "The order total has changed since the link was created. Cancel the link and create a new one, or the customer will pay the old amount."
+msgstr "Сумма заказа изменилась после создания ссылки. Отмените ссылку и создайте новую, иначе покупатель заплатит старую сумму."
+
+msgctxt "Languages::hypay_link_error_no_contact"
+msgid "Choose at least one way to send the link: e-mail or SMS."
+msgstr "Выберите хотя бы один способ отправки ссылки: e-mail или SMS."
+
+msgctxt "Languages::hypay_link_error_bad_email"
+msgid "The e-mail address is not valid."
+msgstr "Некорректный адрес e-mail."
+
+msgctxt "Languages::hypay_link_error_bad_cell"
+msgid "The mobile number is not valid (for example: 0501234567)."
+msgstr "Некорректный номер мобильного (например: 0501234567)."
+
+msgctxt "Languages::hypay_link_error_order_paid"
+msgid "This order has already been paid."
+msgstr "Этот заказ уже оплачен."
+
+msgctxt "Languages::hypay_link_error_active_exists"
+msgid "This order already has an active payment link. Cancel it first."
+msgstr "У заказа уже есть активная ссылка на оплату. Сначала отмените её."
+
+msgctxt "Languages::hypay_link_error_no_active"
+msgid "This order has no active payment link."
+msgstr "У заказа нет активной ссылки на оплату."
+
+msgctxt "Languages::hypay_link_error_zero_amount"
+msgid "The order total must be greater than zero."
+msgstr "Сумма заказа должна быть больше нуля."
+
+msgctxt "Languages::hypay_link_error_no_credentials"
+msgid "The terminal number or the API password (PassP) is not set in the payment method settings."
+msgstr "В настройках способа оплаты не указан номер терминала или пароль API (PassP)."
+
+msgctxt "Languages::hypay_link_error_not_hypay"
+msgid "This order is not paid with Hypay."
+msgstr "Этот заказ оплачивается не через Hypay."
+
+msgctxt "Languages::hypay_link_customer_paid"
+msgid "Thank you! The payment for order #[order_id] has been received."
+msgstr "Спасибо! Оплата заказа #[order_id] получена."
+
+msgctxt "Languages::hypay_link_customer_failed"
+msgid "The payment was not completed. You can try again using the same link."
+msgstr "Оплата не прошла. Можно попробовать ещё раз по той же ссылке."
