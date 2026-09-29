@@ -3549,6 +3549,33 @@ function fn_hypay_link_api_request($order_id, array $params, $label, $timeout = 
     ];
 }
 
+/**
+ * What to do about a refusal that is the terminal's, not the request's.
+ *
+ * CCode=901 on payRequest reads "payRequest API is not enabled for this
+ * terminal": the request is authenticated with the same Masof and PassP the
+ * J5 calls use, and it is the terminal that has not been given the API.
+ * Sending links by hand from the Hyp portal is a separate permission, so a
+ * terminal can have that and still refuse this. The terminal is named, because
+ * a shop with more than one Hypay payment method may have looked at another.
+ *
+ * @return string ' ' + the hint, or '' for any other code
+ */
+function fn_hypay_link_permission_hint($ccode, array $pp)
+{
+    $ccode = trim((string) $ccode);
+    $masof = trim((string) ($pp['masof'] ?? ''));
+
+    if ($ccode === '901') {
+        return ' ' . __('hypay_link_hint_901', ['[masof]' => $masof]);
+    }
+    if ($ccode === '902') {
+        return ' ' . __('hypay_link_hint_902', ['[masof]' => $masof]);
+    }
+
+    return '';
+}
+
 /** Masof + PassP of the order's Hypay payment method, '' when either is missing */
 function fn_hypay_link_credentials(array $pp)
 {
@@ -3743,8 +3770,9 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
 
     if ($pay_request_id === '' || $payment_url === '') {
         $error = fn_hypay_format_error($answer['CCode'] ?? '', $answer['errMsg'] ?? '', $result['raw']);
-        fn_set_notification('E', __('error'), __('hypay_link_create_failed') . ' ' . $error);
-        hypay_log($order_id, 'link.create FAILED', $error);
+        fn_set_notification('E', __('error'), __('hypay_link_create_failed') . ' ' . $error
+            . fn_hypay_link_permission_hint($answer['CCode'] ?? '', $pp));
+        hypay_log($order_id, 'link.create FAILED', ['error' => $error, 'Masof' => $credentials['Masof']]);
 
         return false;
     }
@@ -3885,7 +3913,8 @@ function fn_hypay_link_cancel($order_id)
 
     $error = fn_hypay_format_error($ccode, $result['params']['errMsg'] ?? '', $result['raw']);
     db_query("UPDATE ?:hypay_payment_links SET last_error = ?s WHERE link_id = ?i", 'cancel: ' . $error, $link['link_id']);
-    fn_set_notification('E', __('error'), __('hypay_link_cancel_failed') . ' ' . $error);
+    fn_set_notification('E', __('error'), __('hypay_link_cancel_failed') . ' ' . $error
+        . fn_hypay_link_permission_hint($ccode, $pp));
 
     return false;
 }
@@ -3937,7 +3966,8 @@ function fn_hypay_link_check($order_id, $quiet = false, $timeout = 45)
         $error = fn_hypay_format_error($result['params']['CCode'] ?? '', $result['params']['errMsg'] ?? '', $result['raw']);
         hypay_log($order_id, 'link.list FAILED', $error);
         if (!$quiet) {
-            fn_set_notification('E', __('error'), __('hypay_link_check_failed') . ' ' . $error);
+            fn_set_notification('E', __('error'), __('hypay_link_check_failed') . ' ' . $error
+                . fn_hypay_link_permission_hint($result['params']['CCode'] ?? '', $pp));
         }
 
         return 'unknown';

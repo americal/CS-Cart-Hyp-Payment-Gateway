@@ -118,6 +118,24 @@
                  <option value="{$s_key}" {if $s_key|in_array:$hypay_link_statuses}selected="selected"{/if}>{$status}</option>
              {/foreach}
          </select>
+         <p><button type="button" class="btn" id="hypay_link_order_statuses_reset">{__("hypay_link_order_statuses_reset")}</button></p>
+         {literal}
+         <script type="text/javascript">
+         (function () {
+             var list  = document.getElementById('hypay_link_order_statuses');
+             var reset = document.getElementById('hypay_link_order_statuses_reset');
+             if (!list || !reset) { return; }
+
+             // as with the usergroups above: only the selection is cleared
+             // here, the method still has to be saved for it to take effect
+             reset.addEventListener('click', function () {
+                 for (var i = 0; i < list.options.length; i++) {
+                     list.options[i].selected = false;
+                 }
+             });
+         })();
+         </script>
+         {/literal}
          <p class="muted description">{__("hypay_link_order_statuses_desc")}</p>
      </div>
  </div>
