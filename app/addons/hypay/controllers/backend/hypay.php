@@ -10,17 +10,33 @@
  * dispatch[hypay.link_create] — create a payment link and send it (payRequest)
  * dispatch[hypay.link_cancel] — cancel the order's active payment link
  * dispatch[hypay.link_check]  — ask Hyp whether the link has been paid
+ * hypay.link_panel (GET)      — the payment link window (dialog content)
  *****************************************************************************/
 
 if (!defined('BOOTSTRAP')) { die('Access denied'); }
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    return [CONTROLLER_STATUS_NO_PAGE];
-}
-
 // money operations belong to whoever is allowed to manage orders
 if (function_exists('fn_check_permissions') && !fn_check_permissions('orders', 'update_status', 'admin')) {
     return [CONTROLLER_STATUS_DENIED];
+}
+
+// The payment link window, opened from the order's tools menu and loaded into
+// a dialog (cm-dialog-opener + cm-ajax). The only GET here: it reads, and the
+// buttons inside it post to the modes below.
+if ($mode === 'link_panel' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    $order_id = (int) ($_REQUEST['order_id'] ?? 0);
+    if ($order_id <= 0) {
+        return [CONTROLLER_STATUS_NO_PAGE];
+    }
+
+    Tygh::$app['view']->assign('hypay_link', fn_hypay_get_link_panel_data($order_id));
+    Tygh::$app['view']->assign('hypay_link_order_id', $order_id);
+
+    return [CONTROLLER_STATUS_OK];
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    return [CONTROLLER_STATUS_NO_PAGE];
 }
 
 $order_id = (int) ($_REQUEST['order_id'] ?? 0);

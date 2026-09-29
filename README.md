@@ -442,8 +442,9 @@ Authorizations and captures are stored in `?:hypay_transactions` (kept on uninst
 
 ## 🔗 Payment links (pay by SMS / e-mail)
 
-An order with no document attached gets a **Payment Link** button in the
-order's payment information block. It opens a panel where the merchant can:
+An order with no document attached gets a **Payment Link 💳** item in the
+order's tools menu — the gear next to **Save**, beside the other order actions.
+It opens a window (a dialog, not part of the order form) where the merchant can:
 
 - **choose the orders** the link pays for (see below) and **create and send**
   the link for their total — Hyp sends it to the customer by e-mail, by SMS, or
@@ -451,11 +452,21 @@ order's payment information block. It opens a panel where the merchant can:
 - **copy** the link, to send it any other way;
 - **cancel** the link (`iCommand=DELETE`) — the customer can no longer pay with it;
 - **check payment** (`iCommand=LIST`) — ask Hyp whether the link has been paid;
-- **close** the panel.
+- **close** the window.
 
-Under the button the order page says what became of the last link — *created
-on …* or *cancelled on …*. Once the link is paid, the button is replaced with
-**Paid by payment link on *date, time***.
+Under the menu item the order page says what became of the last link — *created
+on …*, *cancelled on …*, or, once it is paid, **Paid by payment link on *date,
+time*** (which the Payment information block also shows, as a line of the
+payment). After Create, Cancel or Check payment the window opens again with the
+outcome in it.
+
+**Terminal permission.** The link API needs its own permission on the terminal:
+sending links by hand from the Hyp portal does not grant it. Hyp refuses the
+request with `CCode=901 … payRequest API is not enabled for this terminal`, and
+the order page then names the terminal the request went through — the one of
+the Hypay payment method used for the order — so it can be enabled for that one
+in Hyp Market or by Hyp support. The request is authenticated with the same
+terminal number and `PassP` as the J5 captures.
 
 **Several orders, one link**
 

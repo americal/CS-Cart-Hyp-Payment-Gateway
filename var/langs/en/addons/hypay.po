@@ -1186,3 +1186,19 @@ msgstr "orders [orders]"
 msgctxt "Languages::hypay_link_error_bad_order"
 msgid "Order #[order_id] cannot be added to the payment link: it belongs to another customer, has a status not chosen in the settings, a document attached, or a link of its own."
 msgstr "Order #[order_id] cannot be added to the payment link: it belongs to another customer, has a status not chosen in the settings, a document attached, or a link of its own."
+
+msgctxt "Languages::hypay_link_order_statuses_reset"
+msgid "Reset selected"
+msgstr "Reset selected"
+
+msgctxt "Languages::hypay_link_unavailable"
+msgid "A payment link cannot be created for this order."
+msgstr "A payment link cannot be created for this order."
+
+msgctxt "Languages::hypay_link_hint_901"
+msgid "Hyp has not enabled the payment links API (payRequest) for terminal [masof]. Sending links by hand from the Hyp portal is a separate permission: ask Hyp support, or enable \"Payment links\" in Hyp Market, for API use on terminal [masof]. The request itself is authenticated with the same terminal number and PassP as the J5 captures."
+msgstr "Hyp has not enabled the payment links API (payRequest) for terminal [masof]. Sending links by hand from the Hyp portal is a separate permission: ask Hyp support, or enable \"Payment links\" in Hyp Market, for API use on terminal [masof]. The request itself is authenticated with the same terminal number and PassP as the J5 captures."
+
+msgctxt "Languages::hypay_link_hint_902"
+msgid "Hyp did not accept the terminal number or the API password (PassP) of terminal [masof]. Check them in the Hypay payment method settings."
+msgstr "Hyp did not accept the terminal number or the API password (PassP) of terminal [masof]. Check them in the Hypay payment method settings."

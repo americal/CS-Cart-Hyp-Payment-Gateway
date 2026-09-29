@@ -1,27 +1,26 @@
 {* ============================================================================
- *  Hypay payment link block (action=payRequest).
- *  Rendered by the "orders:payment_info" hook, next to the J5 block.
+ *  Hypay payment link window (action=payRequest).
  *
- *  Unpaid order: a "Payment Link" button that opens a panel to create, copy,
- *  cancel or check the link, with what became of the last link underneath.
- *  Paid through a link: the date and time it was paid, in place of all that.
+ *  Content of the dialog opened from the order's tools menu (the gear next to
+ *  Save): hooks/orders/details_tools.post.tpl -> hypay.link_panel, loaded with
+ *  cm-dialog-opener + cm-ajax. It lives outside the order form, so it has no
+ *  place in Payment information and no form to stay out of.
+ *
+ *  No link yet: the orders to pay for, where to send it, Create.
+ *  Active link: the link, Copy, Cancel, Check payment.
+ *  Paid: when, the transaction, the document.
  * ========================================================================== *}
 
-{if $runtime.controller == "orders" && $runtime.mode == "details"}
-{$hypay_link = $order_info.order_id|fn_hypay_get_link_panel_data}
-
-{* why there is no block, readable in the page source *}
 {if $hypay_link.hidden}
-<!-- hypay payment link: hidden, {$hypay_link.hidden|escape} -->
+<p class="muted">{__("hypay_link_unavailable")} <small>({$hypay_link.hidden})</small></p>
 {elseif $hypay_link}
 {$hypay_link_date_format = "`$settings.Appearance.date_format`, `$settings.Appearance.time_format`"}
 
 {* the orders a link pays for, when there is more than this one *}
 {capture name="hypay_link_orders_line"}{if $hypay_link.link_orders|count > 1}{__("hypay_link_orders_in_link")}:{foreach $hypay_link.link_orders as $lo} <a href="{"orders.details?order_id=`$lo.order_id`"|fn_url}">#{$lo.order_id}</a>{if !$lo@last},{/if}{/foreach}{/if}{/capture}
 
-<div class="control-group hypay-link-block">
-    <div class="control-label">{__("hypay_link_title")}</div>
-    <div class="controls">
+<div class="hypay-link-block" id="hypay_link_dialog_block">
+    <div class="hypay-link-panel">
         {if $hypay_link.state == "paid"}
             <span class="text-success"><strong>{__("hypay_link_paid_on", ["[date]" => $hypay_link.paid_at|date_format:$hypay_link_date_format])}</strong></span>
             {if $hypay_link.trans_id}<div class="muted"><small>{__("hypay_link_transaction")}: <bdi>{$hypay_link.trans_id}</bdi></small></div>{/if}
@@ -36,26 +35,18 @@
             {elseif $hypay_link.doc_number}
                 <div class="muted"><small>{__("hypay_link_document")}: #<bdi>{$hypay_link.doc_number}</bdi> ({__("hypay_link_document_by_hyp")})</small></div>
             {/if}
+            <div class="hypay-link-actions">
+                <button type="button" class="btn cm-dialog-closer hypay-link-close">{__("hypay_link_close")}</button>
+            </div>
         {else}
-            <button type="button" class="btn hypay-link-toggle">{__("hypay_link_btn")}</button>
-
-            {* what became of the last link, under the button *}
+            {* what became of the last link *}
             {if $hypay_link.state == "active"}
-                <div class="text-success hypay-link-state"><small>{__("hypay_link_state_active", ["[date]" => $hypay_link.created_at|date_format:$hypay_link_date_format])}</small></div>
-                {if $smarty.capture.hypay_link_orders_line|trim}<div class="muted"><small>{$smarty.capture.hypay_link_orders_line nofilter}</small></div>{/if}
+                <p class="text-success hypay-link-state">{__("hypay_link_state_active", ["[date]" => $hypay_link.created_at|date_format:$hypay_link_date_format])}</p>
             {elseif $hypay_link.state == "cancelled"}
-                <div class="muted hypay-link-state"><small>{__("hypay_link_state_cancelled", ["[date]" => $hypay_link.cancelled_at|date_format:$hypay_link_date_format])}</small></div>
+                <p class="muted hypay-link-state">{__("hypay_link_state_cancelled", ["[date]" => $hypay_link.cancelled_at|date_format:$hypay_link_date_format])}</p>
             {/if}
 
-            {* ----------------------------------------------------------------
-             *  The panel. Plain links, not a form: this block lives inside
-             *  order_info_form, and a nested form would be dropped.
-             * -------------------------------------------------------------- *}
-            <div class="hypay-link-panel" {if !$smarty.request.hypay_link_open}style="display: none;"{/if}>
-                <div class="hypay-link-panel__head">
-                    <strong>{__("hypay_link_panel_title", ["[order_id]" => $hypay_link.order_id])}</strong>
-                    <button type="button" class="close hypay-link-close" title="{__("hypay_link_close")}">&times;</button>
-                </div>
+            <div>
 
                 {if $hypay_link.state == "active"}
                     <div class="hypay-link-row">
@@ -89,7 +80,7 @@
                            href="{"hypay.link_cancel?order_id=`$hypay_link.order_id`"|fn_url}">{__("hypay_link_cancel")}</a>
                         <a class="btn cm-post hypay-link-action"
                            href="{"hypay.link_check?order_id=`$hypay_link.order_id`"|fn_url}">{__("hypay_link_check")}</a>
-                        <button type="button" class="btn hypay-link-close">{__("hypay_link_close")}</button>
+                        <button type="button" class="btn cm-dialog-closer hypay-link-close">{__("hypay_link_close")}</button>
                     </div>
                 {else}
                     <div class="hypay-link-row">
@@ -181,7 +172,7 @@
                         {else}
                             <span class="btn disabled">{__("hypay_link_create")}</span>
                         {/if}
-                        <button type="button" class="btn hypay-link-close">{__("hypay_link_close")}</button>
+                        <button type="button" class="btn cm-dialog-closer hypay-link-close">{__("hypay_link_close")}</button>
                     </div>
 
                     {capture name="hypay_hint_link"}{__("hypay_link_hint")}{/capture}
@@ -195,16 +186,8 @@
 
 {literal}
 <style>
-.hypay-link-panel {
-    margin-top: 10px; padding: 12px 14px;
-    max-width: 560px;
-    border: 1px solid #d9d9d9; border-radius: 4px;
-    background: #fafafa;
-}
-.hypay-link-panel__head {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 10px;
-}
+.hypay-link-panel { padding: 4px 2px; min-width: 520px; }
+@media (max-width: 640px) { .hypay-link-panel { min-width: 0; } }
 .hypay-link-row { margin-bottom: 8px; }
 .hypay-link-label { display: block; margin-bottom: 4px; }
 .hypay-link-copy-row { display: flex; gap: 6px; }
@@ -228,22 +211,30 @@
 
 <script type="text/javascript">
 (function () {
-    var block = document.querySelector('.hypay-link-block');
-    if (!block) { return; }
-
-    var panel  = block.querySelector('.hypay-link-panel');
-    var toggle = block.querySelector('.hypay-link-toggle');
-
-    // Payment Link opens the panel, and closes it again on a second click
-    if (toggle && panel) {
-        toggle.addEventListener('click', function () {
-            panel.style.display = (panel.style.display === 'none') ? '' : 'none';
-        });
+    // This arrives by ajax into the dialog, and CS-Cart may run it a moment
+    // before the markup is in place - so it waits for the block, briefly.
+    var tries = 0;
+    var init  = function () {
+    var block = document.getElementById('hypay_link_dialog_block');
+    if (!block) {
+        if (tries++ < 20) { window.setTimeout(init, 50); }
+        return;
     }
+    if (block.getAttribute('data-hypay-ready')) { return; }
+    block.setAttribute('data-hypay-ready', '1');
 
+    // Close: cm-dialog-closer is CS-Cart's own; this is the fallback for a
+    // build that does not know it
     var closers = block.querySelectorAll('.hypay-link-close');
     for (var i = 0; i < closers.length; i++) {
-        closers[i].addEventListener('click', function () { panel.style.display = 'none'; });
+        closers[i].addEventListener('click', function () {
+            var jq = window.jQuery || (window.Tygh && window.Tygh.$);
+            if (!jq) { return; }
+            var dialog = jq(block).closest('.ui-dialog-content');
+            if (dialog.length && dialog.is(':visible')) {
+                try { dialog.dialog('close'); } catch (e) {}
+            }
+        });
     }
 
     // Copy: the clipboard API where the page is allowed it, the old selection
@@ -330,9 +321,11 @@
         fields[j].addEventListener('change', sync);
     }
     sync();
+    };
+
+    init();
 })();
 </script>
 {/literal}
 
-{/if}
 {/if}
