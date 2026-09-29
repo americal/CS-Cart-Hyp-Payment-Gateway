@@ -3202,34 +3202,48 @@ function fn_hypay_link_normalize_cell($phone)
  *
  * A payment link is only offered for an order nobody has paid yet. Four
  * answers count as "paid": a link of its own that was paid, a J5 hold that is
- * open or already captured (the money is spoken for), a status the store
- * itself treats as paid, and a successful Hyp charge recorded on the order -
- * the last one because "Success status" may well be a status the store does
- * not call paid (Open, by default).
+ * open or already captured (the money is spoken for), the Paid or Complete
+ * status, and a successful Hyp charge recorded on the order - the last one
+ * because "Success status" may well be a status that says nothing about
+ * money (Open, by default).
  */
-function fn_hypay_order_is_paid($order_info)
+function fn_hypay_order_is_paid($order_info, &$reason = '')
 {
+    $reason   = '';
     $order_id = (int) ($order_info['order_id'] ?? 0);
     if ($order_id <= 0) { return false; }
 
     $link = fn_hypay_link_get_latest($order_id);
     if (!empty($link) && $link['status'] === 'paid') {
+        $reason = 'paid through a payment link';
+
         return true;
     }
 
     $tx = fn_hypay_get_transaction($order_id);
     if (!empty($tx) && in_array($tx['status'], ['authorized', 'capturing', 'captured'], true)) {
+        $reason = 'J5 transaction ' . $tx['status'];
+
         return true;
     }
 
-    $paid_statuses = function_exists('fn_get_order_paid_statuses') ? (array) fn_get_order_paid_statuses() : ['P', 'C'];
-    if (in_array((string) ($order_info['status'] ?? ''), $paid_statuses, true)) {
+    // Paid and Complete only. Not fn_get_order_paid_statuses(): despite its
+    // name it returns every status that takes the goods off the stock
+    // (inventory = D) - Open and any custom "New order" among them - which
+    // made every freshly placed order look paid and hid the button.
+    if (in_array((string) ($order_info['status'] ?? ''), ['P', 'C'], true)) {
+        $reason = 'order status is Paid or Complete';
+
         return true;
     }
 
-    $reason = (string) ($order_info['payment_info']['reason_text'] ?? '');
+    if (strpos((string) ($order_info['payment_info']['reason_text'] ?? ''), '🟢') === 0) {
+        $reason = 'a successful Hyp payment is recorded on the order';
 
-    return strpos($reason, '🟢') === 0;
+        return true;
+    }
+
+    return false;
 }
 
 /**
@@ -3933,23 +3947,41 @@ function fn_hypay_link_retire($order_id, array $pp)
 function fn_hypay_get_link_panel_data($order_id)
 {
     $order_id = (int) $order_id;
-    if ($order_id <= 0 || !fn_check_payment_script('hypay.php', $order_id)) {
-        return [];
-    }
+    if ($order_id <= 0) { return []; }
 
     $order_info = fn_get_order_info($order_id);
     if (empty($order_info)) { return []; }
 
+    // Why the block is absent is not visible on the page, so with debug mode
+    // on it is written down: an order that is not Hypay's, or one that counts
+    // as paid already. No line at all means this was never called - the
+    // template is not rendered (hook not reached, or a stale template cache).
+    $pp_link = fn_hypay_get_processor_params($order_info);
+    $GLOBALS['HYPAY_DEBUG'] = (!empty($pp_link['debug_mode']) && $pp_link['debug_mode'] === 'Y');
+
+    if (!fn_check_payment_script('hypay.php', $order_id)) {
+        hypay_log($order_id, 'payment link block hidden: the order payment method is not a Hypay one', [
+            'payment_id' => (int) ($order_info['payment_id'] ?? 0),
+        ]);
+
+        return [];
+    }
+
     $link = fn_hypay_link_get_latest($order_id);
     $state = empty($link) ? 'none' : (string) $link['status'];
 
-    if ($state !== 'paid' && fn_hypay_order_is_paid($order_info)) {
+    $paid_reason = '';
+    if ($state !== 'paid' && fn_hypay_order_is_paid($order_info, $paid_reason)) {
+        hypay_log($order_id, 'payment link block hidden: the order counts as paid', [
+            'reason' => $paid_reason,
+            'status' => (string) ($order_info['status'] ?? ''),
+        ]);
+
         return [];
     }
 
     $order_total = round((float) $order_info['total'], 2);
     $amount      = empty($link) ? 0.0 : round((float) $link['amount'], 2);
-    $pp_link     = fn_hypay_get_processor_params($order_info);
 
     // the first phone the order has, in the order a mobile is likeliest to be in
     $cell = '';
