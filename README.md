@@ -442,11 +442,12 @@ Authorizations and captures are stored in `?:hypay_transactions` (kept on uninst
 
 ## 🔗 Payment links (pay by SMS / e-mail)
 
-An order that has not been paid yet gets a **Payment Link** button in the
+An order with no document attached gets a **Payment Link** button in the
 order's payment information block. It opens a panel where the merchant can:
 
-- **create and send** a link for the current order total — Hyp sends it to the
-  customer by e-mail, by SMS, or both (`action=payRequest&iCommand=CREATE`);
+- **choose the orders** the link pays for (see below) and **create and send**
+  the link for their total — Hyp sends it to the customer by e-mail, by SMS, or
+  both (`action=payRequest&iCommand=CREATE`);
 - **copy** the link, to send it any other way;
 - **cancel** the link (`iCommand=DELETE`) — the customer can no longer pay with it;
 - **check payment** (`iCommand=LIST`) — ask Hyp whether the link has been paid;
@@ -455,6 +456,29 @@ order's payment information block. It opens a panel where the merchant can:
 Under the button the order page says what became of the last link — *created
 on …* or *cancelled on …*. Once the link is paid, the button is replaced with
 **Paid by payment link on *date, time***.
+
+**Several orders, one link**
+
+The panel does not create the link straight away. It first lists the orders the
+link will pay for: the order it was opened on — always included — and the same
+customer's other orders whose status is one of those chosen under **Payment
+links → Customer's orders offered in the link** in the payment method settings.
+Orders that already have a document attached, or a link of their own, are not
+listed. Tick the ones to include; the table shows the total the customer will
+be asked to pay, and the link is created for that sum.
+
+Everything that happens to the link happens to every order in it:
+
+- each of them shows the link, when it was created or cancelled, and the other
+  orders it covers — cancel or check it from any of them;
+- once paid, each of them gets the same payment information, the success status
+  and the additional status, and the "Paid by payment link on …" line;
+- the EzCount document (direct API) is one document for the whole payment,
+  with every order's lines, recorded on each order — the same way the EzCount
+  Doc Generator records a document it issues for several orders.
+
+With no statuses selected the list offers nothing else, and a link pays for the
+one order it was created from.
 
 **How the payment reaches the order**
 
@@ -499,8 +523,12 @@ The panel says in advance which document the payment will produce.
 
 **Safeguards**
 
-- A link is only offered for an unpaid Hypay order, and only one link can be
-  active per order.
+- A link is offered for an order that has no document attached yet — a tax
+  invoice, proforma invoice or tax invoice receipt, issued by this add-on or by
+  the EzCount Doc Generator (`?:order_data` type `X` with a document number).
+  An order with a document has been billed, so it gets no button. The order
+  does not have to be placed with a Hypay method: the link then goes through
+  the shop's active Hypay payment method. Only one link can be active per order.
 - If the order total changes after the link was sent, the panel says so: the
   customer would pay the old amount, so cancel the link and send a new one.
 - An order paid at checkout while a link is still out has its link cancelled

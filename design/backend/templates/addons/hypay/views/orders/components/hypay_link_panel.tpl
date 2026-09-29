@@ -10,8 +10,14 @@
 {if $runtime.controller == "orders" && $runtime.mode == "details"}
 {$hypay_link = $order_info.order_id|fn_hypay_get_link_panel_data}
 
-{if $hypay_link}
+{* why there is no block, readable in the page source *}
+{if $hypay_link.hidden}
+<!-- hypay payment link: hidden, {$hypay_link.hidden|escape} -->
+{elseif $hypay_link}
 {$hypay_link_date_format = "`$settings.Appearance.date_format`, `$settings.Appearance.time_format`"}
+
+{* the orders a link pays for, when there is more than this one *}
+{capture name="hypay_link_orders_line"}{if $hypay_link.link_orders|count > 1}{__("hypay_link_orders_in_link")}:{foreach $hypay_link.link_orders as $lo} <a href="{"orders.details?order_id=`$lo.order_id`"|fn_url}">#{$lo.order_id}</a>{if !$lo@last},{/if}{/foreach}{/if}{/capture}
 
 <div class="control-group hypay-link-block">
     <div class="control-label">{__("hypay_link_title")}</div>
@@ -19,6 +25,7 @@
         {if $hypay_link.state == "paid"}
             <span class="text-success"><strong>{__("hypay_link_paid_on", ["[date]" => $hypay_link.paid_at|date_format:$hypay_link_date_format])}</strong></span>
             {if $hypay_link.trans_id}<div class="muted"><small>{__("hypay_link_transaction")}: <bdi>{$hypay_link.trans_id}</bdi></small></div>{/if}
+            {if $smarty.capture.hypay_link_orders_line|trim}<div class="muted"><small>{$smarty.capture.hypay_link_orders_line nofilter}</small></div>{/if}
             {* the document the payment produced, as a checkout payment records it *}
             {if $hypay_link.document}
                 <div class="muted"><small>{__("hypay_link_document")}:
@@ -35,6 +42,7 @@
             {* what became of the last link, under the button *}
             {if $hypay_link.state == "active"}
                 <div class="text-success hypay-link-state"><small>{__("hypay_link_state_active", ["[date]" => $hypay_link.created_at|date_format:$hypay_link_date_format])}</small></div>
+                {if $smarty.capture.hypay_link_orders_line|trim}<div class="muted"><small>{$smarty.capture.hypay_link_orders_line nofilter}</small></div>{/if}
             {elseif $hypay_link.state == "cancelled"}
                 <div class="muted hypay-link-state"><small>{__("hypay_link_state_cancelled", ["[date]" => $hypay_link.cancelled_at|date_format:$hypay_link_date_format])}</small></div>
             {/if}
@@ -65,6 +73,7 @@
                             {__("hypay_link_amount")}: {include file="common/price.tpl" value=$hypay_link.amount}
                             {if $hypay_link.sent_to} &middot; {__("hypay_link_sent_to")}: <bdi>{$hypay_link.sent_to}</bdi>{/if}
                         </small>
+                        {if $smarty.capture.hypay_link_orders_line|trim}<div><small>{$smarty.capture.hypay_link_orders_line nofilter}</small></div>{/if}
                     </div>
 
                     {if $hypay_link.total_changed}
@@ -100,8 +109,54 @@
                                value="{$hypay_link.cell|escape}" placeholder="0501234567" />
                     </div>
 
-                    <div class="hypay-link-row muted">
-                        <small>{__("hypay_link_amount")}: {include file="common/price.tpl" value=$hypay_link.order_total}</small>
+                    {* Which orders the link pays for. This one is always in it; the
+                       customer's other orders are offered by the statuses chosen
+                       in the payment method settings, and only while they have
+                       no document and no link of their own. *}
+                    <div class="hypay-link-row">
+                        <label class="hypay-link-label">{__("hypay_link_orders_title")}</label>
+                        <table class="table table-condensed hypay-link-orders">
+                            <thead>
+                                <tr>
+                                    <th width="1%"></th>
+                                    <th>{__("hypay_link_col_order")}</th>
+                                    <th>{__("hypay_link_col_date")}</th>
+                                    <th>{__("hypay_link_col_status")}</th>
+                                    <th class="right">{__("hypay_link_col_total")}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {foreach $hypay_link.candidates as $c}
+                                    <tr>
+                                        <td>
+                                            <input type="checkbox" class="hypay-link-order" value="{$c.order_id}"
+                                                   data-total="{$c.total}"
+                                                   {if $c.current}checked="checked" disabled="disabled"{/if} />
+                                        </td>
+                                        <td>
+                                            {if $c.current}
+                                                #{$c.order_id} <span class="muted">({__("hypay_link_current_order")})</span>
+                                            {else}
+                                                <a href="{"orders.details?order_id=`$c.order_id`"|fn_url}" target="_blank">#{$c.order_id}</a>
+                                            {/if}
+                                        </td>
+                                        <td><small>{$c.timestamp|date_format:$hypay_link_date_format}</small></td>
+                                        <td><small>{$c.status_name}</small></td>
+                                        <td class="right">{include file="common/price.tpl" value=$c.total}</td>
+                                    </tr>
+                                {/foreach}
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="4" class="right"><strong>{__("hypay_link_total_selected")}:</strong></td>
+                                    <td class="right"><strong class="hypay-link-sum"
+                                        data-symbol="{$currencies[$smarty.const.CART_PRIMARY_CURRENCY].symbol|default:""|escape}">{include file="common/price.tpl" value=$hypay_link.order_total}</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                        {if $hypay_link.candidates|count <= 1}
+                            <p class="muted"><small>{if $hypay_link.statuses_set}{__("hypay_link_no_other_orders")}{else}{__("hypay_link_no_statuses_set")}{/if}</small></p>
+                        {/if}
                     </div>
 
                     {* what the payment will produce, per the payment method settings *}
@@ -156,6 +211,9 @@
 .hypay-link-copy-row .hypay-link-url { flex: 1 1 auto; margin: 0; min-width: 0; }
 .hypay-link-actions .btn { margin: 0 4px 4px 0; }
 .hypay-link-state { margin-top: 4px; }
+.hypay-link-orders { margin-bottom: 4px; background: #fff; }
+.hypay-link-orders td, .hypay-link-orders th { vertical-align: middle; }
+.hypay-link-orders .right { text-align: right; }
 .hypay-link-hint {
     display: inline-block;
     width: 14px; height: 14px;
@@ -224,13 +282,31 @@
 
     if (!create) { return; }
 
+    var orders = block.querySelectorAll('.hypay-link-order');
+    var sum    = block.querySelector('.hypay-link-sum');
+
     var sync = function () {
         var e = (send_email && send_email.checked && email) ? email.value.replace(/^\s+|\s+$/g, '') : '';
         var c = (send_sms && send_sms.checked && cell) ? cell.value.replace(/[^\d+]/g, '') : '';
 
+        // the other orders ticked in the table, and what they all add up to -
+        // this order is always in, its box is only there to show it
+        var ids   = [];
+        var total = 0;
+        for (var k = 0; k < orders.length; k++) {
+            if (!orders[k].checked) { continue; }
+            total += parseFloat(orders[k].getAttribute('data-total')) || 0;
+            if (!orders[k].disabled) { ids.push(orders[k].value); }
+        }
+        if (sum) {
+            var symbol = sum.getAttribute('data-symbol') || '';
+            sum.innerHTML = symbol + total.toFixed(2);
+        }
+
         var href = create.getAttribute('data-base');
         if (e !== '') { href += '&email=' + encodeURIComponent(e); }
         if (c !== '') { href += '&cell=' + encodeURIComponent(c); }
+        if (ids.length) { href += '&order_ids=' + ids.join(','); }
         create.href = href;
 
         var ok = (e !== '' || c !== '');
@@ -247,6 +323,7 @@
     }, true);
 
     var fields = [send_email, send_sms, email, cell];
+    for (var m = 0; m < orders.length; m++) { fields.push(orders[m]); }
     for (var j = 0; j < fields.length; j++) {
         if (!fields[j]) { continue; }
         fields[j].addEventListener('input', sync);

@@ -1067,9 +1067,9 @@ msgctxt "Languages::hypay_link_error_bad_cell"
 msgid "The mobile number is not valid (for example: 0501234567)."
 msgstr "Некорректный номер мобильного (например: 0501234567)."
 
-msgctxt "Languages::hypay_link_error_order_paid"
-msgid "This order has already been paid."
-msgstr "Этот заказ уже оплачен."
+msgctxt "Languages::hypay_link_error_has_document"
+msgid "This order already has a document attached (tax invoice, proforma or tax invoice receipt)."
+msgstr "К заказу уже прикреплён документ (tax invoice, proforma или tax invoice receipt)."
 
 msgctxt "Languages::hypay_link_error_active_exists"
 msgid "This order already has an active payment link. Cancel it first."
@@ -1088,8 +1088,8 @@ msgid "The terminal number or the API password (PassP) is not set in the payment
 msgstr "В настройках способа оплаты не указан номер терминала или пароль API (PassP)."
 
 msgctxt "Languages::hypay_link_error_not_hypay"
-msgid "This order is not paid with Hypay."
-msgstr "Этот заказ оплачивается не через Hypay."
+msgid "The shop has no active Hypay payment method to create the link through."
+msgstr "В магазине нет активного способа оплаты Hypay, через который можно создать ссылку."
 
 msgctxt "Languages::hypay_link_customer_paid"
 msgid "Thank you! The payment for order #[order_id] has been received."
@@ -1126,3 +1126,63 @@ msgstr "выпущен Hyp"
 msgctxt "Languages::hypay_link_document_after"
 msgid "Document after payment"
 msgstr "Документ после оплаты"
+
+msgctxt "Languages::hypay_link_section"
+msgid "Payment links"
+msgstr "Ссылки на оплату"
+
+msgctxt "Languages::hypay_link_order_statuses"
+msgid "Customer's orders offered in the link"
+msgstr "Заказы клиента для ссылки"
+
+msgctxt "Languages::hypay_link_order_statuses_desc"
+msgid "When a payment link is created from an order, the panel lists the customer's other orders with these statuses, so several orders can be paid with one link. Orders that already have a document attached or a link of their own are not listed. Select none to always pay for the one order only. Hold Ctrl (Cmd) to select several."
+msgstr "При создании ссылки на оплату панель показывает другие заказы клиента с этими статусами, чтобы оплатить несколько заказов одной ссылкой. Заказы, к которым уже прикреплён документ или у которых есть своя ссылка, не показываются. Если ничего не выбрано, ссылка всегда создаётся только на один заказ. Удерживайте Ctrl (Cmd), чтобы выбрать несколько."
+
+msgctxt "Languages::hypay_link_orders_title"
+msgid "Orders to pay with this link"
+msgstr "Заказы, которые оплачиваются этой ссылкой"
+
+msgctxt "Languages::hypay_link_col_order"
+msgid "Order"
+msgstr "Заказ"
+
+msgctxt "Languages::hypay_link_col_date"
+msgid "Date"
+msgstr "Дата"
+
+msgctxt "Languages::hypay_link_col_status"
+msgid "Status"
+msgstr "Статус"
+
+msgctxt "Languages::hypay_link_col_total"
+msgid "Total"
+msgstr "Сумма"
+
+msgctxt "Languages::hypay_link_current_order"
+msgid "this order"
+msgstr "этот заказ"
+
+msgctxt "Languages::hypay_link_total_selected"
+msgid "Total to pay"
+msgstr "Итого к оплате"
+
+msgctxt "Languages::hypay_link_no_other_orders"
+msgid "The customer has no other orders with the statuses chosen in the payment method settings."
+msgstr "У клиента нет других заказов со статусами, выбранными в настройках способа оплаты."
+
+msgctxt "Languages::hypay_link_no_statuses_set"
+msgid "To add the customer's other orders to the link, choose their statuses in the Hypay payment method settings (Payment links)."
+msgstr "Чтобы добавлять в ссылку другие заказы клиента, выберите их статусы в настройках способа оплаты Hypay (Ссылки на оплату)."
+
+msgctxt "Languages::hypay_link_orders_in_link"
+msgid "Orders in this link"
+msgstr "Заказы в этой ссылке"
+
+msgctxt "Languages::hypay_link_pi_orders"
+msgid "orders [orders]"
+msgstr "заказы [orders]"
+
+msgctxt "Languages::hypay_link_error_bad_order"
+msgid "Order #[order_id] cannot be added to the payment link: it belongs to another customer, has a status not chosen in the settings, a document attached, or a link of its own."
+msgstr "Заказ #[order_id] нельзя добавить в ссылку: он другого клиента, его статус не выбран в настройках, к нему прикреплён документ или у него есть своя ссылка."
