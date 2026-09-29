@@ -10,7 +10,10 @@
 {if $runtime.controller == "orders" && $runtime.mode == "details"}
 {$hypay_link = $order_info.order_id|fn_hypay_get_link_panel_data}
 
-{if $hypay_link}
+{* why there is no block, readable in the page source *}
+{if $hypay_link.hidden}
+<!-- hypay payment link: hidden, {$hypay_link.hidden|escape} -->
+{elseif $hypay_link}
 {$hypay_link_date_format = "`$settings.Appearance.date_format`, `$settings.Appearance.time_format`"}
 
 <div class="control-group hypay-link-block">

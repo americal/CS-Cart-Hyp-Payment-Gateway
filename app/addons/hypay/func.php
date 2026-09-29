@@ -3227,23 +3227,57 @@ function fn_hypay_order_is_paid($order_info, &$reason = '')
         return true;
     }
 
-    // Paid and Complete only. Not fn_get_order_paid_statuses(): despite its
-    // name it returns every status that takes the goods off the stock
-    // (inventory = D) - Open and any custom "New order" among them - which
-    // made every freshly placed order look paid and hid the button.
-    if (in_array((string) ($order_info['status'] ?? ''), ['P', 'C'], true)) {
-        $reason = 'order status is Paid or Complete';
-
-        return true;
-    }
-
-    if (strpos((string) ($order_info['payment_info']['reason_text'] ?? ''), '🟢') === 0) {
+    // The order status is deliberately not asked. Statuses are renamed and
+    // reused from shop to shop - "Processed" becomes "New order", Open is
+    // where a paid order lands by default - so none of them says whether money
+    // came in. (Nor does fn_get_order_paid_statuses(): despite its name it
+    // returns every status that takes the goods off the stock.) Only what the
+    // payment itself left on the order counts.
+    $reason_text = (string) ($order_info['payment_info']['reason_text'] ?? '');
+    if ($reason_text !== ''
+        && preg_match('/🟢|success/iu', $reason_text)
+        && !preg_match('/🔴|failure/iu', $reason_text)
+    ) {
         $reason = 'a successful Hyp payment is recorded on the order';
 
         return true;
     }
 
     return false;
+}
+
+/**
+ * Is the order's payment method a Hypay one?
+ *
+ * fn_check_payment_script() compares the processor script name exactly, and
+ * that is not the only way an installation can end up registered - an older
+ * install, a copied processor row. So the processor row is also read directly,
+ * and any sign of this add-on in it is enough.
+ */
+function fn_hypay_order_uses_hypay($order_id, array $order_info)
+{
+    if (fn_check_payment_script('hypay.php', $order_id)) {
+        return true;
+    }
+
+    $payment_id = (int) ($order_info['payment_id'] ?? 0);
+    if ($payment_id <= 0) {
+        return false;
+    }
+
+    $row = db_get_row(
+        "SELECT pp.processor, pp.processor_script, pp.addon FROM ?:payments AS p"
+        . " LEFT JOIN ?:payment_processors AS pp ON pp.processor_id = p.processor_id"
+        . " WHERE p.payment_id = ?i",
+        $payment_id
+    );
+    if (empty($row)) {
+        return false;
+    }
+
+    return basename((string) $row['processor_script']) === 'hypay.php'
+        || (string) $row['addon'] === 'hypay'
+        || stripos((string) $row['processor'], 'hyp') !== false;
 }
 
 /**
@@ -3304,7 +3338,7 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '')
         return false;
     }
 
-    if (!fn_check_payment_script('hypay.php', $order_id)) {
+    if (!fn_hypay_order_uses_hypay($order_id, $order_info)) {
         fn_set_notification('E', __('error'), __('hypay_link_error_not_hypay'));
 
         return false;
@@ -3952,19 +3986,19 @@ function fn_hypay_get_link_panel_data($order_id)
     $order_info = fn_get_order_info($order_id);
     if (empty($order_info)) { return []; }
 
-    // Why the block is absent is not visible on the page, so with debug mode
-    // on it is written down: an order that is not Hypay's, or one that counts
-    // as paid already. No line at all means this was never called - the
-    // template is not rendered (hook not reached, or a stale template cache).
+    // Why the block is absent is not visible on the page, so it is said twice:
+    // in the page source as an HTML comment ('hidden' below), and with debug
+    // mode on in the log. Neither means this was never called - the template
+    // is not rendered (hook not reached, or a stale template cache).
     $pp_link = fn_hypay_get_processor_params($order_info);
     $GLOBALS['HYPAY_DEBUG'] = (!empty($pp_link['debug_mode']) && $pp_link['debug_mode'] === 'Y');
 
-    if (!fn_check_payment_script('hypay.php', $order_id)) {
+    if (!fn_hypay_order_uses_hypay($order_id, $order_info)) {
         hypay_log($order_id, 'payment link block hidden: the order payment method is not a Hypay one', [
             'payment_id' => (int) ($order_info['payment_id'] ?? 0),
         ]);
 
-        return [];
+        return ['hidden' => 'payment method #' . (int) ($order_info['payment_id'] ?? 0) . ' is not a Hypay one'];
     }
 
     $link = fn_hypay_link_get_latest($order_id);
@@ -3977,7 +4011,7 @@ function fn_hypay_get_link_panel_data($order_id)
             'status' => (string) ($order_info['status'] ?? ''),
         ]);
 
-        return [];
+        return ['hidden' => 'the order counts as paid: ' . $paid_reason];
     }
 
     $order_total = round((float) $order_info['total'], 2);
