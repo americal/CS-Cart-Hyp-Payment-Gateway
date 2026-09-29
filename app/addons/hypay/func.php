@@ -24,6 +24,15 @@ if (!defined('HYPAY_PERSONAL_ID_UNKNOWN')) { define('HYPAY_PERSONAL_ID_UNKNOWN',
 /** add-on that owns ?:orders.additional_status - nothing here works without it */
 if (!defined('HYPAY_ADDITIONAL_STATUSES_ADDON')) { define('HYPAY_ADDITIONAL_STATUSES_ADDON', 'ecl_additional_order_statuses'); }
 
+/**
+ * Parameter that tells Hyp which EzCount document to issue for a paid payment
+ * link in integrated mode. Hyp hands EZ.* parameters on to EzCount, and "type"
+ * is EzCount's own name for the document type (320 / 400) - see
+ * fn_hypay_create_ezcount_doc(). Kept in one place so it is a one-line change
+ * if the terminal wants it spelled differently.
+ */
+if (!defined('HYPAY_EZ_INT_DOC_TYPE_PARAM')) { define('HYPAY_EZ_INT_DOC_TYPE_PARAM', 'EZ.type'); }
+
 /** global debug switch (filled from payment settings later) */
 if (!isset($GLOBALS['HYPAY_DEBUG'])) { $GLOBALS['HYPAY_DEBUG'] = false; }
 
@@ -100,6 +109,43 @@ function fn_hypay_ensure_schema()
         . " KEY hyp_id (hyp_id)"
         . ") ENGINE=InnoDB DEFAULT CHARSET=utf8"
     );
+
+    // Payment links (action=payRequest): one row per link created for an order.
+    // status: active | cancelled | paid. paid_via says who noticed the payment
+    // first - the customer's return from the payment page ('return') or the
+    // LIST lookup made from the order page ('list').
+    db_query(
+        "CREATE TABLE IF NOT EXISTS ?:hypay_payment_links ("
+        . " link_id int(11) unsigned NOT NULL auto_increment,"
+        . " order_id mediumint(8) unsigned NOT NULL default '0',"
+        . " payment_id mediumint(8) unsigned NOT NULL default '0',"
+        . " pay_request_id varchar(64) NOT NULL default '',"
+        . " payment_url varchar(255) NOT NULL default '',"
+        . " amount decimal(12,2) NOT NULL default '0.00',"
+        . " coin tinyint(3) unsigned NOT NULL default '1',"
+        . " info varchar(255) NOT NULL default '',"
+        . " sent_to varchar(255) NOT NULL default '',"
+        . " status varchar(16) NOT NULL default '',"
+        . " paid_via varchar(16) NOT NULL default '',"
+        . " trans_id varchar(64) NOT NULL default '',"
+        // the document Hyp issued itself (integrated EzCount), from Hesh
+        . " doc_number varchar(64) NOT NULL default '',"
+        . " created_at int(11) unsigned NOT NULL default '0',"
+        . " cancelled_at int(11) unsigned NOT NULL default '0',"
+        . " paid_at int(11) unsigned NOT NULL default '0',"
+        . " checked_at int(11) unsigned NOT NULL default '0',"
+        . " last_error text,"
+        . " PRIMARY KEY (link_id),"
+        . " KEY order_id (order_id),"
+        . " KEY pay_request_id (pay_request_id)"
+        . ") ENGINE=InnoDB DEFAULT CHARSET=utf8"
+    );
+
+    // added after the table first appeared
+    $link_columns = db_get_fields("SHOW COLUMNS FROM ?:hypay_payment_links");
+    if ($link_columns && !in_array('doc_number', $link_columns, true)) {
+        db_query("ALTER TABLE ?:hypay_payment_links ADD doc_number varchar(64) NOT NULL default ''");
+    }
 
     // columns added after the first release: add them to existing installations
     $columns = db_get_fields("SHOW COLUMNS FROM ?:hypay_transactions");
@@ -1289,7 +1335,9 @@ function hypay_ez_customer(array $pp, $order_info, $prefix = 'ez')
 /**
  * Create an EzCount document for an order through the direct API.
  *
- * $ctx: transaction_id (Hypay Id), brand, last4, payments, amount (charged sum).
+ * $ctx: transaction_id (Hypay Id), brand, last4, payments, amount (charged sum),
+ *       doc_type (320/400, optional: overrides the "Document type" setting -
+ *       a paid payment link has a setting of its own).
  * The document is issued for $ctx['amount']; the line items are rebuilt from the
  * order, so the two must match — otherwise nothing is issued at all.
  *
@@ -1301,7 +1349,7 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
     $ez_api_key         = trim((string) ($pp['ez_api_key'] ?? ''));
     $ez_developer_mail  = trim((string) ($pp['ez_developer_email'] ?? ''));
     $created_by_api_key = trim((string) ($pp['ez_created_by_api_key'] ?? '')); // optional, not hashed
-    $doc_type_param     = (int) ($pp['ez_doc_type'] ?? 320);                   // 320/400
+    $doc_type_param     = (int) ($ctx['doc_type'] ?? ($pp['ez_doc_type'] ?? 320)); // 320/400
     $doc_type           = in_array($doc_type_param, [320, 400], true) ? $doc_type_param : 320;
     $show_inc_vat       = isset($pp['ez_show_items_including_vat']) ? (int) (!empty($pp['ez_show_items_including_vat'])) : 1;
     $doc_lang           = ($pp['ez_doc_lang'] ?? 'he') === 'en' ? 'en' : 'he';
@@ -2196,6 +2244,16 @@ function fn_hypay_localize_payment_info(&$order)
         }
     }
 
+    // "Paid by payment link on ..." - composed again for the same reason as the
+    // J5 lines: the stored text is in whichever language was current when the
+    // payment came in, the row it is made from is not
+    if (isset($order['payment_info']['hypay_link'])) {
+        $link = fn_hypay_link_get_latest($order['order_id']);
+        if (!empty($link) && $link['status'] === 'paid') {
+            $order['payment_info']['hypay_link'] = fn_hypay_link_paid_label($link);
+        }
+    }
+
     // last, so it sees whatever the J5 branch merged in, and so the special
     // card type it prints comes from the transaction that branch already read
     $order['payment_info'] = fn_hypay_merge_card_line(
@@ -3065,4 +3123,881 @@ function fn_hypay_get_j5_panel_data($order_id)
         'void_state'        => (string) ($tx['void_state'] ?? ''),
         'last_error'        => (string) $tx['last_error'],
     ];
+}
+
+/* ============================================================================
+ * Payment links (action=payRequest)
+ *
+ * Per https://developers.hyp.co.il/pay/common-use-cases/send-payment-links
+ *   CREATE -> payRequestId + paymentURL, Hyp sends the link by e-mail / SMS
+ *   LIST   -> the 500 most recent links with their status (3 = paid)
+ *   DELETE -> cancels a link that has not been paid (CCode=995 if it has)
+ *
+ * A link is paid on Hyp's own payment page, so the result reaches the store
+ * two ways: the customer's return to payment_notification (the same one a
+ * checkout payment takes, card details included), and - for when that return
+ * never arrives - the LIST lookup made from the order page. Whichever comes
+ * first moves the order; the other one only fills in what it knows.
+ * ==========================================================================*/
+
+/** a link row by its id */
+function fn_hypay_link_get($link_id)
+{
+    fn_hypay_ensure_schema();
+
+    $row = db_get_row("SELECT * FROM ?:hypay_payment_links WHERE link_id = ?i", (int) $link_id);
+
+    return is_array($row) ? $row : [];
+}
+
+/** the most recent link of an order, whatever became of it */
+function fn_hypay_link_get_latest($order_id)
+{
+    fn_hypay_ensure_schema();
+
+    $row = db_get_row(
+        "SELECT * FROM ?:hypay_payment_links WHERE order_id = ?i ORDER BY link_id DESC LIMIT 1",
+        (int) $order_id
+    );
+
+    return is_array($row) ? $row : [];
+}
+
+/** the link the customer can still pay with, if the order has one */
+function fn_hypay_link_get_active($order_id)
+{
+    fn_hypay_ensure_schema();
+
+    $row = db_get_row(
+        "SELECT * FROM ?:hypay_payment_links WHERE order_id = ?i AND status = 'active' ORDER BY link_id DESC LIMIT 1",
+        (int) $order_id
+    );
+
+    return is_array($row) ? $row : [];
+}
+
+/** "Paid by payment link on 29.09.2026 14:05", in the reader's language */
+function fn_hypay_link_paid_label(array $link)
+{
+    return __('hypay_link_pi_paid', ['[date]' => date('d.m.Y H:i', (int) ($link['paid_at'] ?? 0))]);
+}
+
+/**
+ * A mobile number the way Hyp takes it for an SMS: 0501234567.
+ * +972 / 972 is turned back into the leading zero it replaces.
+ */
+function fn_hypay_link_normalize_cell($phone)
+{
+    $digits = preg_replace('/\D+/', '', (string) $phone);
+
+    if (strpos($digits, '972') === 0 && strlen($digits) > 9) {
+        $digits = '0' . ltrim(substr($digits, 3), '0');
+    }
+
+    return $digits;
+}
+
+/**
+ * Has this order been paid already, one way or another?
+ *
+ * A payment link is only offered for an order nobody has paid yet. Four
+ * answers count as "paid": a link of its own that was paid, a J5 hold that is
+ * open or already captured (the money is spoken for), a status the store
+ * itself treats as paid, and a successful Hyp charge recorded on the order -
+ * the last one because "Success status" may well be a status the store does
+ * not call paid (Open, by default).
+ */
+function fn_hypay_order_is_paid($order_info)
+{
+    $order_id = (int) ($order_info['order_id'] ?? 0);
+    if ($order_id <= 0) { return false; }
+
+    $link = fn_hypay_link_get_latest($order_id);
+    if (!empty($link) && $link['status'] === 'paid') {
+        return true;
+    }
+
+    $tx = fn_hypay_get_transaction($order_id);
+    if (!empty($tx) && in_array($tx['status'], ['authorized', 'capturing', 'captured'], true)) {
+        return true;
+    }
+
+    $paid_statuses = function_exists('fn_get_order_paid_statuses') ? (array) fn_get_order_paid_statuses() : ['P', 'C'];
+    if (in_array((string) ($order_info['status'] ?? ''), $paid_statuses, true)) {
+        return true;
+    }
+
+    $reason = (string) ($order_info['payment_info']['reason_text'] ?? '');
+
+    return strpos($reason, '🟢') === 0;
+}
+
+/**
+ * One payRequest call.
+ *
+ * CREATE and DELETE answer with a query string, LIST with a JSON array; both
+ * are returned, and the caller reads the one its command produces.
+ */
+function fn_hypay_link_api_request($order_id, array $params, $label, $timeout = 45)
+{
+    $url = HYPAY_API_URL . '?' . http_build_query($params);
+
+    hypay_log($order_id, $label . ' request', hypay_mask_params($params));
+
+    $response = (string) Http::get($url, ['timeout' => (int) $timeout]);
+
+    // LIST can be long; the log only needs to show what came back
+    hypay_log($order_id, $label . ' response', strlen($response) > 4000 ? substr($response, 0, 4000) . '…' : $response);
+
+    $parsed = [];
+    parse_str(trim($response), $parsed);
+
+    $json = json_decode($response, true);
+
+    return [
+        'raw'    => $response,
+        'params' => is_array($parsed) ? $parsed : [],
+        'json'   => is_array($json) ? $json : null,
+    ];
+}
+
+/** Masof + PassP of the order's Hypay payment method, '' when either is missing */
+function fn_hypay_link_credentials(array $pp)
+{
+    $masof = trim((string) ($pp['masof'] ?? ''));
+    $passp = trim((string) ($pp['passp'] ?? ''));
+
+    return ($masof === '' || $passp === '') ? [] : ['Masof' => $masof, 'PassP' => $passp];
+}
+
+/**
+ * Create a payment link for an order and have Hyp send it to the customer.
+ *
+ * @param string $email address to e-mail the link to, '' for none
+ * @param string $cell  mobile number to text the link to, '' for none
+ *
+ * @return bool
+ */
+function fn_hypay_link_create($order_id, $email = '', $cell = '')
+{
+    fn_hypay_ensure_schema();
+
+    $order_id   = (int) $order_id;
+    $order_info = fn_get_order_info($order_id);
+    if (empty($order_info)) {
+        fn_set_notification('E', __('error'), __('hypay_j5_error_no_order'));
+
+        return false;
+    }
+
+    if (!fn_check_payment_script('hypay.php', $order_id)) {
+        fn_set_notification('E', __('error'), __('hypay_link_error_not_hypay'));
+
+        return false;
+    }
+
+    $pp = fn_hypay_get_processor_params($order_info);
+    $GLOBALS['HYPAY_DEBUG'] = (!empty($pp['debug_mode']) && $pp['debug_mode'] === 'Y');
+
+    if (fn_hypay_order_is_paid($order_info)) {
+        fn_set_notification('E', __('error'), __('hypay_link_error_order_paid'));
+
+        return false;
+    }
+
+    if (fn_hypay_link_get_active($order_id)) {
+        fn_set_notification('E', __('error'), __('hypay_link_error_active_exists'));
+
+        return false;
+    }
+
+    $amount = round((float) $order_info['total'], 2);
+    if ($amount <= 0) {
+        fn_set_notification('E', __('error'), __('hypay_link_error_zero_amount'));
+
+        return false;
+    }
+
+    $credentials = fn_hypay_link_credentials($pp);
+    if (!$credentials) {
+        fn_set_notification('E', __('error'), __('hypay_link_error_no_credentials'));
+
+        return false;
+    }
+
+    // Hyp needs at least one way to reach the customer, and sends the link
+    // through every one it is given
+    $email = trim((string) $email);
+    $cell  = fn_hypay_link_normalize_cell($cell);
+
+    if ($email === '' && $cell === '') {
+        fn_set_notification('E', __('error'), __('hypay_link_error_no_contact'));
+
+        return false;
+    }
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        fn_set_notification('E', __('error'), __('hypay_link_error_bad_email'));
+
+        return false;
+    }
+    if ($cell !== '' && !preg_match('/^0\d{8,9}$/', $cell)) {
+        fn_set_notification('E', __('error'), __('hypay_link_error_bad_cell'));
+
+        return false;
+    }
+
+    // page language: the same choice the checkout payment page makes
+    $lang2     = hypay_lang2_from_order($order_info);
+    $page_lang = $pp['page_lang'] ?? 'auto';
+    if ($page_lang !== 'ENG' && $page_lang !== 'HEB') {
+        $page_lang = ($lang2 === 'he') ? 'HEB' : 'ENG';
+    }
+
+    // The document Hyp issues itself when the link is paid follows the
+    // integrated EzCount settings, exactly as a checkout charge does
+    $is_integrated = (($pp['ez_mode'] ?? 'none') === 'integrated');
+    $ez_customer   = $is_integrated ? hypay_ez_customer($pp, $order_info, 'ez_int') : [];
+    $ez_name       = (string) ($ez_customer['ezcount_name'] ?? '');
+
+    $info = hypay_build_info($order_id, $pp);
+
+    $params = $credentials + [
+        'action'      => 'payRequest',
+        'iCommand'    => 'CREATE',
+        'Amount'      => $amount,
+        'Coin'        => (int) ($pp['coin'] ?? 1),
+        'PageLang'    => $page_lang,
+        'Info'        => $info,
+        // the order number again, in the field the checkout payment page
+        // carries it in: when Hyp echoes it on the return, the order is found
+        // by it rather than by Info
+        'Order'       => $order_id,
+        'ClientName'  => hypay_sanitize_url_echo($ez_name !== '' ? $ez_name : ($order_info['firstname'] ?? '')),
+        'ClientLName' => hypay_sanitize_url_echo($ez_name !== '' ? ''       : ($order_info['lastname']  ?? '')),
+        'UTF8'        => hypay_bool($pp['utf8']    ?? 'Y'),
+        'UTF8out'     => hypay_bool($pp['utf8out'] ?? 'Y'),
+    ];
+    hypay_put($params, 'email', $email);
+    hypay_put($params, 'cell',  $cell);
+
+    // instalments, as configured for the checkout payment page
+    hypay_put($params, 'Tash',     isset($pp['tash'])     && $pp['tash']     !== '' ? (int) $pp['tash']     : null);
+    hypay_put($params, 'tashType', isset($pp['tashtype']) && $pp['tashtype'] !== '' ? (int) $pp['tashtype'] : null);
+    if (($pp['fixtash'] ?? 'N') === 'Y') {
+        $params['FixTash'] = 'True';
+    }
+
+    // Integrated: Hyp issues the document when the link is paid, of the type
+    // the payment link setting asks for - or none at all
+    $int_doc_type = $is_integrated ? fn_hypay_link_doc_type($pp, 'integrated') : 'none';
+    if ($is_integrated && $int_doc_type !== 'none') {
+        list($hesh_desc) = hypay_build_heshdesc($order_info);
+        $params['SendHesh'] = hypay_bool($pp['sendhesh'] ?? 'N');
+        $params['Pritim']   = hypay_bool($pp['pritim']   ?? 'Y');
+        if ($params['Pritim'] === 'True') {
+            $params['heshDesc'] = $hesh_desc;
+        }
+        $params[HYPAY_EZ_INT_DOC_TYPE_PARAM] = $int_doc_type;
+        hypay_put($params, 'UserId', (string) ($ez_customer['vat'] ?? ''));
+    } elseif ($is_integrated) {
+        // nothing to send to the customer; whether Hyp still issues the
+        // document depends on how the terminal's invoice module is set up
+        $params['SendHesh'] = 'False';
+    }
+
+    $result = fn_hypay_link_api_request($order_id, $params, 'link.create');
+    $answer = $result['params'];
+
+    $pay_request_id = trim((string) ($answer['payRequestId'] ?? ''));
+    $payment_url    = trim((string) ($answer['paymentURL'] ?? ''));
+
+    if ($pay_request_id === '' || $payment_url === '') {
+        $error = fn_hypay_format_error($answer['CCode'] ?? '', $answer['errMsg'] ?? '', $result['raw']);
+        fn_set_notification('E', __('error'), __('hypay_link_create_failed') . ' ' . $error);
+        hypay_log($order_id, 'link.create FAILED', $error);
+
+        return false;
+    }
+
+    $sent_to = implode('; ', array_filter([$email, $cell], 'strlen'));
+
+    db_query("INSERT INTO ?:hypay_payment_links ?e", [
+        'order_id'       => $order_id,
+        'payment_id'     => (int) ($order_info['payment_id'] ?? 0),
+        'pay_request_id' => $pay_request_id,
+        'payment_url'    => $payment_url,
+        'amount'         => $amount,
+        'coin'           => (int) ($pp['coin'] ?? 1),
+        'info'           => $info,
+        'sent_to'        => $sent_to,
+        'status'         => 'active',
+        'created_at'     => TIME,
+        'checked_at'     => TIME,
+        'last_error'     => '',
+    ]);
+
+    // A checkout payment the customer started and abandoned left its marker on
+    // the order, and the return from this link would be read as that checkout
+    // coming back. The link supersedes it; a checkout started after this sets
+    // a fresh marker of its own.
+    hypay_clear_back_marker($order_id);
+
+    hypay_log($order_id, 'link.create SUCCESS', [
+        'payRequestId' => $pay_request_id,
+        'paymentURL'   => $payment_url,
+        'sent_to'      => $sent_to,
+        'amount'       => $amount,
+    ]);
+    fn_set_notification('N', __('notice'), __('hypay_link_created_ok', ['[sent_to]' => $sent_to]));
+
+    return true;
+}
+
+/**
+ * Cancel the order's active payment link (iCommand=DELETE).
+ *
+ * @return bool true when the link is no longer payable - cancelled, or found
+ *              to have been paid, in which case the payment is recorded
+ */
+function fn_hypay_link_cancel($order_id)
+{
+    fn_hypay_ensure_schema();
+
+    $order_id   = (int) $order_id;
+    $order_info = fn_get_order_info($order_id);
+    if (empty($order_info)) {
+        fn_set_notification('E', __('error'), __('hypay_j5_error_no_order'));
+
+        return false;
+    }
+
+    $pp = fn_hypay_get_processor_params($order_info);
+    $GLOBALS['HYPAY_DEBUG'] = (!empty($pp['debug_mode']) && $pp['debug_mode'] === 'Y');
+
+    $link = fn_hypay_link_get_active($order_id);
+    if (empty($link)) {
+        fn_set_notification('E', __('error'), __('hypay_link_error_no_active'));
+
+        return false;
+    }
+
+    $credentials = fn_hypay_link_credentials($pp);
+    if (!$credentials) {
+        fn_set_notification('E', __('error'), __('hypay_link_error_no_credentials'));
+
+        return false;
+    }
+
+    $result = fn_hypay_link_api_request($order_id, $credentials + [
+        'action'     => 'payRequest',
+        'iCommand'   => 'DELETE',
+        'PayRequest' => $link['pay_request_id'],
+    ], 'link.delete');
+    $ccode = trim((string) ($result['params']['CCode'] ?? ''));
+
+    if ($ccode === '0') {
+        db_query(
+            "UPDATE ?:hypay_payment_links SET status = 'cancelled', cancelled_at = ?i, last_error = '' WHERE link_id = ?i AND status = 'active'",
+            TIME,
+            $link['link_id']
+        );
+        hypay_log($order_id, 'link.delete SUCCESS', ['payRequestId' => $link['pay_request_id']]);
+        fn_set_notification('N', __('notice'), __('hypay_link_cancel_ok'));
+
+        return true;
+    }
+
+    if ($ccode === '995') {
+        // too late: the customer has paid. The LIST lookup records it the way
+        // it records any payment nobody came back from.
+        hypay_log($order_id, 'link.delete refused: already paid, looking the payment up');
+        $state = fn_hypay_link_check($order_id, true);
+        if ($state !== 'paid') {
+            // LIST did not confirm it (older than its 500 rows, or unreachable):
+            // say so on the link, which stays as it is until the return or a
+            // later lookup records the payment
+            db_query(
+                "UPDATE ?:hypay_payment_links SET last_error = ?s WHERE link_id = ?i",
+                fn_hypay_format_error($ccode),
+                $link['link_id']
+            );
+            fn_set_notification('W', __('warning'), __('hypay_link_already_paid'));
+        }
+
+        return true;
+    }
+
+    if ($ccode === '250') {
+        // Hyp does not know the link (any more): nothing is left to pay with
+        db_query(
+            "UPDATE ?:hypay_payment_links SET status = 'cancelled', cancelled_at = ?i, last_error = ?s WHERE link_id = ?i AND status = 'active'",
+            TIME,
+            fn_hypay_format_error($ccode),
+            $link['link_id']
+        );
+        fn_set_notification('W', __('warning'), __('hypay_link_cancel_not_found'));
+
+        return true;
+    }
+
+    $error = fn_hypay_format_error($ccode, $result['params']['errMsg'] ?? '', $result['raw']);
+    db_query("UPDATE ?:hypay_payment_links SET last_error = ?s WHERE link_id = ?i", 'cancel: ' . $error, $link['link_id']);
+    fn_set_notification('E', __('error'), __('hypay_link_cancel_failed') . ' ' . $error);
+
+    return false;
+}
+
+/**
+ * Ask Hyp what became of the order's active link (iCommand=LIST).
+ *
+ * @param bool $quiet   no notification unless something actually changed -
+ *                      for the lookup made on its own when the page opens
+ * @param int  $timeout seconds to wait for Hyp
+ *
+ * @return string paid | cancelled | active | unknown
+ */
+function fn_hypay_link_check($order_id, $quiet = false, $timeout = 45)
+{
+    fn_hypay_ensure_schema();
+
+    $order_id = (int) $order_id;
+    $link     = fn_hypay_link_get_active($order_id);
+    if (empty($link)) {
+        if (!$quiet) {
+            fn_set_notification('E', __('error'), __('hypay_link_error_no_active'));
+        }
+
+        return 'unknown';
+    }
+
+    $order_info = fn_get_order_info($order_id);
+    $pp         = fn_hypay_get_processor_params($order_info);
+    $GLOBALS['HYPAY_DEBUG'] = (!empty($pp['debug_mode']) && $pp['debug_mode'] === 'Y');
+
+    $credentials = fn_hypay_link_credentials($pp);
+    if (!$credentials) {
+        if (!$quiet) {
+            fn_set_notification('E', __('error'), __('hypay_link_error_no_credentials'));
+        }
+
+        return 'unknown';
+    }
+
+    db_query("UPDATE ?:hypay_payment_links SET checked_at = ?i WHERE link_id = ?i", TIME, $link['link_id']);
+
+    $result = fn_hypay_link_api_request($order_id, $credentials + [
+        'action'   => 'payRequest',
+        'iCommand' => 'LIST',
+    ], 'link.list', $timeout);
+
+    if ($result['json'] === null) {
+        $error = fn_hypay_format_error($result['params']['CCode'] ?? '', $result['params']['errMsg'] ?? '', $result['raw']);
+        hypay_log($order_id, 'link.list FAILED', $error);
+        if (!$quiet) {
+            fn_set_notification('E', __('error'), __('hypay_link_check_failed') . ' ' . $error);
+        }
+
+        return 'unknown';
+    }
+
+    $item = null;
+    foreach ($result['json'] as $row) {
+        if (is_array($row) && (string) ($row['payRequestId'] ?? '') === (string) $link['pay_request_id']) {
+            $item = $row;
+            break;
+        }
+    }
+
+    if ($item === null) {
+        hypay_log($order_id, 'link.list: link not among the recent ones', ['payRequestId' => $link['pay_request_id']]);
+        if (!$quiet) {
+            fn_set_notification('W', __('warning'), __('hypay_link_check_not_found'));
+        }
+
+        return 'unknown';
+    }
+
+    $status = (string) ($item['status'] ?? '');
+    hypay_log($order_id, 'link.list: status', ['payRequestId' => $link['pay_request_id'], 'status' => $status, 'transId' => $item['transId'] ?? null]);
+
+    if ($status === '3') {
+        fn_hypay_link_settle_from_list($order_id, $link, (string) ($item['transId'] ?? ''));
+        fn_set_notification('N', __('notice'), __('hypay_link_check_paid'));
+
+        return 'paid';
+    }
+
+    if ($status === '0') {
+        // cancelled from the Hyp portal rather than from here
+        db_query(
+            "UPDATE ?:hypay_payment_links SET status = 'cancelled', cancelled_at = ?i, last_error = ?s WHERE link_id = ?i AND status = 'active'",
+            TIME,
+            __('hypay_link_check_cancelled_remote'),
+            $link['link_id']
+        );
+        fn_set_notification('W', __('warning'), __('hypay_link_check_cancelled_remote'));
+
+        return 'cancelled';
+    }
+
+    if (!$quiet) {
+        fn_set_notification('N', __('notice'), __('hypay_link_check_unpaid'));
+    }
+
+    return 'active';
+}
+
+/**
+ * The page-open lookup: at most once a minute per link, and with a short
+ * timeout, so an order page is never held up for long by a slow gateway.
+ */
+function fn_hypay_link_auto_check($order_id)
+{
+    $link = fn_hypay_link_get_active($order_id);
+    if (empty($link) || (int) $link['checked_at'] > TIME - 60) {
+        return;
+    }
+
+    fn_hypay_link_check($order_id, true, 10);
+}
+
+/**
+ * Take a link from active to paid, exactly once.
+ *
+ * @param string $via      return | list
+ * @param string $trans_id Hyp's transaction Id, when known
+ *
+ * @return bool true for the caller that made the change - the one that moves
+ *              the order; false when someone else already had
+ */
+function fn_hypay_link_claim_paid($link_id, $via, $trans_id = '')
+{
+    return (bool) db_query(
+        "UPDATE ?:hypay_payment_links SET status = 'paid', paid_via = ?s, paid_at = ?i, trans_id = ?s, last_error = ''"
+        . " WHERE link_id = ?i AND status = 'active'",
+        (string) $via,
+        TIME,
+        (string) $trans_id,
+        (int) $link_id
+    );
+}
+
+/**
+ * Record a link payment on the order: payment information, status, and the
+ * additional status an ordinary charge gets.
+ *
+ * Not fn_finish_payment(): that only acts on an order a checkout payment was
+ * started for, and a link is paid without one - an order placed from the admin
+ * panel, or one whose checkout payment has already come back declined.
+ */
+function fn_hypay_link_finish_order($order_id, array $pp_response, array $pp)
+{
+    $status = (string) ($pp_response['order_status'] ?? '');
+    unset($pp_response['order_status']);
+
+    fn_hypay_update_payment_info($order_id, $pp_response);
+
+    if ($status !== '') {
+        fn_change_order_status($order_id, $status);
+    }
+
+    if (!empty($pp['success_additional_status'])) {
+        fn_hypay_set_additional_status($order_id, $pp['success_additional_status']);
+    }
+
+    fn_hypay_order_note($order_id, 'paid by payment link');
+}
+
+/**
+ * LIST says the link was paid, and the customer's return has not been seen:
+ * the order is settled with what LIST knows. The card details are not among
+ * it - if the return turns up later, it adds them.
+ */
+function fn_hypay_link_settle_from_list($order_id, array $link, $trans_id)
+{
+    $trans_id = trim((string) $trans_id);
+
+    if (!fn_hypay_link_claim_paid($link['link_id'], 'list', $trans_id)) {
+        return false;
+    }
+
+    $link       = fn_hypay_link_get($link['link_id']);
+    $order_info = fn_get_order_info($order_id);
+    $pp         = fn_hypay_get_processor_params($order_info);
+
+    $pp_response = [
+        'reason_text'  => '🟢 Success',
+        'hypay_link'   => fn_hypay_link_paid_label($link),
+        'order_status' => !empty($pp['success_status']) ? $pp['success_status'] : 'O',
+    ];
+    if ($trans_id !== '') {
+        $pp_response['transaction_id'] = $trans_id;
+    }
+
+    fn_hypay_link_finish_order($order_id, $pp_response, $pp);
+    hypay_log($order_id, 'link paid (found by LIST)', ['payRequestId' => $link['pay_request_id'], 'transId' => $trans_id]);
+
+    fn_hypay_link_issue_document($order_id, $pp, $link, [
+        'transaction_id' => $trans_id,
+        'brand'          => '',
+        'last4'          => '',
+        'payments'       => 1,
+    ]);
+
+    return true;
+}
+
+/**
+ * Which document a paid payment link gets, per the settings.
+ *
+ * Direct API and Integrated are set separately ("ez_link_doc_type" and
+ * "ez_int_link_doc_type"), each one of: 320 tax invoice receipt, 400 receipt,
+ * none. Unset means 320 - a link is a sale like any other.
+ *
+ * @param string $mode direct | integrated
+ *
+ * @return int|string 320, 400 or 'none'
+ */
+function fn_hypay_link_doc_type(array $pp, $mode)
+{
+    $key   = ($mode === 'integrated') ? 'ez_int_link_doc_type' : 'ez_link_doc_type';
+    $value = trim((string) ($pp[$key] ?? ''));
+
+    if ($value === 'none') {
+        return 'none';
+    }
+
+    return ((int) $value === 400) ? 400 : 320;
+}
+
+/**
+ * The EzCount document for a paid payment link, issued through the direct API
+ * - the same call, and the same record on the order, a checkout payment gets.
+ *
+ * Integrated mode is not handled here: there Hyp issues the document itself,
+ * as asked for when the link was created (fn_hypay_link_create).
+ *
+ * @param array $card transaction_id, brand, last4, payments
+ *
+ * @return array|false document info, false when none was issued
+ */
+function fn_hypay_link_issue_document($order_id, array $pp, array $link, array $card)
+{
+    $ez_mode = $pp['ez_mode'] ?? 'none';
+    if ($ez_mode !== 'direct') {
+        hypay_log($order_id, 'link: ezcount skipped (mode != direct)', ['ez_mode' => $ez_mode]);
+
+        return false;
+    }
+
+    $doc_type = fn_hypay_link_doc_type($pp, 'direct');
+    if ($doc_type === 'none') {
+        hypay_log($order_id, 'link: ezcount skipped (no document for payment links)');
+
+        return false;
+    }
+
+    return fn_hypay_create_ezcount_doc($order_id, fn_get_order_info($order_id), $pp, [
+        'transaction_id' => (string) ($card['transaction_id'] ?? ''),
+        'brand'          => (string) ($card['brand'] ?? ''),
+        'last4'          => (string) ($card['last4'] ?? ''),
+        'payments'       => max(1, (int) ($card['payments'] ?? 1)),
+        'amount'         => round((float) $link['amount'], 2),
+        'flow'           => 'regular',
+        'doc_type'       => $doc_type,
+    ]);
+}
+
+/**
+ * The EzCount document recorded on the order, as the direct API left it.
+ *
+ * @return array empty when there is none
+ */
+function fn_hypay_get_order_document($order_id)
+{
+    $data = db_get_field("SELECT data FROM ?:order_data WHERE order_id = ?i AND type = 'X'", (int) $order_id);
+    $doc  = $data ? @unserialize($data) : false;
+
+    return (is_array($doc) && !empty($doc['ezcount_invoice_id'])) ? $doc : [];
+}
+
+/**
+ * The link a payment_notification return belongs to, if it belongs to one.
+ *
+ * The return from a paid link lands on the same URL as a checkout payment, so
+ * it has to be told apart:
+ *   - by payRequestId, if Hyp echoes it;
+ *   - by the order number, when there is one, and only while no checkout
+ *     payment is in flight for that order (the marker the checkout sets);
+ *   - by Info (and Amount), when the return carries no order number at all -
+ *     Info is what the link was created with and Hyp keeps it.
+ *
+ * @return array the link row, empty when this is not a link payment
+ */
+function fn_hypay_link_find_for_return($order_id)
+{
+    fn_hypay_ensure_schema();
+
+    $order_id = (int) $order_id;
+
+    $req_id = hypay_request_value(['payRequestId', 'PayRequestId', 'PayRequest', 'payRequest']);
+    if ($req_id !== '') {
+        $row = db_get_row("SELECT * FROM ?:hypay_payment_links WHERE pay_request_id = ?s ORDER BY link_id DESC LIMIT 1", $req_id);
+        if (!empty($row) && ($order_id <= 0 || (int) $row['order_id'] === $order_id)) {
+            return $row;
+        }
+    }
+
+    if ($order_id > 0) {
+        if (hypay_get_marker_data($order_id)) {
+            return [];
+        }
+
+        $row = db_get_row(
+            "SELECT * FROM ?:hypay_payment_links WHERE order_id = ?i AND status IN ('active', 'paid') ORDER BY link_id DESC LIMIT 1",
+            $order_id
+        );
+
+        return is_array($row) ? $row : [];
+    }
+
+    $info = trim(hypay_utf8_text(hypay_request_value(['Info'])));
+    if ($info === '') {
+        return [];
+    }
+
+    $rows = db_get_array(
+        "SELECT * FROM ?:hypay_payment_links WHERE info = ?s AND status IN ('active', 'paid') ORDER BY link_id DESC",
+        $info
+    );
+
+    $amount = hypay_request_value(['Amount']);
+    if ($amount !== '' && is_numeric($amount)) {
+        $rows = array_values(array_filter($rows, static function ($row) use ($amount) {
+            return abs((float) $row['amount'] - (float) $amount) < 0.01;
+        }));
+    }
+
+    // an Info template without {order_id} can match several orders, and a
+    // guess would put the money on the wrong one
+    $orders = array_unique(array_map(static function ($row) { return (int) $row['order_id']; }, $rows));
+
+    return count($orders) === 1 ? $rows[0] : [];
+}
+
+/**
+ * The order was paid some other way while a link was still out: withdraw the
+ * link so the customer cannot pay a second time. Best effort - the payment
+ * that just came in is not held up by it.
+ */
+function fn_hypay_link_retire($order_id, array $pp)
+{
+    $link = fn_hypay_link_get_active($order_id);
+    if (empty($link)) { return; }
+
+    $credentials = fn_hypay_link_credentials($pp);
+    if (!$credentials) { return; }
+
+    $result = fn_hypay_link_api_request($order_id, $credentials + [
+        'action'     => 'payRequest',
+        'iCommand'   => 'DELETE',
+        'PayRequest' => $link['pay_request_id'],
+    ], 'link.retire', 15);
+    $ccode = trim((string) ($result['params']['CCode'] ?? ''));
+
+    if ($ccode === '0' || $ccode === '250') {
+        db_query(
+            "UPDATE ?:hypay_payment_links SET status = 'cancelled', cancelled_at = ?i, last_error = ?s WHERE link_id = ?i AND status = 'active'",
+            TIME,
+            __('hypay_link_retired'),
+            $link['link_id']
+        );
+    } elseif ($ccode === '995') {
+        // the link was paid too: two payments for one order, and only a person
+        // can sort that out - say it where they will see it
+        db_query(
+            "UPDATE ?:hypay_payment_links SET last_error = ?s WHERE link_id = ?i",
+            __('hypay_link_double_payment'),
+            $link['link_id']
+        );
+        hypay_log($order_id, 'WARNING: the order was paid at checkout AND through its payment link');
+    }
+}
+
+/**
+ * Everything the order page needs to render the payment link block.
+ *
+ * @return array empty when there is nothing to show: not a Hypay order, or
+ *               an order that was paid some other way
+ */
+function fn_hypay_get_link_panel_data($order_id)
+{
+    $order_id = (int) $order_id;
+    if ($order_id <= 0 || !fn_check_payment_script('hypay.php', $order_id)) {
+        return [];
+    }
+
+    $order_info = fn_get_order_info($order_id);
+    if (empty($order_info)) { return []; }
+
+    $link = fn_hypay_link_get_latest($order_id);
+    $state = empty($link) ? 'none' : (string) $link['status'];
+
+    if ($state !== 'paid' && fn_hypay_order_is_paid($order_info)) {
+        return [];
+    }
+
+    $order_total = round((float) $order_info['total'], 2);
+    $amount      = empty($link) ? 0.0 : round((float) $link['amount'], 2);
+    $pp_link     = fn_hypay_get_processor_params($order_info);
+
+    // the first phone the order has, in the order a mobile is likeliest to be in
+    $cell = '';
+    foreach (['phone', 'b_phone', 's_phone'] as $key) {
+        if (trim((string) ($order_info[$key] ?? '')) !== '') {
+            $cell = (string) $order_info[$key];
+            break;
+        }
+    }
+
+    return [
+        'order_id'      => $order_id,
+        'state'         => $state,
+        'payment_url'   => (string) ($link['payment_url'] ?? ''),
+        'sent_to'       => (string) ($link['sent_to'] ?? ''),
+        'amount'        => $amount,
+        'created_at'    => (int) ($link['created_at'] ?? 0),
+        'cancelled_at'  => (int) ($link['cancelled_at'] ?? 0),
+        'paid_at'       => (int) ($link['paid_at'] ?? 0),
+        'trans_id'      => (string) ($link['trans_id'] ?? ''),
+        'doc_number'    => (string) ($link['doc_number'] ?? ''),
+        'last_error'    => (string) ($link['last_error'] ?? ''),
+        'order_total'   => $order_total,
+        // the order was edited after the link went out: the customer would pay
+        // the old amount
+        'total_changed' => ($state === 'active' && abs($order_total - $amount) > 0.009),
+        'can_create'    => ($state !== 'active' && $state !== 'paid' && $order_total > 0),
+        // what the payment will produce, so nobody is surprised afterwards
+        'doc_type'      => fn_hypay_link_panel_doc_type($pp_link),
+        // and, once it is paid, what it did produce (direct API)
+        'document'      => ($state === 'paid') ? fn_hypay_get_order_document($order_id) : [],
+        'email'         => (string) ($order_info['email'] ?? ''),
+        'cell'          => fn_hypay_link_normalize_cell($cell),
+    ];
+}
+
+/**
+ * The document a paid link will produce, as a word for the panel.
+ *
+ * @return array ['mode' => direct|integrated, 'type' => 320|400|none], empty
+ *               when EzCount is not used at all
+ */
+function fn_hypay_link_panel_doc_type(array $pp)
+{
+    $mode = $pp['ez_mode'] ?? 'none';
+    if ($mode !== 'direct' && $mode !== 'integrated') {
+        return [];
+    }
+
+    return ['mode' => $mode, 'type' => (string) fn_hypay_link_doc_type($pp, $mode)];
 }

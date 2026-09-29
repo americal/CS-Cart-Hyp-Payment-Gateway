@@ -505,6 +505,22 @@
          </div>
      </div>
 
+     {* The document Hyp issues when a payment link is paid. Set apart from the
+        checkout one: a link is often a phone sale that wants a different
+        document, or none. Unset means a tax invoice receipt. *}
+     {assign var="ez_int_link_doc_type" value=$processor_params.ez_int_link_doc_type|default:"320"}
+     <div class="control-group">
+         <label class="control-label" for="ez_int_link_doc_type">{__("hypay_ez_link_doc_type")}</label>
+         <div class="controls">
+             <select name="payment_data[processor_params][ez_int_link_doc_type]" id="ez_int_link_doc_type" class="input-large">
+                 <option value="320" {if $ez_int_link_doc_type == "320"}selected="selected"{/if}>{__("hypay_ez_doc_type_320")} (320)</option>
+                 <option value="400" {if $ez_int_link_doc_type == "400"}selected="selected"{/if}>{__("hypay_ez_doc_type_400")} (400)</option>
+                 <option value="none" {if $ez_int_link_doc_type == "none"}selected="selected"{/if}>{__("hypay_ez_link_doc_type_none")}</option>
+             </select>
+             <p class="muted description">{__("hypay_ez_int_link_doc_type_desc")}</p>
+         </div>
+     </div>
+
 
 <hr>
 
@@ -567,6 +583,21 @@
                 <option value="400" {if $processor_params.ez_doc_type == 400}selected{/if}>{__("hypay_ez_doc_type_400")} (400)</option>
             </select>
             <p class="muted description">{__("hypay_ez_doc_type_desc")}</p>
+        </div>
+    </div>
+
+    {* The document issued when a payment link is paid - its own setting, like
+       the J5 one below. Unset means a tax invoice receipt. *}
+    {assign var="ez_link_doc_type" value=$processor_params.ez_link_doc_type|default:"320"}
+    <div class="control-group">
+        <label class="control-label" for="ez_link_doc_type">{__("hypay_ez_link_doc_type")}</label>
+        <div class="controls">
+            <select name="payment_data[processor_params][ez_link_doc_type]" id="ez_link_doc_type" class="input-large">
+                <option value="320" {if $ez_link_doc_type == "320"}selected="selected"{/if}>{__("hypay_ez_doc_type_320")} (320)</option>
+                <option value="400" {if $ez_link_doc_type == "400"}selected="selected"{/if}>{__("hypay_ez_doc_type_400")} (400)</option>
+                <option value="none" {if $ez_link_doc_type == "none"}selected="selected"{/if}>{__("hypay_ez_link_doc_type_none")}</option>
+            </select>
+            <p class="muted description">{__("hypay_ez_link_doc_type_desc")}</p>
         </div>
     </div>
 

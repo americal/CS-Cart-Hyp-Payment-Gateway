@@ -6,6 +6,10 @@
  *
  * dispatch[hypay.capture] — charge a held authorization (order total)
  * dispatch[hypay.void]    — abandon the hold, nothing is charged
+ *
+ * dispatch[hypay.link_create] — create a payment link and send it (payRequest)
+ * dispatch[hypay.link_cancel] — cancel the order's active payment link
+ * dispatch[hypay.link_check]  — ask Hyp whether the link has been paid
  *****************************************************************************/
 
 if (!defined('BOOTSTRAP')) { die('Access denied'); }
@@ -42,6 +46,31 @@ if ($mode === 'capture') {
     // hypay_result tells the order page it was reached from a J5 action, so the
     // notification carrying the outcome is pinned instead of fading away
     return [CONTROLLER_STATUS_OK, 'orders.details?order_id=' . $order_id . '&hypay_result=capture'];
+}
+
+// hypay_link_open brings the page back with the payment link panel open, so
+// the link just created (or the outcome of the action) is right in front of
+// whoever clicked
+if ($mode === 'link_create') {
+    fn_hypay_link_create(
+        $order_id,
+        (string) ($_REQUEST['email'] ?? ''),
+        (string) ($_REQUEST['cell'] ?? '')
+    );
+
+    return [CONTROLLER_STATUS_OK, 'orders.details?order_id=' . $order_id . '&hypay_result=link&hypay_link_open=1'];
+}
+
+if ($mode === 'link_cancel') {
+    fn_hypay_link_cancel($order_id);
+
+    return [CONTROLLER_STATUS_OK, 'orders.details?order_id=' . $order_id . '&hypay_result=link&hypay_link_open=1'];
+}
+
+if ($mode === 'link_check') {
+    fn_hypay_link_check($order_id);
+
+    return [CONTROLLER_STATUS_OK, 'orders.details?order_id=' . $order_id . '&hypay_result=link&hypay_link_open=1'];
 }
 
 if ($mode === 'void') {

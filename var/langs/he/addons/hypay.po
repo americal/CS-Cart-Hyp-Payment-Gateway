@@ -699,3 +699,228 @@ msgstr "מזהה שדה הפרופיל של כתובת ה-CC"
 msgctxt "Languages::hypay_ez_cc_email_field_id_desc"
 msgid "The ID of the profile field holding the EzCount CC e-mail. Leave it empty to use the field named ezcount_additional_email, which is the one the EzCount Invoice Generator add-on reads."
 msgstr "המזהה של שדה הפרופיל שמחזיק את כתובת ה-CC ב-EzCount. השאירו ריק כדי להשתמש בשדה בשם ezcount_additional_email - אותו שדה שתוסף EzCount Invoice Generator קורא."
+
+# Payment links (payRequest)
+msgctxt "Languages::hypay_link_title"
+msgid "Payment link"
+msgstr "קישור לתשלום"
+
+msgctxt "Languages::hypay_link"
+msgid "Payment link"
+msgstr "קישור לתשלום"
+
+msgctxt "Languages::hypay_link_btn"
+msgid "Payment Link"
+msgstr "קישור לתשלום"
+
+msgctxt "Languages::hypay_link_panel_title"
+msgid "Payment link for order #[order_id]"
+msgstr "קישור לתשלום עבור הזמנה #[order_id]"
+
+msgctxt "Languages::hypay_link_url"
+msgid "Link"
+msgstr "קישור"
+
+msgctxt "Languages::hypay_link_copy"
+msgid "Copy"
+msgstr "העתקה"
+
+msgctxt "Languages::hypay_link_copied"
+msgid "Copied"
+msgstr "הועתק"
+
+msgctxt "Languages::hypay_link_cancel"
+msgid "Cancel link"
+msgstr "ביטול הקישור"
+
+msgctxt "Languages::hypay_link_check"
+msgid "Check payment"
+msgstr "בדיקת תשלום"
+
+msgctxt "Languages::hypay_link_close"
+msgid "Close"
+msgstr "סגירה"
+
+msgctxt "Languages::hypay_link_create"
+msgid "Create and send link"
+msgstr "יצירה ושליחה של הקישור"
+
+msgctxt "Languages::hypay_link_send_email"
+msgid "Send by e-mail"
+msgstr "שליחה בדוא\"ל"
+
+msgctxt "Languages::hypay_link_send_sms"
+msgid "Send by SMS"
+msgstr "שליחה ב-SMS"
+
+msgctxt "Languages::hypay_link_amount"
+msgid "Amount"
+msgstr "סכום"
+
+msgctxt "Languages::hypay_link_sent_to"
+msgid "Sent to"
+msgstr "נשלח אל"
+
+msgctxt "Languages::hypay_link_transaction"
+msgid "Transaction"
+msgstr "עסקה"
+
+msgctxt "Languages::hypay_link_state_active"
+msgid "Link created on [date]"
+msgstr "הקישור נוצר ב-[date]"
+
+msgctxt "Languages::hypay_link_state_cancelled"
+msgid "Link cancelled on [date]"
+msgstr "הקישור בוטל ב-[date]"
+
+msgctxt "Languages::hypay_link_paid_on"
+msgid "Paid by payment link on [date]"
+msgstr "שולם בקישור לתשלום ב-[date]"
+
+msgctxt "Languages::hypay_link_pi_paid"
+msgid "Paid by payment link on [date]"
+msgstr "שולם בקישור לתשלום ב-[date]"
+
+msgctxt "Languages::hypay_link_confirm_create"
+msgid "The payment link will be sent to the customer. Continue?"
+msgstr "הקישור לתשלום יישלח ללקוח. להמשיך?"
+
+msgctxt "Languages::hypay_link_confirm_cancel"
+msgid "Cancel this payment link? The customer will no longer be able to pay with it."
+msgstr "לבטל את הקישור לתשלום? הלקוח לא יוכל לשלם בו יותר."
+
+msgctxt "Languages::hypay_link_hint_short"
+msgid "Hyp sends the link to the customer by e-mail and/or SMS."
+msgstr "Hyp ישלח את הקישור ללקוח בדוא\"ל ו/או ב-SMS."
+
+msgctxt "Languages::hypay_link_hint"
+msgid "The link is for the current order total. When the customer pays, the payment details appear in Payment information and the order gets the success status, as after a payment on the site. Requires the payment links feature to be enabled for the terminal in Hyp Market."
+msgstr "הקישור נוצר על הסכום הנוכחי של ההזמנה. כשהלקוח ישלם, פרטי התשלום יופיעו ב-Payment information וההזמנה תקבל את סטטוס ההצלחה - כמו אחרי תשלום באתר. נדרש שתכונת הקישורים לתשלום תהיה מופעלת למסוף ב-Hyp Market."
+
+msgctxt "Languages::hypay_link_created_ok"
+msgid "Payment link created and sent to [sent_to]."
+msgstr "הקישור לתשלום נוצר ונשלח אל [sent_to]."
+
+msgctxt "Languages::hypay_link_create_failed"
+msgid "Hyp did not create the payment link:"
+msgstr "Hyp לא יצר את הקישור לתשלום:"
+
+msgctxt "Languages::hypay_link_cancel_ok"
+msgid "Payment link cancelled."
+msgstr "הקישור לתשלום בוטל."
+
+msgctxt "Languages::hypay_link_cancel_failed"
+msgid "Hyp did not cancel the payment link:"
+msgstr "Hyp לא ביטל את הקישור לתשלום:"
+
+msgctxt "Languages::hypay_link_cancel_not_found"
+msgid "Hyp does not know this payment link any more, so it has been marked as cancelled."
+msgstr "Hyp כבר לא מכיר את הקישור הזה, ולכן הוא סומן כמבוטל."
+
+msgctxt "Languages::hypay_link_already_paid"
+msgid "Hyp says the link has already been paid, but the payment could not be looked up yet. Use \"Check payment\" in a minute."
+msgstr "Hyp מדווח שהקישור כבר שולם, אך עדיין לא ניתן לאתר את התשלום. לחצו על \"בדיקת תשלום\" בעוד דקה."
+
+msgctxt "Languages::hypay_link_check_paid"
+msgid "The payment link has been paid. The payment has been recorded on the order."
+msgstr "הקישור שולם. התשלום נרשם בהזמנה."
+
+msgctxt "Languages::hypay_link_check_unpaid"
+msgid "The payment link has not been paid yet."
+msgstr "הקישור עדיין לא שולם."
+
+msgctxt "Languages::hypay_link_check_not_found"
+msgid "This link is not among the recent payment links Hyp returned."
+msgstr "הקישור אינו בין הקישורים האחרונים ש-Hyp החזיר."
+
+msgctxt "Languages::hypay_link_check_failed"
+msgid "Could not get the list of payment links from Hyp:"
+msgstr "לא ניתן לקבל את רשימת הקישורים מ-Hyp:"
+
+msgctxt "Languages::hypay_link_check_cancelled_remote"
+msgid "The payment link was cancelled in the Hyp portal."
+msgstr "הקישור בוטל בפורטל של Hyp."
+
+msgctxt "Languages::hypay_link_retired"
+msgid "Cancelled automatically: the order was paid at checkout."
+msgstr "בוטל אוטומטית: ההזמנה שולמה באתר."
+
+msgctxt "Languages::hypay_link_double_payment"
+msgid "The order was paid at checkout AND through this payment link. Check both transactions in the Hyp portal and refund one of them."
+msgstr "ההזמנה שולמה גם באתר וגם בקישור הזה. בדקו את שתי העסקאות בפורטל של Hyp וזכו אחת מהן."
+
+msgctxt "Languages::hypay_link_warning_total_changed"
+msgid "The order total has changed since the link was created. Cancel the link and create a new one, or the customer will pay the old amount."
+msgstr "סכום ההזמנה השתנה מאז שהקישור נוצר. בטלו את הקישור וצרו חדש, אחרת הלקוח ישלם את הסכום הישן."
+
+msgctxt "Languages::hypay_link_error_no_contact"
+msgid "Choose at least one way to send the link: e-mail or SMS."
+msgstr "בחרו לפחות דרך אחת לשליחת הקישור: דוא\"ל או SMS."
+
+msgctxt "Languages::hypay_link_error_bad_email"
+msgid "The e-mail address is not valid."
+msgstr "כתובת הדוא\"ל אינה תקינה."
+
+msgctxt "Languages::hypay_link_error_bad_cell"
+msgid "The mobile number is not valid (for example: 0501234567)."
+msgstr "מספר הנייד אינו תקין (לדוגמה: 0501234567)."
+
+msgctxt "Languages::hypay_link_error_order_paid"
+msgid "This order has already been paid."
+msgstr "ההזמנה הזו כבר שולמה."
+
+msgctxt "Languages::hypay_link_error_active_exists"
+msgid "This order already has an active payment link. Cancel it first."
+msgstr "להזמנה כבר יש קישור פעיל לתשלום. בטלו אותו קודם."
+
+msgctxt "Languages::hypay_link_error_no_active"
+msgid "This order has no active payment link."
+msgstr "להזמנה אין קישור פעיל לתשלום."
+
+msgctxt "Languages::hypay_link_error_zero_amount"
+msgid "The order total must be greater than zero."
+msgstr "סכום ההזמנה חייב להיות גדול מאפס."
+
+msgctxt "Languages::hypay_link_error_no_credentials"
+msgid "The terminal number or the API password (PassP) is not set in the payment method settings."
+msgstr "מספר המסוף או סיסמת ה-API (PassP) לא הוגדרו בהגדרות אמצעי התשלום."
+
+msgctxt "Languages::hypay_link_error_not_hypay"
+msgid "This order is not paid with Hypay."
+msgstr "ההזמנה הזו אינה משולמת דרך Hypay."
+
+msgctxt "Languages::hypay_link_customer_paid"
+msgid "Thank you! The payment for order #[order_id] has been received."
+msgstr "תודה! התשלום עבור הזמנה #[order_id] התקבל."
+
+msgctxt "Languages::hypay_link_customer_failed"
+msgid "The payment was not completed. You can try again using the same link."
+msgstr "התשלום לא הושלם. אפשר לנסות שוב באמצעות אותו קישור."
+
+msgctxt "Languages::hypay_ez_link_doc_type"
+msgid "Document after a payment link is paid"
+msgstr "מסמך לאחר תשלום בקישור"
+
+msgctxt "Languages::hypay_ez_link_doc_type_none"
+msgid "No document"
+msgstr "ללא מסמך"
+
+msgctxt "Languages::hypay_ez_link_doc_type_desc"
+msgid "The EzCount document issued through the Direct API when a customer pays with a payment link sent from the order page. It is recorded on the order the same way as after a payment on the site."
+msgstr "מסמך EzCount שמופק דרך ה-Direct API כשהלקוח משלם בקישור שנשלח מדף ההזמנה. הוא נרשם בהזמנה בדיוק כמו אחרי תשלום באתר."
+
+msgctxt "Languages::hypay_ez_int_link_doc_type_desc"
+msgid "The document Hyp issues itself when a customer pays with a payment link. \"No document\" stops the add-on from asking Hyp for one; if the terminal's invoice module is set to issue a document on every payment, Hyp may still do so."
+msgstr "המסמך ש-Hyp מפיק בעצמו כשהלקוח משלם בקישור. \"ללא מסמך\" - התוסף לא מבקש מ-Hyp מסמך; אם מודול החשבוניות של המסוף מוגדר להפיק מסמך בכל תשלום, Hyp עשוי להפיק אותו בכל זאת."
+
+msgctxt "Languages::hypay_link_document"
+msgid "Document"
+msgstr "מסמך"
+
+msgctxt "Languages::hypay_link_document_by_hyp"
+msgid "issued by Hyp"
+msgstr "הופק על ידי Hyp"
+
+msgctxt "Languages::hypay_link_document_after"
+msgid "Document after payment"
+msgstr "מסמך לאחר התשלום"
