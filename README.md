@@ -442,7 +442,7 @@ Authorizations and captures are stored in `?:hypay_transactions` (kept on uninst
 
 ## 🔗 Payment links (pay by SMS / e-mail)
 
-An order that has not been paid yet gets a **Payment Link** button in the
+An order with no document attached gets a **Payment Link** button in the
 order's payment information block. It opens a panel where the merchant can:
 
 - **create and send** a link for the current order total — Hyp sends it to the
@@ -499,8 +499,12 @@ The panel says in advance which document the payment will produce.
 
 **Safeguards**
 
-- A link is only offered for an unpaid Hypay order, and only one link can be
-  active per order.
+- A link is offered for an order that has no document attached yet — a tax
+  invoice, proforma invoice or tax invoice receipt, issued by this add-on or by
+  the EzCount Doc Generator (`?:order_data` type `X` with a document number).
+  An order with a document has been billed, so it gets no button. The order
+  does not have to be placed with a Hypay method: the link then goes through
+  the shop's active Hypay payment method. Only one link can be active per order.
 - If the order total changes after the link was sent, the panel says so: the
   customer would pay the old amount, so cancel the link and send a new one.
 - An order paid at checkout while a link is still out has its link cancelled

@@ -1067,9 +1067,9 @@ msgctxt "Languages::hypay_link_error_bad_cell"
 msgid "The mobile number is not valid (for example: 0501234567)."
 msgstr "The mobile number is not valid (for example: 0501234567)."
 
-msgctxt "Languages::hypay_link_error_order_paid"
-msgid "This order has already been paid."
-msgstr "This order has already been paid."
+msgctxt "Languages::hypay_link_error_has_document"
+msgid "This order already has a document attached (tax invoice, proforma or tax invoice receipt)."
+msgstr "This order already has a document attached (tax invoice, proforma or tax invoice receipt)."
 
 msgctxt "Languages::hypay_link_error_active_exists"
 msgid "This order already has an active payment link. Cancel it first."
@@ -1088,8 +1088,8 @@ msgid "The terminal number or the API password (PassP) is not set in the payment
 msgstr "The terminal number or the API password (PassP) is not set in the payment method settings."
 
 msgctxt "Languages::hypay_link_error_not_hypay"
-msgid "This order is not paid with Hypay."
-msgstr "This order is not paid with Hypay."
+msgid "The shop has no active Hypay payment method to create the link through."
+msgstr "The shop has no active Hypay payment method to create the link through."
 
 msgctxt "Languages::hypay_link_customer_paid"
 msgid "Thank you! The payment for order #[order_id] has been received."
