@@ -479,6 +479,24 @@ The link is paid on Hyp's own payment page, and the result comes back two ways:
 
 Whichever arrives first moves the order; the other one never moves it again.
 
+**The document after a link is paid**
+
+Each EzCount mode has its own **Document after a payment link is paid** setting:
+*Tax Invoice Receipt* (320, the default), *Receipt* (400) or *No document*.
+
+- **Direct API** — the add-on issues the chosen document as soon as the payment
+  is recorded (from the return or from the LIST lookup) and stores it on the
+  order exactly as after a checkout payment. The payment link block shows its
+  type, number and PDF link.
+- **Integrated** — Hyp issues the document itself when the link is paid. The
+  link is created with `SendHesh` / `Pritim` / `heshDesc` as configured and the
+  document type in `EZ.type` (the constant `HYPAY_EZ_INT_DOC_TYPE_PARAM` in
+  `func.php`); the document number Hyp returns in `Hesh` is shown in the block.
+  *No document* sends `SendHesh=False` and no invoice data — but a terminal whose
+  invoice module issues a document on every payment may still issue one.
+
+The panel says in advance which document the payment will produce.
+
 **Safeguards**
 
 - A link is only offered for an unpaid Hypay order, and only one link can be

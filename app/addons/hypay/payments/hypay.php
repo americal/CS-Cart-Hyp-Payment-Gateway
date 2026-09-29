@@ -160,6 +160,17 @@ if (defined('PAYMENT_NOTIFICATION')) {
                     $hypay_link['link_id']
                 );
             }
+            // In integrated mode Hyp has just issued the document itself and
+            // names it in Hesh - the one trace of it the order can keep
+            $link_hesh = hypay_utf8_text(hypay_request_value(['Hesh', 'hesh']));
+            if ($link_hesh !== '' && $link_hesh !== '0') {
+                db_query(
+                    "UPDATE ?:hypay_payment_links SET doc_number = ?s WHERE link_id = ?i",
+                    substr($link_hesh, 0, 64),
+                    $hypay_link['link_id']
+                );
+            }
+
             $hypay_link = fn_hypay_link_get($hypay_link['link_id']);
 
             // the same lines a checkout payment writes, plus when the link was paid
@@ -178,18 +189,14 @@ if (defined('PAYMENT_NOTIFICATION')) {
                 hypay_log($order_id, 'payment link paid', $pp_response);
                 fn_hypay_link_finish_order($order_id, $pp_response, $pp);
 
-                if (($pp['ez_mode'] ?? 'none') === 'direct') {
-                    fn_hypay_create_ezcount_doc($order_id, fn_get_order_info($order_id), $pp, [
-                        'transaction_id' => $hyp_return_id,
-                        'brand'          => $brand_name,
-                        'last4'          => $last4,
-                        'payments'       => $num_payments,
-                        'amount'         => round((float) $hypay_link['amount'], 2),
-                        'flow'           => 'regular',
-                    ]);
-                } else {
-                    hypay_log($order_id, 'ezcount skipped (mode != direct)', ['ez_mode' => $pp['ez_mode'] ?? 'none']);
-                }
+                // the document the payment link settings ask for (direct API);
+                // in integrated mode Hyp has issued it already
+                fn_hypay_link_issue_document($order_id, $pp, $hypay_link, [
+                    'transaction_id' => $hyp_return_id,
+                    'brand'          => $brand_name,
+                    'last4'          => $last4,
+                    'payments'       => $num_payments,
+                ]);
             } else {
                 hypay_log($order_id, 'payment link already recorded, adding the card details', $pp_response);
                 fn_hypay_update_payment_info($order_id, $pp_response);

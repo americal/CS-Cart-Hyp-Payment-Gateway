@@ -24,6 +24,15 @@ if (!defined('HYPAY_PERSONAL_ID_UNKNOWN')) { define('HYPAY_PERSONAL_ID_UNKNOWN',
 /** add-on that owns ?:orders.additional_status - nothing here works without it */
 if (!defined('HYPAY_ADDITIONAL_STATUSES_ADDON')) { define('HYPAY_ADDITIONAL_STATUSES_ADDON', 'ecl_additional_order_statuses'); }
 
+/**
+ * Parameter that tells Hyp which EzCount document to issue for a paid payment
+ * link in integrated mode. Hyp hands EZ.* parameters on to EzCount, and "type"
+ * is EzCount's own name for the document type (320 / 400) - see
+ * fn_hypay_create_ezcount_doc(). Kept in one place so it is a one-line change
+ * if the terminal wants it spelled differently.
+ */
+if (!defined('HYPAY_EZ_INT_DOC_TYPE_PARAM')) { define('HYPAY_EZ_INT_DOC_TYPE_PARAM', 'EZ.type'); }
+
 /** global debug switch (filled from payment settings later) */
 if (!isset($GLOBALS['HYPAY_DEBUG'])) { $GLOBALS['HYPAY_DEBUG'] = false; }
 
@@ -119,6 +128,8 @@ function fn_hypay_ensure_schema()
         . " status varchar(16) NOT NULL default '',"
         . " paid_via varchar(16) NOT NULL default '',"
         . " trans_id varchar(64) NOT NULL default '',"
+        // the document Hyp issued itself (integrated EzCount), from Hesh
+        . " doc_number varchar(64) NOT NULL default '',"
         . " created_at int(11) unsigned NOT NULL default '0',"
         . " cancelled_at int(11) unsigned NOT NULL default '0',"
         . " paid_at int(11) unsigned NOT NULL default '0',"
@@ -129,6 +140,12 @@ function fn_hypay_ensure_schema()
         . " KEY pay_request_id (pay_request_id)"
         . ") ENGINE=InnoDB DEFAULT CHARSET=utf8"
     );
+
+    // added after the table first appeared
+    $link_columns = db_get_fields("SHOW COLUMNS FROM ?:hypay_payment_links");
+    if ($link_columns && !in_array('doc_number', $link_columns, true)) {
+        db_query("ALTER TABLE ?:hypay_payment_links ADD doc_number varchar(64) NOT NULL default ''");
+    }
 
     // columns added after the first release: add them to existing installations
     $columns = db_get_fields("SHOW COLUMNS FROM ?:hypay_transactions");
@@ -1318,7 +1335,9 @@ function hypay_ez_customer(array $pp, $order_info, $prefix = 'ez')
 /**
  * Create an EzCount document for an order through the direct API.
  *
- * $ctx: transaction_id (Hypay Id), brand, last4, payments, amount (charged sum).
+ * $ctx: transaction_id (Hypay Id), brand, last4, payments, amount (charged sum),
+ *       doc_type (320/400, optional: overrides the "Document type" setting -
+ *       a paid payment link has a setting of its own).
  * The document is issued for $ctx['amount']; the line items are rebuilt from the
  * order, so the two must match — otherwise nothing is issued at all.
  *
@@ -1330,7 +1349,7 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
     $ez_api_key         = trim((string) ($pp['ez_api_key'] ?? ''));
     $ez_developer_mail  = trim((string) ($pp['ez_developer_email'] ?? ''));
     $created_by_api_key = trim((string) ($pp['ez_created_by_api_key'] ?? '')); // optional, not hashed
-    $doc_type_param     = (int) ($pp['ez_doc_type'] ?? 320);                   // 320/400
+    $doc_type_param     = (int) ($ctx['doc_type'] ?? ($pp['ez_doc_type'] ?? 320)); // 320/400
     $doc_type           = in_array($doc_type_param, [320, 400], true) ? $doc_type_param : 320;
     $show_inc_vat       = isset($pp['ez_show_items_including_vat']) ? (int) (!empty($pp['ez_show_items_including_vat'])) : 1;
     $doc_lang           = ($pp['ez_doc_lang'] ?? 'he') === 'en' ? 'en' : 'he';
@@ -3368,14 +3387,22 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '')
         $params['FixTash'] = 'True';
     }
 
-    if ($is_integrated) {
+    // Integrated: Hyp issues the document when the link is paid, of the type
+    // the payment link setting asks for - or none at all
+    $int_doc_type = $is_integrated ? fn_hypay_link_doc_type($pp, 'integrated') : 'none';
+    if ($is_integrated && $int_doc_type !== 'none') {
         list($hesh_desc) = hypay_build_heshdesc($order_info);
         $params['SendHesh'] = hypay_bool($pp['sendhesh'] ?? 'N');
         $params['Pritim']   = hypay_bool($pp['pritim']   ?? 'Y');
         if ($params['Pritim'] === 'True') {
             $params['heshDesc'] = $hesh_desc;
         }
+        $params[HYPAY_EZ_INT_DOC_TYPE_PARAM] = $int_doc_type;
         hypay_put($params, 'UserId', (string) ($ez_customer['vat'] ?? ''));
+    } elseif ($is_integrated) {
+        // nothing to send to the customer; whether Hyp still issues the
+        // document depends on how the terminal's invoice module is set up
+        $params['SendHesh'] = 'False';
     }
 
     $result = fn_hypay_link_api_request($order_id, $params, 'link.create');
@@ -3710,18 +3737,88 @@ function fn_hypay_link_settle_from_list($order_id, array $link, $trans_id)
     fn_hypay_link_finish_order($order_id, $pp_response, $pp);
     hypay_log($order_id, 'link paid (found by LIST)', ['payRequestId' => $link['pay_request_id'], 'transId' => $trans_id]);
 
-    if (($pp['ez_mode'] ?? 'none') === 'direct') {
-        fn_hypay_create_ezcount_doc($order_id, fn_get_order_info($order_id), $pp, [
-            'transaction_id' => $trans_id,
-            'brand'          => '',
-            'last4'          => '',
-            'payments'       => 1,
-            'amount'         => round((float) $link['amount'], 2),
-            'flow'           => 'regular',
-        ]);
-    }
+    fn_hypay_link_issue_document($order_id, $pp, $link, [
+        'transaction_id' => $trans_id,
+        'brand'          => '',
+        'last4'          => '',
+        'payments'       => 1,
+    ]);
 
     return true;
+}
+
+/**
+ * Which document a paid payment link gets, per the settings.
+ *
+ * Direct API and Integrated are set separately ("ez_link_doc_type" and
+ * "ez_int_link_doc_type"), each one of: 320 tax invoice receipt, 400 receipt,
+ * none. Unset means 320 - a link is a sale like any other.
+ *
+ * @param string $mode direct | integrated
+ *
+ * @return int|string 320, 400 or 'none'
+ */
+function fn_hypay_link_doc_type(array $pp, $mode)
+{
+    $key   = ($mode === 'integrated') ? 'ez_int_link_doc_type' : 'ez_link_doc_type';
+    $value = trim((string) ($pp[$key] ?? ''));
+
+    if ($value === 'none') {
+        return 'none';
+    }
+
+    return ((int) $value === 400) ? 400 : 320;
+}
+
+/**
+ * The EzCount document for a paid payment link, issued through the direct API
+ * - the same call, and the same record on the order, a checkout payment gets.
+ *
+ * Integrated mode is not handled here: there Hyp issues the document itself,
+ * as asked for when the link was created (fn_hypay_link_create).
+ *
+ * @param array $card transaction_id, brand, last4, payments
+ *
+ * @return array|false document info, false when none was issued
+ */
+function fn_hypay_link_issue_document($order_id, array $pp, array $link, array $card)
+{
+    $ez_mode = $pp['ez_mode'] ?? 'none';
+    if ($ez_mode !== 'direct') {
+        hypay_log($order_id, 'link: ezcount skipped (mode != direct)', ['ez_mode' => $ez_mode]);
+
+        return false;
+    }
+
+    $doc_type = fn_hypay_link_doc_type($pp, 'direct');
+    if ($doc_type === 'none') {
+        hypay_log($order_id, 'link: ezcount skipped (no document for payment links)');
+
+        return false;
+    }
+
+    return fn_hypay_create_ezcount_doc($order_id, fn_get_order_info($order_id), $pp, [
+        'transaction_id' => (string) ($card['transaction_id'] ?? ''),
+        'brand'          => (string) ($card['brand'] ?? ''),
+        'last4'          => (string) ($card['last4'] ?? ''),
+        'payments'       => max(1, (int) ($card['payments'] ?? 1)),
+        'amount'         => round((float) $link['amount'], 2),
+        'flow'           => 'regular',
+        'doc_type'       => $doc_type,
+    ]);
+}
+
+/**
+ * The EzCount document recorded on the order, as the direct API left it.
+ *
+ * @return array empty when there is none
+ */
+function fn_hypay_get_order_document($order_id)
+{
+    $data = db_get_field("SELECT data FROM ?:order_data WHERE order_id = ?i AND type = 'X'", (int) $order_id);
+    $doc  = $data ? @unserialize($data) : false;
+
+    return (is_array($doc) && !empty($doc['ezcount_invoice_id'])) ? $doc : [];
 }
 
 /**
@@ -3852,6 +3949,7 @@ function fn_hypay_get_link_panel_data($order_id)
 
     $order_total = round((float) $order_info['total'], 2);
     $amount      = empty($link) ? 0.0 : round((float) $link['amount'], 2);
+    $pp_link     = fn_hypay_get_processor_params($order_info);
 
     // the first phone the order has, in the order a mobile is likeliest to be in
     $cell = '';
@@ -3872,13 +3970,34 @@ function fn_hypay_get_link_panel_data($order_id)
         'cancelled_at'  => (int) ($link['cancelled_at'] ?? 0),
         'paid_at'       => (int) ($link['paid_at'] ?? 0),
         'trans_id'      => (string) ($link['trans_id'] ?? ''),
+        'doc_number'    => (string) ($link['doc_number'] ?? ''),
         'last_error'    => (string) ($link['last_error'] ?? ''),
         'order_total'   => $order_total,
         // the order was edited after the link went out: the customer would pay
         // the old amount
         'total_changed' => ($state === 'active' && abs($order_total - $amount) > 0.009),
         'can_create'    => ($state !== 'active' && $state !== 'paid' && $order_total > 0),
+        // what the payment will produce, so nobody is surprised afterwards
+        'doc_type'      => fn_hypay_link_panel_doc_type($pp_link),
+        // and, once it is paid, what it did produce (direct API)
+        'document'      => ($state === 'paid') ? fn_hypay_get_order_document($order_id) : [],
         'email'         => (string) ($order_info['email'] ?? ''),
         'cell'          => fn_hypay_link_normalize_cell($cell),
     ];
+}
+
+/**
+ * The document a paid link will produce, as a word for the panel.
+ *
+ * @return array ['mode' => direct|integrated, 'type' => 320|400|none], empty
+ *               when EzCount is not used at all
+ */
+function fn_hypay_link_panel_doc_type(array $pp)
+{
+    $mode = $pp['ez_mode'] ?? 'none';
+    if ($mode !== 'direct' && $mode !== 'integrated') {
+        return [];
+    }
+
+    return ['mode' => $mode, 'type' => (string) fn_hypay_link_doc_type($pp, $mode)];
 }

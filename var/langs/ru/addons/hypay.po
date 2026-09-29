@@ -1098,3 +1098,31 @@ msgstr "Спасибо! Оплата заказа #[order_id] получена."
 msgctxt "Languages::hypay_link_customer_failed"
 msgid "The payment was not completed. You can try again using the same link."
 msgstr "Оплата не прошла. Можно попробовать ещё раз по той же ссылке."
+
+msgctxt "Languages::hypay_ez_link_doc_type"
+msgid "Document after a payment link is paid"
+msgstr "Документ после оплаты по ссылке"
+
+msgctxt "Languages::hypay_ez_link_doc_type_none"
+msgid "No document"
+msgstr "Не создавать документ"
+
+msgctxt "Languages::hypay_ez_link_doc_type_desc"
+msgid "The EzCount document issued through the Direct API when a customer pays with a payment link sent from the order page. It is recorded on the order the same way as after a payment on the site."
+msgstr "Документ EzCount, который создаётся через Direct API, когда покупатель оплачивает ссылку, отправленную со страницы заказа. Он записывается в заказ так же, как после оплаты на сайте."
+
+msgctxt "Languages::hypay_ez_int_link_doc_type_desc"
+msgid "The document Hyp issues itself when a customer pays with a payment link. \"No document\" stops the add-on from asking Hyp for one; if the terminal's invoice module is set to issue a document on every payment, Hyp may still do so."
+msgstr "Документ, который Hyp создаёт сам, когда покупатель оплачивает ссылку. «Не создавать документ» — аддон не просит Hyp о документе; если модуль счетов терминала настроен выпускать документ на каждую оплату, Hyp может всё равно его создать."
+
+msgctxt "Languages::hypay_link_document"
+msgid "Document"
+msgstr "Документ"
+
+msgctxt "Languages::hypay_link_document_by_hyp"
+msgid "issued by Hyp"
+msgstr "выпущен Hyp"
+
+msgctxt "Languages::hypay_link_document_after"
+msgid "Document after payment"
+msgstr "Документ после оплаты"

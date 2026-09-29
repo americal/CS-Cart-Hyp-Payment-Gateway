@@ -1098,3 +1098,31 @@ msgstr "Thank you! The payment for order #[order_id] has been received."
 msgctxt "Languages::hypay_link_customer_failed"
 msgid "The payment was not completed. You can try again using the same link."
 msgstr "The payment was not completed. You can try again using the same link."
+
+msgctxt "Languages::hypay_ez_link_doc_type"
+msgid "Document after a payment link is paid"
+msgstr "Document after a payment link is paid"
+
+msgctxt "Languages::hypay_ez_link_doc_type_none"
+msgid "No document"
+msgstr "No document"
+
+msgctxt "Languages::hypay_ez_link_doc_type_desc"
+msgid "The EzCount document issued through the Direct API when a customer pays with a payment link sent from the order page. It is recorded on the order the same way as after a payment on the site."
+msgstr "The EzCount document issued through the Direct API when a customer pays with a payment link sent from the order page. It is recorded on the order the same way as after a payment on the site."
+
+msgctxt "Languages::hypay_ez_int_link_doc_type_desc"
+msgid "The document Hyp issues itself when a customer pays with a payment link. \"No document\" stops the add-on from asking Hyp for one; if the terminal's invoice module is set to issue a document on every payment, Hyp may still do so."
+msgstr "The document Hyp issues itself when a customer pays with a payment link. \"No document\" stops the add-on from asking Hyp for one; if the terminal's invoice module is set to issue a document on every payment, Hyp may still do so."
+
+msgctxt "Languages::hypay_link_document"
+msgid "Document"
+msgstr "Document"
+
+msgctxt "Languages::hypay_link_document_by_hyp"
+msgid "issued by Hyp"
+msgstr "issued by Hyp"
+
+msgctxt "Languages::hypay_link_document_after"
+msgid "Document after payment"
+msgstr "Document after payment"
