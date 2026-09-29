@@ -147,6 +147,35 @@ function fn_hypay_ensure_schema()
         db_query("ALTER TABLE ?:hypay_payment_links ADD doc_number varchar(64) NOT NULL default ''");
     }
 
+    // The orders a link pays for - one or several of the same customer's.
+    // hypay_payment_links.order_id stays as the order the link was created
+    // from; this is what every lookup by order goes through.
+    db_query(
+        "CREATE TABLE IF NOT EXISTS ?:hypay_payment_link_orders ("
+        . " link_id int(11) unsigned NOT NULL default '0',"
+        . " order_id mediumint(8) unsigned NOT NULL default '0',"
+        . " amount decimal(12,2) NOT NULL default '0.00',"
+        . " PRIMARY KEY (link_id, order_id),"
+        . " KEY order_id (order_id)"
+        . ") ENGINE=InnoDB DEFAULT CHARSET=utf8"
+    );
+
+    // links created before there could be several orders to one: each pays
+    // for the order it was created from
+    $unlinked = (int) db_get_field(
+        "SELECT COUNT(*) FROM ?:hypay_payment_links AS l"
+        . " LEFT JOIN ?:hypay_payment_link_orders AS lo ON lo.link_id = l.link_id"
+        . " WHERE lo.link_id IS NULL"
+    );
+    if ($unlinked > 0) {
+        db_query(
+            "INSERT IGNORE INTO ?:hypay_payment_link_orders (link_id, order_id, amount)"
+            . " SELECT l.link_id, l.order_id, l.amount FROM ?:hypay_payment_links AS l"
+            . " LEFT JOIN ?:hypay_payment_link_orders AS lo ON lo.link_id = l.link_id"
+            . " WHERE lo.link_id IS NULL"
+        );
+    }
+
     // columns added after the first release: add them to existing installations
     $columns = db_get_fields("SHOW COLUMNS FROM ?:hypay_transactions");
     if (!$columns) { return; }
@@ -1368,8 +1397,25 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
 
     $amount = round((float) ($ctx['amount'] ?? $order_info['total']), 2);
 
+    // One document may cover several orders paid together (a payment link
+    // sent for more than one order): their lines follow the first order's, and
+    // the document is recorded on every one of them - the same way the EzCount
+    // Doc Generator records a document it issues for several orders.
+    $extra_orders = [];
+    foreach ((array) ($ctx['extra_orders'] ?? []) as $extra) {
+        if (is_array($extra) && !empty($extra['order_id']) && (int) $extra['order_id'] !== (int) $order_id) {
+            $extra_orders[(int) $extra['order_id']] = $extra;
+        }
+    }
+    $doc_order_ids = array_merge([(int) $order_id], array_keys($extra_orders));
+
     // 1) line items (vat_type=INC), using unified builder so totals match
     list($items, $items_sum) = hypay_build_ez_items($order_info, $list_products);
+    foreach ($extra_orders as $extra) {
+        list($extra_items, $extra_sum) = hypay_build_ez_items($extra, $list_products);
+        $items     = array_merge($items, $extra_items);
+        $items_sum = round($items_sum + $extra_sum, 2);
+    }
     hypay_log($order_id, 'ezcount.line_items_mode', [
         'flow'  => $flow,
         'mode'  => $list_products ? 'list_products' : 'list_orders',
@@ -1426,7 +1472,9 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
         'type'                     => $doc_type,           // 320/400
         'ua_uuid'                  => $ez_ua_uuid ?: null, // dropped if empty
         'lang'                     => $doc_lang,           // he/en
-        'description'              => 'Order #' . $order_id,
+        'description'              => count($doc_order_ids) > 1
+            ? 'Orders #' . implode(', #', $doc_order_ids)
+            : 'Order #' . $order_id,
         'customer_name'            => $customer['name'],
         'customer_email'           => (string) ($order_info['email'] ?? ''),
         'customer_phone'           => (string) ($order_info['phone'] ?? ''),
@@ -1521,18 +1569,22 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
             'ezcount_invoice_doc_uuid' => $create_response->doc_uuid ?? '',
             'invoice_type'             => (string) $doc_type,
         ];
-        // The EzCount Doc Generator add-on keeps its Bank Transfers data in the
-        // same row; carried over the way that add-on carries it over itself,
-        // so issuing a document does not wipe the transfers out
-        $existing_raw = db_get_field("SELECT data FROM ?:order_data WHERE order_id = ?i AND type = 'X'", $order_id);
-        $existing     = $existing_raw ? @unserialize($existing_raw) : false;
-        if (is_array($existing) && !empty($existing['bank_transfers'])) {
-            $doc_log['bank_transfers'] = $existing['bank_transfers'];
-            $doc_log['subtype']        = 'bank_transfers';
-        }
+        foreach ($doc_order_ids as $doc_order_id) {
+            $order_doc = $doc_log;
 
-        db_query("REPLACE INTO ?:order_data (order_id, type, data) VALUES (?i, 'X', ?s)", $order_id, serialize($doc_log));
-        hypay_log($order_id, 'ezcount.createDoc SUCCESS', $doc_log);
+            // The EzCount Doc Generator add-on keeps its Bank Transfers data in
+            // the same row; carried over the way that add-on carries it over
+            // itself, so issuing a document does not wipe the transfers out
+            $existing_raw = db_get_field("SELECT data FROM ?:order_data WHERE order_id = ?i AND type = 'X'", $doc_order_id);
+            $existing     = $existing_raw ? @unserialize($existing_raw) : false;
+            if (is_array($existing) && !empty($existing['bank_transfers'])) {
+                $order_doc['bank_transfers'] = $existing['bank_transfers'];
+                $order_doc['subtype']        = 'bank_transfers';
+            }
+
+            db_query("REPLACE INTO ?:order_data (order_id, type, data) VALUES (?i, 'X', ?s)", $doc_order_id, serialize($order_doc));
+        }
+        hypay_log($order_id, 'ezcount.createDoc SUCCESS', $doc_log + ['orders' => $doc_order_ids]);
 
         return $doc_log;
     }
@@ -3160,36 +3212,191 @@ function fn_hypay_link_get($link_id)
     return is_array($row) ? $row : [];
 }
 
-/** the most recent link of an order, whatever became of it */
+/**
+ * The most recent link that pays for an order, whatever became of it - the
+ * order may be the one the link was created from or one included in it.
+ */
 function fn_hypay_link_get_latest($order_id)
 {
     fn_hypay_ensure_schema();
 
     $row = db_get_row(
-        "SELECT * FROM ?:hypay_payment_links WHERE order_id = ?i ORDER BY link_id DESC LIMIT 1",
+        "SELECT l.* FROM ?:hypay_payment_links AS l"
+        . " INNER JOIN ?:hypay_payment_link_orders AS lo ON lo.link_id = l.link_id"
+        . " WHERE lo.order_id = ?i ORDER BY l.link_id DESC LIMIT 1",
         (int) $order_id
     );
 
     return is_array($row) ? $row : [];
 }
 
-/** the link the customer can still pay with, if the order has one */
+/** the link the customer can still pay the order with, if there is one */
 function fn_hypay_link_get_active($order_id)
 {
     fn_hypay_ensure_schema();
 
     $row = db_get_row(
-        "SELECT * FROM ?:hypay_payment_links WHERE order_id = ?i AND status = 'active' ORDER BY link_id DESC LIMIT 1",
+        "SELECT l.* FROM ?:hypay_payment_links AS l"
+        . " INNER JOIN ?:hypay_payment_link_orders AS lo ON lo.link_id = l.link_id"
+        . " WHERE lo.order_id = ?i AND l.status = 'active' ORDER BY l.link_id DESC LIMIT 1",
         (int) $order_id
     );
 
     return is_array($row) ? $row : [];
 }
 
-/** "Paid by payment link on 29.09.2026 14:05", in the reader's language */
+/**
+ * The orders a link pays for, the one it was created from first.
+ *
+ * @return int[]
+ */
+function fn_hypay_link_order_ids(array $link)
+{
+    if (empty($link['link_id'])) {
+        return [];
+    }
+
+    fn_hypay_ensure_schema();
+
+    $ids = array_map('intval', db_get_fields(
+        "SELECT order_id FROM ?:hypay_payment_link_orders WHERE link_id = ?i ORDER BY order_id",
+        (int) $link['link_id']
+    ));
+
+    $primary = (int) ($link['order_id'] ?? 0);
+    if ($primary > 0) {
+        $ids = array_values(array_unique(array_merge([$primary], $ids)));
+    }
+
+    return $ids;
+}
+
+/**
+ * "Paid by payment link on 29.09.2026 14:05", in the reader's language - with
+ * the orders the payment covered when there were several.
+ */
 function fn_hypay_link_paid_label(array $link)
 {
-    return __('hypay_link_pi_paid', ['[date]' => date('d.m.Y H:i', (int) ($link['paid_at'] ?? 0))]);
+    $label = __('hypay_link_pi_paid', ['[date]' => date('d.m.Y H:i', (int) ($link['paid_at'] ?? 0))]);
+
+    $ids = fn_hypay_link_order_ids($link);
+    if (count($ids) > 1) {
+        $label .= ' (' . __('hypay_link_pi_orders', ['[orders]' => '#' . implode(', #', $ids)]) . ')';
+    }
+
+    return $label;
+}
+
+/**
+ * The order statuses whose orders the payment link panel offers to include,
+ * per the payment method settings.
+ *
+ * @return string[] status codes, empty when the setting is empty
+ */
+function fn_hypay_link_order_statuses($pp)
+{
+    // untyped: the settings template hands this processor_params of a method
+    // that has none saved yet
+    $pp       = (array) $pp;
+    $statuses = $pp['link_order_statuses'] ?? [];
+    if (!is_array($statuses)) {
+        $statuses = explode(',', (string) $statuses);
+    }
+
+    return array_values(array_unique(array_filter(array_map('trim', array_map('strval', $statuses)), 'strlen')));
+}
+
+/** does this order belong to the same customer as that one? */
+function fn_hypay_link_same_customer(array $order, array $other)
+{
+    $user_id = (int) ($order['user_id'] ?? 0);
+    if ($user_id > 0) {
+        return (int) ($other['user_id'] ?? 0) === $user_id;
+    }
+
+    // a guest is known by the e-mail address alone
+    $email = strtolower(trim((string) ($order['email'] ?? '')));
+
+    return (int) ($other['user_id'] ?? 0) === 0
+        && $email !== ''
+        && strtolower(trim((string) ($other['email'] ?? ''))) === $email;
+}
+
+/**
+ * Can this order go into a new payment link?
+ *
+ * Not when it has a document attached - it has been billed - and not when a
+ * link already pays for it, or has paid for it.
+ */
+function fn_hypay_link_order_is_free($order_id)
+{
+    if (fn_hypay_order_has_document($order_id)) {
+        return false;
+    }
+
+    $link = fn_hypay_link_get_latest($order_id);
+
+    return empty($link) || !in_array($link['status'], ['active', 'paid'], true);
+}
+
+/**
+ * The customer's other orders the panel offers to add to the link: the
+ * statuses chosen in the settings, no document attached, no link of their own.
+ *
+ * @return array rows of order_id, timestamp, status, total
+ */
+function fn_hypay_link_candidate_orders(array $order_info, array $pp, $limit = 100)
+{
+    $statuses = fn_hypay_link_order_statuses($pp);
+    if (empty($statuses)) {
+        return [];
+    }
+
+    $user_id = (int) ($order_info['user_id'] ?? 0);
+    $email   = trim((string) ($order_info['email'] ?? ''));
+    if ($user_id <= 0 && $email === '') {
+        return [];
+    }
+
+    $customer = $user_id > 0
+        ? db_quote("user_id = ?i", $user_id)
+        : db_quote("user_id = 0 AND email = ?s", $email);
+
+    $rows = db_get_array(
+        "SELECT order_id, timestamp, status, total FROM ?:orders"
+        . " WHERE ?p AND status IN (?a) AND order_id != ?i"
+        . " ORDER BY order_id DESC LIMIT ?i",
+        $customer,
+        $statuses,
+        (int) $order_info['order_id'],
+        (int) $limit
+    );
+
+    $free = [];
+    foreach ((array) $rows as $row) {
+        if (fn_hypay_link_order_is_free($row['order_id'])) {
+            $free[] = $row;
+        }
+    }
+
+    return $free;
+}
+
+/** the Info a link carries: the configured template, naming every order */
+function hypay_build_link_info(array $order_ids, array $pp)
+{
+    if (count($order_ids) === 1) {
+        return hypay_build_info(reset($order_ids), $pp);
+    }
+
+    $tpl = trim((string) ($pp['info'] ?? ''));
+    if ($tpl === '') { $tpl = 'Order {order_id}'; }
+
+    $ids = implode(',', array_map('intval', $order_ids));
+
+    return hypay_sanitize_url_echo(strpos($tpl, '{order_id}') !== false
+        ? str_replace('{order_id}', $ids, $tpl)
+        : $tpl . ' ' . $ids);
 }
 
 /**
@@ -3354,12 +3561,15 @@ function fn_hypay_link_credentials(array $pp)
 /**
  * Create a payment link for an order and have Hyp send it to the customer.
  *
- * @param string $email address to e-mail the link to, '' for none
- * @param string $cell  mobile number to text the link to, '' for none
+ * @param string $email     address to e-mail the link to, '' for none
+ * @param string $cell      mobile number to text the link to, '' for none
+ * @param int[]  $order_ids more of the same customer's orders to pay for with
+ *                          the same link; the order it is created from is
+ *                          always one of them
  *
  * @return bool
  */
-function fn_hypay_link_create($order_id, $email = '', $cell = '')
+function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_ids = [])
 {
     fn_hypay_ensure_schema();
 
@@ -3395,7 +3605,38 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '')
         return false;
     }
 
-    $amount = round((float) $order_info['total'], 2);
+    // The other orders picked in the panel, held to the same rules the panel
+    // offered them by: the same customer, a status the settings allow, no
+    // document, no link of their own. Anything else stops the whole link -
+    // leaving an order out quietly would bill the customer a different amount
+    // than the merchant chose.
+    $allowed_statuses = fn_hypay_link_order_statuses($pp);
+    $orders           = [$order_id => $order_info];
+    foreach (array_unique(array_map('intval', $order_ids)) as $extra_id) {
+        if ($extra_id <= 0 || isset($orders[$extra_id])) {
+            continue;
+        }
+
+        $extra = fn_get_order_info($extra_id);
+        if (empty($extra)
+            || !fn_hypay_link_same_customer($order_info, $extra)
+            || !in_array((string) $extra['status'], $allowed_statuses, true)
+            || !fn_hypay_link_order_is_free($extra_id)
+        ) {
+            fn_set_notification('E', __('error'), __('hypay_link_error_bad_order', ['[order_id]' => $extra_id]));
+
+            return false;
+        }
+
+        $orders[$extra_id] = $extra;
+    }
+
+    $amounts = [];
+    foreach ($orders as $oid => $o) {
+        $amounts[$oid] = round((float) $o['total'], 2);
+    }
+
+    $amount = round(array_sum($amounts), 2);
     if ($amount <= 0) {
         fn_set_notification('E', __('error'), __('hypay_link_error_zero_amount'));
 
@@ -3443,7 +3684,7 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '')
     $ez_customer   = $is_integrated ? hypay_ez_customer($pp, $order_info, 'ez_int') : [];
     $ez_name       = (string) ($ez_customer['ezcount_name'] ?? '');
 
-    $info = hypay_build_info($order_id, $pp);
+    $info = hypay_build_link_info(array_keys($orders), $pp);
 
     $params = $credentials + [
         'action'      => 'payRequest',
@@ -3475,7 +3716,12 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '')
     // the payment link setting asks for - or none at all
     $int_doc_type = $is_integrated ? fn_hypay_link_doc_type($pp, 'integrated') : 'none';
     if ($is_integrated && $int_doc_type !== 'none') {
-        list($hesh_desc) = hypay_build_heshdesc($order_info);
+        // every order's lines, so they add up to the amount of the link
+        $hesh_desc = '';
+        foreach ($orders as $o) {
+            list($order_hesh) = hypay_build_heshdesc($o);
+            $hesh_desc .= $order_hesh;
+        }
         $params['SendHesh'] = hypay_bool($pp['sendhesh'] ?? 'N');
         $params['Pritim']   = hypay_bool($pp['pritim']   ?? 'Y');
         if ($params['Pritim'] === 'True') {
@@ -3519,18 +3765,31 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '')
         'checked_at'     => TIME,
         'last_error'     => '',
     ]);
+    $link_id = (int) db_get_field(
+        "SELECT link_id FROM ?:hypay_payment_links WHERE pay_request_id = ?s ORDER BY link_id DESC LIMIT 1",
+        $pay_request_id
+    );
 
-    // A checkout payment the customer started and abandoned left its marker on
-    // the order, and the return from this link would be read as that checkout
-    // coming back. The link supersedes it; a checkout started after this sets
-    // a fresh marker of its own.
-    hypay_clear_back_marker($order_id);
+    foreach ($amounts as $oid => $order_amount) {
+        db_query("REPLACE INTO ?:hypay_payment_link_orders ?e", [
+            'link_id'  => $link_id,
+            'order_id' => $oid,
+            'amount'   => $order_amount,
+        ]);
+
+        // A checkout payment the customer started and abandoned left its
+        // marker on the order, and the return from this link would be read as
+        // that checkout coming back. The link supersedes it; a checkout started
+        // after this sets a fresh marker of its own.
+        hypay_clear_back_marker($oid);
+    }
 
     hypay_log($order_id, 'link.create SUCCESS', [
         'payRequestId' => $pay_request_id,
         'paymentURL'   => $payment_url,
         'sent_to'      => $sent_to,
         'amount'       => $amount,
+        'orders'       => $amounts,
     ]);
     fn_set_notification('N', __('notice'), __('hypay_link_created_ok', ['[sent_to]' => $sent_to]));
 
@@ -3793,6 +4052,32 @@ function fn_hypay_link_finish_order($order_id, array $pp_response, array $pp)
 }
 
 /**
+ * The same, for every order a link pays for: each one gets the payment
+ * information, the status and the additional status, as if it had been paid
+ * on its own.
+ */
+function fn_hypay_link_finish_orders(array $link, array $pp_response, array $pp)
+{
+    foreach (fn_hypay_link_order_ids($link) as $oid) {
+        fn_hypay_link_finish_order($oid, $pp_response, $pp);
+    }
+}
+
+/**
+ * Card details arriving after the payment was already recorded (the LIST
+ * lookup got there first, or the return is replayed): added to every order
+ * the link paid for, without moving any of them again.
+ */
+function fn_hypay_link_update_payment_info(array $link, array $pp_response)
+{
+    unset($pp_response['order_status']);
+
+    foreach (fn_hypay_link_order_ids($link) as $oid) {
+        fn_hypay_update_payment_info($oid, $pp_response);
+    }
+}
+
+/**
  * LIST says the link was paid, and the customer's return has not been seen:
  * the order is settled with what LIST knows. The card details are not among
  * it - if the return turns up later, it adds them.
@@ -3818,8 +4103,13 @@ function fn_hypay_link_settle_from_list($order_id, array $link, $trans_id)
         $pp_response['transaction_id'] = $trans_id;
     }
 
-    fn_hypay_link_finish_order($order_id, $pp_response, $pp);
-    hypay_log($order_id, 'link paid (found by LIST)', ['payRequestId' => $link['pay_request_id'], 'transId' => $trans_id]);
+    // every order the link paid for, not only the one the lookup started from
+    fn_hypay_link_finish_orders($link, $pp_response, $pp);
+    hypay_log($order_id, 'link paid (found by LIST)', [
+        'payRequestId' => $link['pay_request_id'],
+        'transId'      => $trans_id,
+        'orders'       => fn_hypay_link_order_ids($link),
+    ]);
 
     fn_hypay_link_issue_document($order_id, $pp, $link, [
         'transaction_id' => $trans_id,
@@ -3881,7 +4171,25 @@ function fn_hypay_link_issue_document($order_id, array $pp, array $link, array $
         return false;
     }
 
-    return fn_hypay_create_ezcount_doc($order_id, fn_get_order_info($order_id), $pp, [
+    // One document for the whole payment, covering every order the link paid
+    // for and recorded on each of them - as the EzCount Doc Generator does
+    // with a document it issues for several orders.
+    $order_ids = fn_hypay_link_order_ids($link);
+    if (empty($order_ids)) {
+        $order_ids = [(int) $order_id];
+    }
+    $main_id = (int) array_shift($order_ids);
+
+    $extra_orders = [];
+    foreach ($order_ids as $oid) {
+        $extra = fn_get_order_info($oid);
+        if (!empty($extra)) {
+            $extra_orders[] = $extra;
+        }
+    }
+
+    return fn_hypay_create_ezcount_doc($main_id, fn_get_order_info($main_id), $pp, [
+        'extra_orders'   => $extra_orders,
         'transaction_id' => (string) ($card['transaction_id'] ?? ''),
         'brand'          => (string) ($card['brand'] ?? ''),
         'last4'          => (string) ($card['last4'] ?? ''),
@@ -3938,7 +4246,9 @@ function fn_hypay_link_find_for_return($order_id)
         }
 
         $row = db_get_row(
-            "SELECT * FROM ?:hypay_payment_links WHERE order_id = ?i AND status IN ('active', 'paid') ORDER BY link_id DESC LIMIT 1",
+            "SELECT l.* FROM ?:hypay_payment_links AS l"
+            . " INNER JOIN ?:hypay_payment_link_orders AS lo ON lo.link_id = l.link_id"
+            . " WHERE lo.order_id = ?i AND l.status IN ('active', 'paid') ORDER BY l.link_id DESC LIMIT 1",
             $order_id
         );
 
@@ -4047,6 +4357,46 @@ function fn_hypay_get_link_panel_data($order_id)
     $order_total = round((float) $order_info['total'], 2);
     $amount      = empty($link) ? 0.0 : round((float) $link['amount'], 2);
 
+    $status_names = (array) fn_get_simple_statuses(STATUSES_ORDER, true, true);
+
+    // The orders the link pays for, with what each of them totals today: the
+    // sum drifting away from the amount of the link is what the panel warns
+    // about - the customer would pay the old amount.
+    $link_orders = [];
+    $link_total  = 0.0;
+    foreach (fn_hypay_link_order_ids($link) as $oid) {
+        $total = ($oid === $order_id)
+            ? $order_total
+            : round((float) db_get_field("SELECT total FROM ?:orders WHERE order_id = ?i", $oid), 2);
+        $link_orders[] = ['order_id' => $oid, 'total' => $total, 'current' => ($oid === $order_id)];
+        $link_total   += $total;
+    }
+
+    // What the panel offers to put into a new link: this order - always, it is
+    // the one the button is on - and the customer's other orders the settings
+    // allow, each with the facts needed to choose it.
+    $candidates = [];
+    if ($state !== 'active' && $state !== 'paid') {
+        $candidates[] = [
+            'order_id'    => $order_id,
+            'timestamp'   => (int) $order_info['timestamp'],
+            'status'      => (string) $order_info['status'],
+            'status_name' => (string) ($status_names[$order_info['status']] ?? $order_info['status']),
+            'total'       => $order_total,
+            'current'     => true,
+        ];
+        foreach (fn_hypay_link_candidate_orders($order_info, $pp_link) as $row) {
+            $candidates[] = [
+                'order_id'    => (int) $row['order_id'],
+                'timestamp'   => (int) $row['timestamp'],
+                'status'      => (string) $row['status'],
+                'status_name' => (string) ($status_names[$row['status']] ?? $row['status']),
+                'total'       => round((float) $row['total'], 2),
+                'current'     => false,
+            ];
+        }
+    }
+
     // the first phone the order has, in the order a mobile is likeliest to be in
     $cell = '';
     foreach (['phone', 'b_phone', 's_phone'] as $key) {
@@ -4071,7 +4421,12 @@ function fn_hypay_get_link_panel_data($order_id)
         'order_total'   => $order_total,
         // the order was edited after the link went out: the customer would pay
         // the old amount
-        'total_changed' => ($state === 'active' && abs($order_total - $amount) > 0.009),
+        'total_changed' => ($state === 'active' && abs($link_total - $amount) > 0.009),
+        'link_orders'   => $link_orders,
+        'candidates'    => $candidates,
+        // whether the settings offer other orders at all - the panel says so
+        // when they do and the customer simply has none
+        'statuses_set'  => !empty(fn_hypay_link_order_statuses($pp_link)),
         'can_create'    => ($state !== 'active' && $state !== 'paid' && $order_total > 0),
         // what the payment will produce, so nobody is surprised afterwards
         'doc_type'      => fn_hypay_link_panel_doc_type($pp_link),

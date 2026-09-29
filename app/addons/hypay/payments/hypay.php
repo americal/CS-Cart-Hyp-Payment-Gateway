@@ -191,9 +191,11 @@ if (defined('PAYMENT_NOTIFICATION')) {
             ]);
 
             if ($claimed) {
+                // every order the link pays for gets the same payment
+                // information and moves to the success status
                 $pp_response['order_status'] = $success_status;
-                hypay_log($order_id, 'payment link paid', $pp_response);
-                fn_hypay_link_finish_order($order_id, $pp_response, $pp);
+                hypay_log($order_id, 'payment link paid', $pp_response + ['orders' => fn_hypay_link_order_ids($hypay_link)]);
+                fn_hypay_link_finish_orders($hypay_link, $pp_response, $pp);
 
                 // the document the payment link settings ask for (direct API);
                 // in integrated mode Hyp has issued it already
@@ -205,10 +207,12 @@ if (defined('PAYMENT_NOTIFICATION')) {
                 ]);
             } else {
                 hypay_log($order_id, 'payment link already recorded, adding the card details', $pp_response);
-                fn_hypay_update_payment_info($order_id, $pp_response);
+                fn_hypay_link_update_payment_info($hypay_link, $pp_response);
             }
 
-            fn_set_notification('N', __('notice'), __('hypay_link_customer_paid', ['[order_id]' => $order_id]));
+            fn_set_notification('N', __('notice'), __('hypay_link_customer_paid', [
+                '[order_id]' => implode(', #', fn_hypay_link_order_ids($hypay_link) ?: [$order_id]),
+            ]));
         } else {
             // A declined card on the link page is one attempt, not the end of
             // the order: the link stays open for another try, and the order

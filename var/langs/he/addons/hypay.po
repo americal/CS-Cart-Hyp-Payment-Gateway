@@ -924,3 +924,63 @@ msgstr "הופק על ידי Hyp"
 msgctxt "Languages::hypay_link_document_after"
 msgid "Document after payment"
 msgstr "מסמך לאחר התשלום"
+
+msgctxt "Languages::hypay_link_section"
+msgid "Payment links"
+msgstr "קישורים לתשלום"
+
+msgctxt "Languages::hypay_link_order_statuses"
+msgid "Customer's orders offered in the link"
+msgstr "הזמנות הלקוח שמוצעות בקישור"
+
+msgctxt "Languages::hypay_link_order_statuses_desc"
+msgid "When a payment link is created from an order, the panel lists the customer's other orders with these statuses, so several orders can be paid with one link. Orders that already have a document attached or a link of their own are not listed. Select none to always pay for the one order only. Hold Ctrl (Cmd) to select several."
+msgstr "כשנוצר קישור לתשלום מהזמנה, החלונית מציגה את שאר הזמנות הלקוח בסטטוסים האלה, כדי לשלם על כמה הזמנות בקישור אחד. הזמנות שכבר מצורף להן מסמך או שיש להן קישור משלהן אינן מוצגות. אם לא נבחר דבר, הקישור תמיד יהיה להזמנה אחת בלבד. החזיקו Ctrl (Cmd) כדי לבחור כמה."
+
+msgctxt "Languages::hypay_link_orders_title"
+msgid "Orders to pay with this link"
+msgstr "הזמנות לתשלום בקישור הזה"
+
+msgctxt "Languages::hypay_link_col_order"
+msgid "Order"
+msgstr "הזמנה"
+
+msgctxt "Languages::hypay_link_col_date"
+msgid "Date"
+msgstr "תאריך"
+
+msgctxt "Languages::hypay_link_col_status"
+msgid "Status"
+msgstr "סטטוס"
+
+msgctxt "Languages::hypay_link_col_total"
+msgid "Total"
+msgstr "סכום"
+
+msgctxt "Languages::hypay_link_current_order"
+msgid "this order"
+msgstr "ההזמנה הזו"
+
+msgctxt "Languages::hypay_link_total_selected"
+msgid "Total to pay"
+msgstr "סה\"כ לתשלום"
+
+msgctxt "Languages::hypay_link_no_other_orders"
+msgid "The customer has no other orders with the statuses chosen in the payment method settings."
+msgstr "ללקוח אין הזמנות נוספות בסטטוסים שנבחרו בהגדרות אמצעי התשלום."
+
+msgctxt "Languages::hypay_link_no_statuses_set"
+msgid "To add the customer's other orders to the link, choose their statuses in the Hypay payment method settings (Payment links)."
+msgstr "כדי להוסיף לקישור הזמנות אחרות של הלקוח, בחרו את הסטטוסים שלהן בהגדרות אמצעי התשלום Hypay (קישורים לתשלום)."
+
+msgctxt "Languages::hypay_link_orders_in_link"
+msgid "Orders in this link"
+msgstr "הזמנות בקישור הזה"
+
+msgctxt "Languages::hypay_link_pi_orders"
+msgid "orders [orders]"
+msgstr "הזמנות [orders]"
+
+msgctxt "Languages::hypay_link_error_bad_order"
+msgid "Order #[order_id] cannot be added to the payment link: it belongs to another customer, has a status not chosen in the settings, a document attached, or a link of its own."
+msgstr "לא ניתן להוסיף את הזמנה #[order_id] לקישור: היא של לקוח אחר, הסטטוס שלה לא נבחר בהגדרות, מצורף לה מסמך או שיש לה קישור משלה."

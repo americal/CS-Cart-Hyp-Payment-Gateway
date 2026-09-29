@@ -52,10 +52,17 @@ if ($mode === 'capture') {
 // the link just created (or the outcome of the action) is right in front of
 // whoever clicked
 if ($mode === 'link_create') {
+    // the other orders ticked in the panel, as "1001,1002" or order_ids[]
+    $order_ids = $_REQUEST['order_ids'] ?? [];
+    if (!is_array($order_ids)) {
+        $order_ids = explode(',', (string) $order_ids);
+    }
+
     fn_hypay_link_create(
         $order_id,
         (string) ($_REQUEST['email'] ?? ''),
-        (string) ($_REQUEST['cell'] ?? '')
+        (string) ($_REQUEST['cell'] ?? ''),
+        array_filter(array_map('intval', $order_ids))
     );
 
     return [CONTROLLER_STATUS_OK, 'orders.details?order_id=' . $order_id . '&hypay_result=link&hypay_link_open=1'];

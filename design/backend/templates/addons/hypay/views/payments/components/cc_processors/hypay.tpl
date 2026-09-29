@@ -102,6 +102,28 @@
 
  <hr>
 
+ {* --- Payment links --- *}
+ <h3>{__("hypay_link_section")}</h3>
+
+ {* The customer's other orders the payment link panel offers to pay for with
+    the same link. Only these statuses are listed; none selected lists none,
+    and the link then pays for the order it is created from alone. *}
+ {assign var="hypay_link_statuses" value=$processor_params|fn_hypay_link_order_statuses}
+ <div class="control-group">
+     <label class="control-label" for="hypay_link_order_statuses">{__("hypay_link_order_statuses")}</label>
+     <div class="controls">
+         <select name="payment_data[processor_params][link_order_statuses][]" id="hypay_link_order_statuses"
+                 multiple="multiple" size="8" class="input-large">
+             {foreach from=$statuses item="status" key="s_key"}
+                 <option value="{$s_key}" {if $s_key|in_array:$hypay_link_statuses}selected="selected"{/if}>{$status}</option>
+             {/foreach}
+         </select>
+         <p class="muted description">{__("hypay_link_order_statuses_desc")}</p>
+     </div>
+ </div>
+
+ <hr>
+
  {* --- J5 (two-phase commit) --- *}
  <h3>{__("hypay_j5_section")}</h3>
 

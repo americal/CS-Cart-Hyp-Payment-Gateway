@@ -1126,3 +1126,63 @@ msgstr "issued by Hyp"
 msgctxt "Languages::hypay_link_document_after"
 msgid "Document after payment"
 msgstr "Document after payment"
+
+msgctxt "Languages::hypay_link_section"
+msgid "Payment links"
+msgstr "Payment links"
+
+msgctxt "Languages::hypay_link_order_statuses"
+msgid "Customer's orders offered in the link"
+msgstr "Customer's orders offered in the link"
+
+msgctxt "Languages::hypay_link_order_statuses_desc"
+msgid "When a payment link is created from an order, the panel lists the customer's other orders with these statuses, so several orders can be paid with one link. Orders that already have a document attached or a link of their own are not listed. Select none to always pay for the one order only. Hold Ctrl (Cmd) to select several."
+msgstr "When a payment link is created from an order, the panel lists the customer's other orders with these statuses, so several orders can be paid with one link. Orders that already have a document attached or a link of their own are not listed. Select none to always pay for the one order only. Hold Ctrl (Cmd) to select several."
+
+msgctxt "Languages::hypay_link_orders_title"
+msgid "Orders to pay with this link"
+msgstr "Orders to pay with this link"
+
+msgctxt "Languages::hypay_link_col_order"
+msgid "Order"
+msgstr "Order"
+
+msgctxt "Languages::hypay_link_col_date"
+msgid "Date"
+msgstr "Date"
+
+msgctxt "Languages::hypay_link_col_status"
+msgid "Status"
+msgstr "Status"
+
+msgctxt "Languages::hypay_link_col_total"
+msgid "Total"
+msgstr "Total"
+
+msgctxt "Languages::hypay_link_current_order"
+msgid "this order"
+msgstr "this order"
+
+msgctxt "Languages::hypay_link_total_selected"
+msgid "Total to pay"
+msgstr "Total to pay"
+
+msgctxt "Languages::hypay_link_no_other_orders"
+msgid "The customer has no other orders with the statuses chosen in the payment method settings."
+msgstr "The customer has no other orders with the statuses chosen in the payment method settings."
+
+msgctxt "Languages::hypay_link_no_statuses_set"
+msgid "To add the customer's other orders to the link, choose their statuses in the Hypay payment method settings (Payment links)."
+msgstr "To add the customer's other orders to the link, choose their statuses in the Hypay payment method settings (Payment links)."
+
+msgctxt "Languages::hypay_link_orders_in_link"
+msgid "Orders in this link"
+msgstr "Orders in this link"
+
+msgctxt "Languages::hypay_link_pi_orders"
+msgid "orders [orders]"
+msgstr "orders [orders]"
+
+msgctxt "Languages::hypay_link_error_bad_order"
+msgid "Order #[order_id] cannot be added to the payment link: it belongs to another customer, has a status not chosen in the settings, a document attached, or a link of its own."
+msgstr "Order #[order_id] cannot be added to the payment link: it belongs to another customer, has a status not chosen in the settings, a document attached, or a link of its own."
