@@ -3202,10 +3202,10 @@ function fn_hypay_link_normalize_cell($phone)
  *
  * A payment link is only offered for an order nobody has paid yet. Four
  * answers count as "paid": a link of its own that was paid, a J5 hold that is
- * open or already captured (the money is spoken for), a status the store
- * itself treats as paid, and a successful Hyp charge recorded on the order -
- * the last one because "Success status" may well be a status the store does
- * not call paid (Open, by default).
+ * open or already captured (the money is spoken for), the Paid or Complete
+ * status, and a successful Hyp charge recorded on the order - the last one
+ * because "Success status" may well be a status that says nothing about
+ * money (Open, by default).
  */
 function fn_hypay_order_is_paid($order_info, &$reason = '')
 {
@@ -3227,9 +3227,12 @@ function fn_hypay_order_is_paid($order_info, &$reason = '')
         return true;
     }
 
-    $paid_statuses = function_exists('fn_get_order_paid_statuses') ? (array) fn_get_order_paid_statuses() : ['P', 'C'];
-    if (in_array((string) ($order_info['status'] ?? ''), $paid_statuses, true)) {
-        $reason = 'order status is a paid one';
+    // Paid and Complete only. Not fn_get_order_paid_statuses(): despite its
+    // name it returns every status that takes the goods off the stock
+    // (inventory = D) - Open and any custom "New order" among them - which
+    // made every freshly placed order look paid and hid the button.
+    if (in_array((string) ($order_info['status'] ?? ''), ['P', 'C'], true)) {
+        $reason = 'order status is Paid or Complete';
 
         return true;
     }
