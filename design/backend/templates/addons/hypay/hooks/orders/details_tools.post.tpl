@@ -17,7 +17,9 @@
        data-ca-dialog-title="{__("hypay_link_panel_title", ["[order_id]" => $order_info.order_id])}"
        href="{"hypay.link_panel?order_id=`$order_info.order_id`"|fn_url}">
         {__("hypay_link_btn")} 💳
-        {if $hypay_link_menu.state == "paid"}
+        {if $hypay_link_menu.state == "paid" && $hypay_link_menu.j5}
+            <br /><small class="text-success">{__("hypay_link_authorized_on", ["[date]" => $hypay_link_menu.paid_at|date_format:$hypay_link_menu_date])}</small>
+        {elseif $hypay_link_menu.state == "paid"}
             <br /><small class="text-success">{__("hypay_link_paid_on", ["[date]" => $hypay_link_menu.paid_at|date_format:$hypay_link_menu_date])}</small>
         {elseif $hypay_link_menu.state == "active"}
             <br /><small class="text-success">{__("hypay_link_state_active", ["[date]" => $hypay_link_menu.created_at|date_format:$hypay_link_menu_date])}</small>

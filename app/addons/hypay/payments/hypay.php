@@ -34,6 +34,15 @@ if (defined('PAYMENT_NOTIFICATION')) {
     // A paid payment link comes back on this same URL, and may bring no order
     // number with it - the link is then found by what it was created with.
     $hypay_link = fn_hypay_link_find_for_return($order_id);
+
+    // a J5 hold coming back is the link's only when the link asked for one
+    if (!empty($hypay_link)
+        && (string) ($_REQUEST['CCode'] ?? '') === HYPAY_CCODE_J5_AUTHORIZED
+        && !fn_hypay_link_is_j5($hypay_link)
+    ) {
+        $hypay_link = [];
+    }
+
     if ($order_id <= 0 && !empty($hypay_link)) {
         $order_id = (int) $hypay_link['order_id'];
     }
@@ -229,11 +238,13 @@ if (defined('PAYMENT_NOTIFICATION')) {
         }
 
         // Not the checkout "thank you" page: the customer did not come from a
-        // checkout, and is often not signed in on this device at all. The
-        // storefront home carries the notification just set. The checkout
+        // checkout, and is often not signed in on this device at all - or is
+        // signed in as somebody else - and checkout.complete would answer 403.
+        // The order page when the storefront will show it to them, the home
+        // page otherwise; both carry the notification just set. The checkout
         // marker and the cart are left alone - they belong to a checkout, if
         // there is one.
-        $url = fn_url('index.php', 'C', 'current');
+        $url = fn_hypay_link_customer_url($order_info);
         hypay_log($order_id, 'redirect customer (payment link)', $url);
         hypay_clean_redirect($url);
 
@@ -346,8 +357,25 @@ if (defined('PAYMENT_NOTIFICATION')) {
                 'order_status'   => $j5_auth_status,
             ];
             $pp_response = fn_hypay_clean_payment_info($pp_response);
-            hypay_log($order_id, 'fn_finish_payment payload (J5)', $pp_response);
-            fn_finish_payment($order_id, $pp_response);
+
+            if (!empty($hypay_link)) {
+                // A J5 payment link. There is no checkout behind the order for
+                // fn_finish_payment to finish, so the hold is recorded the way
+                // a paid link is. A LIST lookup may have marked the link used
+                // already, without the UID; this return brings it.
+                fn_hypay_link_claim_paid($hypay_link['link_id'], 'return', $hyp_id);
+                db_query("UPDATE ?:hypay_payment_links SET last_error = '' WHERE link_id = ?i", $hypay_link['link_id']);
+                $hypay_link = fn_hypay_link_get($hypay_link['link_id']);
+
+                $pp_response['hypay_link'] = fn_hypay_link_paid_label($hypay_link);
+                hypay_log($order_id, 'payment link held (J5)', $pp_response);
+                fn_hypay_link_finish_order($order_id, $pp_response, $pp, 'j5_auth_additional_status');
+
+                fn_set_notification('N', __('notice'), __('hypay_link_customer_authorized', ['[order_id]' => $order_id]));
+            } else {
+                hypay_log($order_id, 'fn_finish_payment payload (J5)', $pp_response);
+                fn_finish_payment($order_id, $pp_response);
+            }
 
             // the hold went through, so the order stands: the money is only
             // waiting to be captured from the order page
@@ -358,8 +386,9 @@ if (defined('PAYMENT_NOTIFICATION')) {
             fn_hypay_link_retire($order_id, $pp);
 
             // inside this branch on purpose: a replayed return takes the other
-            // one and leaves the order alone, additional status included
-            if (!empty($pp['j5_auth_additional_status'])) {
+            // one and leaves the order alone, additional status included (a
+            // link has had its own already)
+            if (empty($hypay_link) && !empty($pp['j5_auth_additional_status'])) {
                 fn_hypay_set_additional_status($order_id, $pp['j5_auth_additional_status']);
             }
 
@@ -435,6 +464,15 @@ if (defined('PAYMENT_NOTIFICATION')) {
         }
     }
 
+    // a J5 payment link: back where a paid link sends the customer
+    if (!empty($hypay_link)) {
+        $url = fn_hypay_link_customer_url($order_info);
+        hypay_log($order_id, 'redirect customer (J5 payment link)', $url);
+        hypay_clean_redirect($url);
+
+        return;
+    }
+
     // where to bounce back (admin or storefront)?
     $back = hypay_get_back_marker($order_id);
     hypay_clear_back_marker($order_id);
@@ -457,9 +495,25 @@ if (defined('PAYMENT_NOTIFICATION')) {
         $url = "{$admin_index}?dispatch=orders.details&order_id={$order_id}";
         hypay_log($order_id, 'redirect admin', $url);
         hypay_clean_redirect($url);
-    } else {
+    } elseif (fn_hypay_customer_can_view_order($order_info)) {
         $url = fn_url("index.php?dispatch=checkout.complete&order_id={$order_id}", 'C', 'current');
         hypay_log($order_id, 'redirect customer', $url);
+        hypay_clean_redirect($url);
+    } else {
+        // No checkout of this session's came back here - an order paid on a
+        // page opened some other way (a link from an older version, a page
+        // forwarded to someone else) - and checkout.complete would answer this
+        // visitor with 403. Where the customer lands changes nothing about
+        // what was recorded above; the home page says how it went.
+        if ($is_j5_auth) {
+            fn_set_notification('N', __('notice'), __('hypay_link_customer_authorized', ['[order_id]' => $order_id]));
+        } elseif ($is_success) {
+            fn_set_notification('N', __('notice'), __('hypay_link_customer_paid', ['[order_id]' => $order_id]));
+        } else {
+            fn_set_notification('E', __('error'), __('hypay_customer_payment_failed'));
+        }
+        $url = fn_url('index.php', 'C', 'current');
+        hypay_log($order_id, 'redirect customer (order not visible to this session)', $url);
         hypay_clean_redirect($url);
     }
     return;

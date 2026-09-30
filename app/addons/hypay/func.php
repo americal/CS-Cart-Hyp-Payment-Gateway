@@ -133,6 +133,8 @@ function fn_hypay_ensure_schema()
         // the document Hyp issued itself (integrated EzCount), from Hesh
         . " doc_number varchar(64) NOT NULL default '',"
         . " kind varchar(16) NOT NULL default 'request',"
+        // Y: the link holds the money (J5) instead of charging it
+        . " j5 char(1) NOT NULL default 'N',"
         . " created_at int(11) unsigned NOT NULL default '0',"
         . " cancelled_at int(11) unsigned NOT NULL default '0',"
         . " paid_at int(11) unsigned NOT NULL default '0',"
@@ -154,6 +156,9 @@ function fn_hypay_ensure_schema()
     //          send however they like - nothing is sent, nothing to LIST
     if ($link_columns && !in_array('kind', $link_columns, true)) {
         db_query("ALTER TABLE ?:hypay_payment_links ADD kind varchar(16) NOT NULL default 'request'");
+    }
+    if ($link_columns && !in_array('j5', $link_columns, true)) {
+        db_query("ALTER TABLE ?:hypay_payment_links ADD j5 char(1) NOT NULL default 'N'");
     }
 
     // payment_url was a varchar(255), and a signed payment page URL is longer:
@@ -402,6 +407,42 @@ function hypay_get_back_marker($order_id)
 function hypay_clear_back_marker($order_id)
 {
     db_query("DELETE FROM ?:order_data WHERE order_id = ?i AND type = 'H'", $order_id);
+}
+
+/**
+ * Will the storefront show this order to whoever is in this session?
+ *
+ * checkout.complete and orders.details show an order to its signed-in owner,
+ * or to a guest session that placed it (auth order_ids) - anybody else gets
+ * 403. The customer returning from Hyp is often neither: a payment link opened
+ * on a phone, by someone not signed in, or signed in as somebody else.
+ */
+function fn_hypay_customer_can_view_order(array $order_info)
+{
+    $auth = isset(\Tygh::$app['session']['auth']) ? (array) \Tygh::$app['session']['auth'] : [];
+
+    $user_id = (int) ($auth['user_id'] ?? 0);
+    if ($user_id > 0) {
+        return $user_id === (int) ($order_info['user_id'] ?? 0);
+    }
+
+    $order_ids = array_map('intval', (array) ($auth['order_ids'] ?? []));
+
+    return in_array((int) ($order_info['order_id'] ?? 0), $order_ids, true);
+}
+
+/**
+ * Where a customer coming back from a payment link goes: the order itself when
+ * the storefront will show it to them, the home page otherwise - never a 403.
+ * Either way the notification already set tells them the outcome.
+ */
+function fn_hypay_link_customer_url(array $order_info)
+{
+    if (fn_hypay_customer_can_view_order($order_info)) {
+        return fn_url('orders.details?order_id=' . (int) $order_info['order_id'], 'C', 'current');
+    }
+
+    return fn_url('index.php', 'C', 'current');
 }
 
 /** push a clean redirect (JS replace + meta refresh + noscript link) */
@@ -974,9 +1015,24 @@ function hypay_personal_id_label($value)
     ]);
 }
 
-/** payment method settings of an order */
+/**
+ * Payment method settings of an order - the ones its J5 hold is captured and
+ * voided with.
+ *
+ * An order placed with another method (bank transfer, phone) and held through
+ * a J5 payment link has its hold on the terminal of the Hypay method the link
+ * was made with, so that method's settings are the ones returned.
+ */
 function fn_hypay_get_processor_params($order_info)
 {
+    $order_id = (int) ($order_info['order_id'] ?? 0);
+    if ($order_id > 0 && !fn_hypay_order_uses_hypay($order_id, (array) $order_info)) {
+        $link = fn_hypay_link_get_latest($order_id);
+        if (!empty($link)) {
+            return fn_hypay_link_processor_params((array) $order_info, $link);
+        }
+    }
+
     if (empty($order_info['payment_id'])) { return []; }
     $processor_data = fn_get_payment_method_data($order_info['payment_id']);
 
@@ -3310,7 +3366,10 @@ function fn_hypay_link_order_ids(array $link)
  */
 function fn_hypay_link_paid_label(array $link)
 {
-    $label = __('hypay_link_pi_paid', ['[date]' => date('d.m.Y H:i', (int) ($link['paid_at'] ?? 0))]);
+    // a J5 link holds the money: the capture, from the J5 block, charges it
+    $label = __(fn_hypay_link_is_j5($link) ? 'hypay_link_pi_authorized' : 'hypay_link_pi_paid', [
+        '[date]' => date('d.m.Y H:i', (int) ($link['paid_at'] ?? 0)),
+    ]);
 
     $ids = fn_hypay_link_order_ids($link);
     if (count($ids) > 1) {
@@ -3337,6 +3396,12 @@ function fn_hypay_link_order_statuses($pp)
     }
 
     return array_values(array_unique(array_filter(array_map('trim', array_map('strval', $statuses)), 'strlen')));
+}
+
+/** does the link hold the money (J5) rather than charge it? */
+function fn_hypay_link_is_j5(array $link)
+{
+    return ($link['j5'] ?? 'N') === 'Y';
 }
 
 /** how many days a link stays payable, per the settings; 0 for no limit */
@@ -3782,10 +3847,12 @@ function fn_hypay_link_credentials(array $pp)
  * @param int[]  $order_ids more of the same customer's orders to pay for with
  *                          the same link; the order it is created from is
  *                          always one of them
+ * @param bool   $j5        hold the money on the card (J5) instead of charging
+ *                          it (J4); captured later from the order's J5 block
  *
  * @return bool
  */
-function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_ids = [])
+function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_ids = [], $j5 = false)
 {
     fn_hypay_ensure_schema();
 
@@ -3847,6 +3914,15 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
         $orders[$extra_id] = $extra;
     }
 
+    // A hold is captured and voided order by order - one authorization per
+    // order in ?:hypay_transactions - so a J5 link pays for a single order.
+    $j5 = (bool) $j5;
+    if ($j5 && count($orders) > 1) {
+        fn_set_notification('E', __('error'), __('hypay_link_error_j5_single'));
+
+        return false;
+    }
+
     $amounts = [];
     foreach ($orders as $oid => $o) {
         $amounts[$oid] = round((float) $o['total'], 2);
@@ -3896,7 +3972,8 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
 
     // The document Hyp issues itself when the link is paid follows the
     // integrated EzCount settings, exactly as a checkout charge does
-    $is_integrated = (($pp['ez_mode'] ?? 'none') === 'integrated');
+    // - and a J5 hold, as at checkout, issues none: the capture does
+    $is_integrated = !$j5 && (($pp['ez_mode'] ?? 'none') === 'integrated');
     $ez_customer   = $is_integrated ? hypay_ez_customer($pp, $order_info, 'ez_int') : [];
     $ez_name       = (string) ($ez_customer['ezcount_name'] ?? '');
 
@@ -3951,8 +4028,16 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
         $params['SendHesh'] = 'False';
     }
 
+    if ($j5) {
+        // the same request the checkout makes for a hold: MoreData brings back
+        // the UID and UserId the capture needs, and no document is issued
+        $params['J5']       = 'True';
+        $params['MoreData'] = 'True';
+        $params['SendHesh'] = 'False';
+    }
+
     if ($kind === 'sign') {
-        $signed = fn_hypay_link_sign($order_id, $order_info, $orders, $amount, $info, $page_lang, $pp, $ez_customer);
+        $signed = fn_hypay_link_sign($order_id, $order_info, $orders, $amount, $info, $page_lang, $pp, $ez_customer, $j5);
         if (empty($signed['url'])) {
             fn_set_notification('E', __('error'), __('hypay_link_create_failed') . ' ' . $signed['error']);
             hypay_log($order_id, 'link.sign FAILED', $signed['error']);
@@ -3991,6 +4076,7 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
         'sent_to'        => $sent_to,
         'status'         => 'active',
         'kind'           => $kind,
+        'j5'             => $j5 ? 'Y' : 'N',
         'created_at'     => TIME,
         'checked_at'     => TIME,
         'last_error'     => '',
@@ -4023,6 +4109,7 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
         'sent_to'      => $sent_to,
         'amount'       => $amount,
         'orders'       => $amounts,
+        'j5'           => $j5,
     ]);
     fn_set_notification('N', __('notice'), $kind === 'sign'
         ? __('hypay_link_created_ok_copy')
@@ -4047,7 +4134,7 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
  *
  * @return array ['id' => local id, 'url' => payment page URL, 'error' => text]
  */
-function fn_hypay_link_sign($order_id, array $order_info, array $orders, $amount, $info, $page_lang, array $pp, array $ez_customer)
+function fn_hypay_link_sign($order_id, array $order_info, array $orders, $amount, $info, $page_lang, array $pp, array $ez_customer, $j5 = false)
 {
     $ez_name = (string) ($ez_customer['ezcount_name'] ?? '');
 
@@ -4092,12 +4179,22 @@ function fn_hypay_link_sign($order_id, array $order_info, array $orders, $amount
         'pageTimeOut' => 'False',
         'J5'          => 'False',
     ];
+
+    if ($j5) {
+        // a hold, exactly as the checkout asks for one
+        $params['J5']       = 'True';
+        $params['MoreData'] = 'True';
+        $j5_hide_btns = (string) ($pp['j5_hide_btns'] ?? '');
+        if ($j5_hide_btns !== '') {
+            $params['hideBtns'] = hypay_bool($j5_hide_btns);
+        }
+    }
     hypay_put($params, 'Tash',     isset($pp['tash'])     && $pp['tash']     !== '' ? (int) $pp['tash']     : null);
     hypay_put($params, 'tashType', isset($pp['tashtype']) && $pp['tashtype'] !== '' ? (int) $pp['tashtype'] : null);
 
     // the document Hyp issues itself follows the payment link setting, as it
     // does for a link Hyp sends
-    $is_integrated = (($pp['ez_mode'] ?? 'none') === 'integrated');
+    $is_integrated = !$j5 && (($pp['ez_mode'] ?? 'none') === 'integrated');
     $int_doc_type  = $is_integrated ? fn_hypay_link_doc_type($pp, 'integrated') : 'none';
     if ($is_integrated && $int_doc_type !== 'none') {
         $params['SendHesh'] = hypay_bool($pp['sendhesh'] ?? 'N');
@@ -4332,7 +4429,11 @@ function fn_hypay_link_check($order_id, $quiet = false, $timeout = 45)
 
     if ($status === '3') {
         fn_hypay_link_settle_from_list($order_id, $link, (string) ($item['transId'] ?? ''));
-        fn_set_notification('N', __('notice'), __('hypay_link_check_paid'));
+        fn_set_notification(
+            fn_hypay_link_is_j5($link) ? 'W' : 'N',
+            fn_hypay_link_is_j5($link) ? __('warning') : __('notice'),
+            fn_hypay_link_is_j5($link) ? __('hypay_link_j5_list_no_return') : __('hypay_link_check_paid')
+        );
 
         return 'paid';
     }
@@ -4409,7 +4510,7 @@ function fn_hypay_link_claim_paid($link_id, $via, $trans_id = '')
  * started for, and a link is paid without one - an order placed from the admin
  * panel, or one whose checkout payment has already come back declined.
  */
-function fn_hypay_link_finish_order($order_id, array $pp_response, array $pp)
+function fn_hypay_link_finish_order($order_id, array $pp_response, array $pp, $additional_setting = 'success_additional_status')
 {
     $status = (string) ($pp_response['order_status'] ?? '');
     unset($pp_response['order_status']);
@@ -4420,11 +4521,14 @@ function fn_hypay_link_finish_order($order_id, array $pp_response, array $pp)
         fn_change_order_status($order_id, $status);
     }
 
-    if (!empty($pp['success_additional_status'])) {
-        fn_hypay_set_additional_status($order_id, $pp['success_additional_status']);
+    // a J5 hold gets the additional status of a hold, a charge that of a charge
+    if (!empty($pp[$additional_setting])) {
+        fn_hypay_set_additional_status($order_id, $pp[$additional_setting]);
     }
 
-    fn_hypay_order_note($order_id, 'paid by payment link');
+    fn_hypay_order_note($order_id, $additional_setting === 'success_additional_status'
+        ? 'paid by payment link'
+        : 'held (J5) by payment link');
 }
 
 /**
@@ -4469,6 +4573,26 @@ function fn_hypay_link_settle_from_list($order_id, array $link, $trans_id)
     $link       = fn_hypay_link_get($link['link_id']);
     $order_info = fn_get_order_info($order_id);
     $pp         = fn_hypay_link_processor_params($order_info, $link);
+
+    // A J5 link: the money is held, not charged, and the hold can only be
+    // captured from here with the UID the customer's return brings. LIST does
+    // not have it, so the order is not moved - the return, when it arrives,
+    // records the hold (it does even with the link already marked); if it
+    // never does, the hold is captured in the Hyp portal.
+    if (fn_hypay_link_is_j5($link)) {
+        db_query(
+            "UPDATE ?:hypay_payment_links SET last_error = ?s WHERE link_id = ?i",
+            __('hypay_link_j5_list_no_return'),
+            $link['link_id']
+        );
+        fn_hypay_update_payment_info($order_id, ['hypay_link' => fn_hypay_link_paid_label($link)]);
+        hypay_log($order_id, 'J5 link used (found by LIST), waiting for the return', [
+            'payRequestId' => $link['pay_request_id'],
+            'transId'      => $trans_id,
+        ]);
+
+        return true;
+    }
 
     $pp_response = [
         'reason_text'  => '🟢 Success',
@@ -4617,10 +4741,6 @@ function fn_hypay_link_find_for_return($order_id)
     }
 
     if ($order_id > 0) {
-        if (hypay_get_marker_data($order_id)) {
-            return [];
-        }
-
         $row = db_get_row(
             "SELECT l.* FROM ?:hypay_payment_links AS l"
             . " INNER JOIN ?:hypay_payment_link_orders AS lo ON lo.link_id = l.link_id"
@@ -4628,8 +4748,28 @@ function fn_hypay_link_find_for_return($order_id)
             . " ORDER BY l.link_id DESC LIMIT 1",
             $order_id
         );
+        if (empty($row)) {
+            return [];
+        }
 
-        return is_array($row) ? $row : [];
+        // A checkout payment page opened for the order after the link was made
+        // leaves its marker on it. The marker alone used to settle it as that
+        // checkout coming back - and a checkout return records nothing on an
+        // order no checkout was placed for (fn_finish_payment needs one), and
+        // sends the customer to checkout.complete, which answers anybody but
+        // the order's owner with 403. So the return is the checkout's only when
+        // it cannot be the link's: a different amount, a link already paid, or
+        // a J5 hold the link did not ask for.
+        if (hypay_get_marker_data($order_id)) {
+            $amount = hypay_request_value(['Amount']);
+            if ($row['status'] === 'paid'
+                || ($amount !== '' && is_numeric($amount) && abs((float) $row['amount'] - (float) $amount) >= 0.01)
+            ) {
+                return [];
+            }
+        }
+
+        return $row;
     }
 
     $info = trim(hypay_utf8_text(hypay_request_value(['Info'])));
@@ -4817,6 +4957,7 @@ function fn_hypay_get_link_panel_data($order_id)
         'candidates'    => $candidates,
         'candidate_statuses' => $candidate_statuses,
         'kind'          => (string) ($link['kind'] ?? 'request'),
+        'j5'            => !empty($link) && fn_hypay_link_is_j5($link),
         'customer_name' => trim(($order_info['firstname'] ?? '') . ' ' . ($order_info['lastname'] ?? '')),
         'currency'      => (string) (fn_hypay_currency_symbol()),
         // whether the settings offer other orders at all - the panel says so

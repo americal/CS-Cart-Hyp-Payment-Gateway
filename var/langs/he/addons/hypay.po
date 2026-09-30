@@ -1120,3 +1120,51 @@ msgstr "סטטוס נוסף לאחר ביטול הקישור"
 msgctxt "Languages::hypay_link_cancelled_additional_status_desc"
 msgid "Every order the payment link paid for gets this additional status once the link is cancelled - from here or from the Hyp portal - or expires."
 msgstr "כל ההזמנות שהקישור שילם עליהן יקבלו סטטוס נוסף זה לאחר ביטול הקישור (כאן או בפורטל Hyp) או כשתוקפו פג."
+
+msgctxt "Languages::hypay_link_deal"
+msgid "Deal type"
+msgstr "סוג עסקה"
+
+msgctxt "Languages::hypay_link_deal_j4"
+msgid "Charge now (J4)"
+msgstr "חיוב מיידי (J4)"
+
+msgctxt "Languages::hypay_link_deal_j4_desc"
+msgid "the money is taken when the customer pays"
+msgstr "הכסף נגבה כשהלקוח משלם"
+
+msgctxt "Languages::hypay_link_deal_j5"
+msgid "Hold only (J5)"
+msgstr "תפיסת מסגרת בלבד (J5)"
+
+msgctxt "Languages::hypay_link_deal_j5_desc"
+msgid "the amount is held on the card and charged later from the order's J5 block; this order only"
+msgstr "הסכום נתפס בכרטיס ונגבה מאוחר יותר מבלוק J5 של ההזמנה; להזמנה זו בלבד"
+
+msgctxt "Languages::hypay_link_error_j5_single"
+msgid "A J5 (hold) link can pay for one order only: untick the other orders."
+msgstr "קישור J5 (תפיסת מסגרת) יכול לשלם על הזמנה אחת בלבד: בטלו את סימון ההזמנות האחרות."
+
+msgctxt "Languages::hypay_link_pi_authorized"
+msgid "Card authorized (J5) by payment link on [date]"
+msgstr "המסגרת נתפסה (J5) בקישור תשלום ב-[date]"
+
+msgctxt "Languages::hypay_link_authorized_on"
+msgid "Card authorized (J5) by payment link on [date]"
+msgstr "המסגרת נתפסה (J5) בקישור תשלום ב-[date]"
+
+msgctxt "Languages::hypay_link_authorized_capture_hint"
+msgid "The money is held, not charged: capture it from the J5 block on the order page."
+msgstr "הכסף נתפס אך לא נגבה: גבו אותו מבלוק J5 בעמוד ההזמנה."
+
+msgctxt "Languages::hypay_link_j5_list_no_return"
+msgid "Hyp reports that the card was authorized with this link, but the details needed to capture it arrive only with the customer's return to the store, which has not come yet. If it never does, capture the transaction in the Hyp portal."
+msgstr "Hyp מדווח שהמסגרת נתפסה בקישור הזה, אך הנתונים הדרושים לגבייה מגיעים רק עם חזרת הלקוח לחנות, שעדיין לא הגיעה. אם היא לא תגיע, גבו את העסקה בפורטל Hyp."
+
+msgctxt "Languages::hypay_link_customer_authorized"
+msgid "Thank you! The amount for order #[order_id] is held on your card and will be charged when the order is confirmed."
+msgstr "תודה! הסכום להזמנה #[order_id] נתפס בכרטיס שלך וייגבה עם אישור ההזמנה."
+
+msgctxt "Languages::hypay_customer_payment_failed"
+msgid "The payment was not completed."
+msgstr "התשלום לא הושלם."
