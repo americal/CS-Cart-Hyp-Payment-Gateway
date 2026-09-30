@@ -7,7 +7,8 @@
  * dispatch[hypay.capture] — charge a held authorization (order total)
  * dispatch[hypay.void]    — abandon the hold, nothing is charged
  *
- * dispatch[hypay.link_create] — create a payment link and send it (payRequest)
+ * dispatch[hypay.link_create] — create a payment link and send it (payRequest),
+ *                               J4 (charge) or J5 (hold, deal=j5)
  * dispatch[hypay.link_cancel] — cancel the order's active payment link
  * dispatch[hypay.link_check]  — ask Hyp whether the link has been paid
  * (each of them, and the window, first expires a link past its lifetime)
@@ -89,7 +90,9 @@ if (in_array($mode, ['link_create', 'link_cancel', 'link_check'], true)) {
             $order_id,
             (string) ($_REQUEST['email'] ?? ''),
             (string) ($_REQUEST['cell'] ?? ''),
-            array_filter(array_map('intval', $order_ids))
+            array_filter(array_map('intval', $order_ids)),
+            // J4 (charge now) unless J5 (hold) was picked
+            ($_REQUEST['deal'] ?? 'j4') === 'j5'
         );
     } elseif ($expired) {
         // nothing left to cancel or check

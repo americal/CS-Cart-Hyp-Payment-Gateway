@@ -482,6 +482,34 @@ answered such a link with *"Action is not good"*. The column is now `text`;
 links already cut off are cancelled automatically with that reason, so a new
 one can be made for their orders.
 
+**J4 or J5.** The window asks for the deal type: *Charge now (J4)*, the
+default, or *Hold only (J5)*. A J5 link is made with `J5=True` and
+`MoreData=True`, like a J5 checkout, and pays for the order it is opened on
+only (a hold is captured and voided order by order). When the customer comes
+back, the hold is stored exactly as a J5 checkout stores it — authorization,
+UID, card token — the order gets the J5 authorization status and additional
+status, and the money is captured or released from the order's J5 block. No
+document is issued for the hold; the capture issues it. An order placed with
+another method is captured through the Hypay method the link was made with.
+If only the LIST lookup sees the link used (the customer's return never came),
+the order is not moved: the details a capture needs come only with the return,
+and the window says to capture it in the Hyp portal if it never arrives.
+
+**Where the customer lands.** After paying on a link the customer is sent to
+the order's page when the storefront will show it to them (their own order, or
+a guest order placed in this browser), and to the home page with a "payment
+received" message otherwise — never to a 403. A checkout return whose order the
+visitor cannot see is sent to the home page the same way instead of
+`checkout.complete`.
+
+A checkout payment page opened for the order after the link was made leaves a
+marker on the order. Earlier versions let that marker alone decide the return
+was the checkout's, so a paid link was sent down the checkout path — nothing
+recorded on an order no checkout was placed for, and `checkout.complete` with
+403 for the customer. Now the return is the checkout's only when it cannot be
+the link's: a different amount, a link already paid, or a J5 hold the link did
+not ask for.
+
 **Link lifetime.** *Payment links → Link lifetime, days* sets how long a link
 stays payable (empty or 0: no limit). An active link shows *valid until …*.
 Once the time is up, the next time the order page or the window is opened the

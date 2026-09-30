@@ -8,7 +8,8 @@
  *  answer - no reload, and no dialog opening itself again afterwards.
  *
  *  No link yet: the customer, the orders to pay for (with the document each
- *  already has), where to send it - or nowhere, to copy it yourself - Create.
+ *  already has), J4 (charge now, the default) or J5 (hold only, this order
+ *  alone), where to send it - or nowhere, to copy it yourself - Create.
  *  Active link: the link, Copy, the orders it covers, Check payment, Cancel.
  *  Paid: when, the transaction, the document.
  *  Expired (past the lifetime the settings give a link): when it ran out, and
@@ -70,7 +71,12 @@
     {if $hypay_link.state == "paid"}
         {* ---------------------------------------------------------------- paid *}
         <div class="hypay-lp-banner hypay-lp-banner--ok">
-            <strong>✓ {__("hypay_link_paid_on", ["[date]" => $hypay_link.paid_at|date_format:$hypay_lp_date])}</strong>
+            {if $hypay_link.j5}
+                <strong>✓ {__("hypay_link_authorized_on", ["[date]" => $hypay_link.paid_at|date_format:$hypay_lp_date])}</strong>
+                <div class="hypay-lp-banner__meta">{__("hypay_link_authorized_capture_hint")}</div>
+            {else}
+                <strong>✓ {__("hypay_link_paid_on", ["[date]" => $hypay_link.paid_at|date_format:$hypay_lp_date])}</strong>
+            {/if}
             <div class="hypay-lp-banner__meta">
                 {__("hypay_link_amount")}: <strong>{include file="common/price.tpl" value=$hypay_link.amount}</strong>
                 {if $hypay_link.trans_id} &middot; {__("hypay_link_transaction")}: <bdi>{$hypay_link.trans_id}</bdi>{/if}
@@ -83,6 +89,7 @@
                     &middot; {__("hypay_link_document")}: #<bdi>{$hypay_link.doc_number}</bdi> <small>({__("hypay_link_document_by_hyp")})</small>
                 {/if}
             </div>
+            {if $hypay_link.last_error}<div class="hypay-lp-banner__meta">{$hypay_link.last_error}</div>{/if}
         </div>
     {elseif $hypay_link.state == "active"}
         {* -------------------------------------------------------------- active *}
@@ -90,6 +97,7 @@
             <div class="hypay-lp-card__title">
                 {__("hypay_link_url")}
                 <span class="hypay-lp-badge hypay-lp-badge--ok">{__("hypay_link_state_active", ["[date]" => $hypay_link.created_at|date_format:$hypay_lp_date])}</span>
+                <span class="hypay-lp-badge hypay-lp-badge--muted">{if $hypay_link.j5}{__("hypay_link_deal_j5")}{else}{__("hypay_link_deal_j4")}{/if}</span>
                 {if $hypay_link.expires_at}
                     <span class="hypay-lp-badge hypay-lp-badge--muted">{__("hypay_link_expires_on", ["[date]" => $hypay_link.expires_at|date_format:$hypay_lp_date])}</span>
                 {/if}
@@ -178,6 +186,7 @@
                     {if $hypay_lp_pick}
                         <td>
                             <input type="checkbox" class="hypay-lp-order" value="{$r.order_id}" data-total="{$r.total}"
+                                   data-selectable="{if $r.selectable && !$r.current}1{else}0{/if}"
                                    {if $r.current}checked="checked" disabled="disabled"{elseif !$r.selectable}disabled="disabled"{/if} />
                         </td>
                     {/if}
@@ -201,6 +210,23 @@
 
     {if $hypay_lp_pick && $hypay_lp_rows|count <= 1}
         <p class="muted hypay-lp-note">{if $hypay_link.statuses_set}{__("hypay_link_no_other_orders")}{else}{__("hypay_link_no_statuses_set")}{/if}</p>
+    {/if}
+
+    {* ------------------------------------------------------------- deal type *}
+    {if $hypay_lp_pick}
+        <div class="hypay-lp-card">
+            <div class="hypay-lp-card__title">{__("hypay_link_deal")}</div>
+            <label class="radio hypay-lp-deal">
+                <input type="radio" name="hypay_lp_deal" class="hypay-lp-deal-input" value="j4" checked="checked" />
+                {__("hypay_link_deal_j4")}
+                <small class="muted">— {__("hypay_link_deal_j4_desc")}</small>
+            </label>
+            <label class="radio hypay-lp-deal">
+                <input type="radio" name="hypay_lp_deal" class="hypay-lp-deal-input" value="j5" />
+                {__("hypay_link_deal_j5")}
+                <small class="muted">— {__("hypay_link_deal_j5_desc")}</small>
+            </label>
+        </div>
     {/if}
 
     {* ---------------------------------------------------------------- delivery *}
@@ -289,6 +315,7 @@
 .hypay-lp-copy { display: flex; gap: 6px; align-items: center; }
 .hypay-lp-copy .hypay-lp-url { flex: 1 1 auto; min-width: 0; margin: 0; font-family: monospace; }
 .hypay-lp-meta { margin-top: 8px; color: #4b5563; }
+.hypay-lp-deal { margin: 0 0 4px; }
 .hypay-lp-send { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
 .hypay-lp-send__toggle { min-width: 150px; margin: 0; }
 .hypay-lp-send input[type=email], .hypay-lp-send input[type=text] { margin: 0; }
@@ -361,6 +388,7 @@
             var email      = $q('.hypay-lp-email');
             var cell       = $q('.hypay-lp-cell');
             var create     = $q('.hypay-lp-action[data-action="create"]');
+            var deals      = $qa('.hypay-lp-deal-input');
             var currency   = block.getAttribute('data-currency') || '';
 
             var picked = function () {
@@ -369,7 +397,7 @@
                     if (!orders[k].checked) { continue; }
                     total += parseFloat(orders[k].getAttribute('data-total')) || 0;
                     // this order is always in: its box only shows it
-                    if (orders[k].getAttribute('disabled') === null) { ids.push(orders[k].value); }
+                    if (orders[k].getAttribute('data-selectable') === '1') { ids.push(orders[k].value); }
                 }
                 return { ids: ids, total: total };
             };
@@ -402,6 +430,27 @@
                 });
             }
 
+            // J5 holds the money of this order alone: the others are unticked
+            // and locked while it is chosen, and given back when it is not
+            var deal = function () {
+                for (var d = 0; d < deals.length; d++) {
+                    if (deals[d].checked) { return deals[d].value; }
+                }
+                return 'j4';
+            };
+            var sync_deal = function () {
+                var j5 = deal() === 'j5';
+                for (var o = 0; o < orders.length; o++) {
+                    if (orders[o].getAttribute('data-selectable') !== '1') { continue; }
+                    if (j5) { orders[o].checked = false; }
+                    orders[o].disabled = j5;
+                }
+                sync();
+            };
+            for (var dd = 0; dd < deals.length; dd++) {
+                deals[dd].addEventListener('change', sync_deal);
+            }
+
             var inputs = [send_email, send_sms, email, cell];
             for (var m = 0; m < orders.length; m++) { inputs.push(orders[m]); }
             for (var j = 0; j < inputs.length; j++) {
@@ -426,6 +475,7 @@
                     if (send_sms && send_sms.checked && cell)     { params.append('cell', cell.value.replace(/[^\d+]/g, '')); }
                     var ids = picked().ids;
                     if (ids.length) { params.append('order_ids', ids.join(',')); }
+                    params.append('deal', deal());
                     if (!window.confirm(block.getAttribute('data-confirm-create'))) { return; }
                 }
                 if (action === 'cancel' && !window.confirm(block.getAttribute('data-confirm-cancel'))) { return; }
