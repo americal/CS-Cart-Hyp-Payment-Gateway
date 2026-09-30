@@ -111,8 +111,9 @@ function fn_hypay_ensure_schema()
     );
 
     // Payment links (action=payRequest): one row per link created for an order.
-    // status: active | cancelled | paid. paid_via says who noticed the payment
-    // first - the customer's return from the payment page ('return') or the
+    // status: active | cancelled | expired | paid. expired: older than the
+    // lifetime the payment method settings give a link. paid_via says who
+    // noticed the payment first - the customer's return from the payment page ('return') or the
     // LIST lookup made from the order page ('list').
     db_query(
         "CREATE TABLE IF NOT EXISTS ?:hypay_payment_links ("
@@ -120,7 +121,8 @@ function fn_hypay_ensure_schema()
         . " order_id mediumint(8) unsigned NOT NULL default '0',"
         . " payment_id mediumint(8) unsigned NOT NULL default '0',"
         . " pay_request_id varchar(64) NOT NULL default '',"
-        . " payment_url varchar(255) NOT NULL default '',"
+        // a signed payment page URL runs well past 255 characters
+        . " payment_url text,"
         . " amount decimal(12,2) NOT NULL default '0.00',"
         . " coin tinyint(3) unsigned NOT NULL default '1',"
         . " info varchar(255) NOT NULL default '',"
@@ -152,6 +154,30 @@ function fn_hypay_ensure_schema()
     //          send however they like - nothing is sent, nothing to LIST
     if ($link_columns && !in_array('kind', $link_columns, true)) {
         db_query("ALTER TABLE ?:hypay_payment_links ADD kind varchar(16) NOT NULL default 'request'");
+    }
+
+    // payment_url was a varchar(255), and a signed payment page URL is longer:
+    // it was stored cut off before action=pay and the signature, and Hyp
+    // answered it with "Action is not good". The column is widened, and the
+    // links already cut off - they cannot be paid - are cancelled with the
+    // reason, so a new one can be made for their orders.
+    $url_column = db_get_row("SHOW COLUMNS FROM ?:hypay_payment_links LIKE 'payment_url'");
+    $url_type   = (string) ($url_column['Type'] ?? $url_column['type'] ?? '');
+    if ($url_type !== '' && stripos($url_type, 'text') === false) {
+        db_query("ALTER TABLE ?:hypay_payment_links MODIFY payment_url text");
+
+        // the language variable arrives with a reinstall or a language import,
+        // which may not have happened yet: the reason is kept either way
+        $reason = __('hypay_link_error_truncated');
+        if (strpos($reason, 'hypay_link_error_truncated') !== false) {
+            $reason = 'This link was saved cut short and could not be paid (Hyp answered "Action is not good"). Create a new one.';
+        }
+        db_query(
+            "UPDATE ?:hypay_payment_links SET status = 'cancelled', cancelled_at = ?i, last_error = ?s"
+            . " WHERE status = 'active' AND kind = 'sign' AND payment_url NOT LIKE '%signature=%'",
+            TIME,
+            $reason
+        );
     }
 
     // The orders a link pays for - one or several of the same customer's.
@@ -3313,6 +3339,129 @@ function fn_hypay_link_order_statuses($pp)
     return array_values(array_unique(array_filter(array_map('trim', array_map('strval', $statuses)), 'strlen')));
 }
 
+/** how many days a link stays payable, per the settings; 0 for no limit */
+function fn_hypay_link_lifetime_days($pp)
+{
+    return max(0, (int) (((array) $pp)['link_lifetime_days'] ?? 0));
+}
+
+/** when the link runs out, 0 when it never does */
+function fn_hypay_link_expires_at(array $link, $pp)
+{
+    $days = fn_hypay_link_lifetime_days($pp);
+    if ($days <= 0 || empty($link['created_at'])) {
+        return 0;
+    }
+
+    return (int) $link['created_at'] + $days * 86400;
+}
+
+/**
+ * Mark every order a link pays for with the additional status one of the
+ * payment link settings names - link_created_additional_status or
+ * link_cancelled_additional_status. Nothing when the setting is empty.
+ */
+function fn_hypay_link_set_orders_additional_status(array $link, array $pp, $setting)
+{
+    $status = trim((string) ($pp[$setting] ?? ''));
+    if ($status === '') {
+        return;
+    }
+
+    foreach (fn_hypay_link_order_ids($link) as $oid) {
+        fn_hypay_set_additional_status($oid, $status);
+    }
+}
+
+/**
+ * The order's active link has outlived the lifetime the settings give it:
+ * withdraw it at Hyp and mark it expired, so the window says so and offers a
+ * new one.
+ *
+ * A link Hyp sent is looked up first - paid shortly before it ran out, it is
+ * paid, not expired. A signed page cannot be withdrawn at Hyp; like a
+ * cancelled one, a payment made on it anyway is still recorded.
+ *
+ * @return bool true when the link was marked expired just now
+ */
+function fn_hypay_link_expire_if_due($order_id)
+{
+    $order_id = (int) $order_id;
+    $link     = fn_hypay_link_get_active($order_id);
+    if (empty($link)) {
+        return false;
+    }
+
+    $order_info = (array) fn_get_order_info($order_id);
+    $pp         = fn_hypay_link_processor_params($order_info, $link);
+    $expires_at = fn_hypay_link_expires_at($link, $pp);
+    if ($expires_at <= 0 || $expires_at > TIME) {
+        return false;
+    }
+
+    $GLOBALS['HYPAY_DEBUG'] = (!empty($pp['debug_mode']) && $pp['debug_mode'] === 'Y');
+    $note = '';
+
+    if (($link['kind'] ?? 'request') !== 'sign') {
+        // Hyp is asked at most once a minute, as on page open
+        if ((int) $link['checked_at'] > TIME - 60) {
+            return false;
+        }
+
+        $state = fn_hypay_link_check($order_id, true, 15);
+        if ($state === 'paid' || $state === 'cancelled') {
+            return false;
+        }
+
+        $credentials = fn_hypay_link_credentials($pp);
+        $ccode       = '';
+        if ($credentials) {
+            $result = fn_hypay_link_api_request($order_id, $credentials + [
+                'action'     => 'payRequest',
+                'iCommand'   => 'DELETE',
+                'PayRequest' => $link['pay_request_id'],
+            ], 'link.expire', 15);
+            $ccode = trim((string) ($result['params']['CCode'] ?? ''));
+        }
+
+        if ($ccode === '995') {
+            // Hyp says it has been paid, and LIST did not show it: the link
+            // stays as it is until the payment is recorded
+            db_query(
+                "UPDATE ?:hypay_payment_links SET last_error = ?s WHERE link_id = ?i",
+                fn_hypay_format_error($ccode),
+                $link['link_id']
+            );
+
+            return false;
+        }
+
+        if ($ccode !== '0' && $ccode !== '250') {
+            $note = __('hypay_link_expired_not_withdrawn');
+        }
+    }
+
+    $expired = db_query(
+        "UPDATE ?:hypay_payment_links SET status = 'expired', cancelled_at = ?i, last_error = ?s WHERE link_id = ?i AND status = 'active'",
+        $expires_at,
+        $note,
+        $link['link_id']
+    );
+    if (!$expired) {
+        return false;
+    }
+
+    hypay_log($order_id, 'link expired', [
+        'link_id'    => $link['link_id'],
+        'kind'       => $link['kind'] ?? 'request',
+        'expires_at' => date('c', $expires_at),
+        'withdrawn'  => ($link['kind'] ?? 'request') !== 'sign' && $note === '',
+    ]);
+    fn_hypay_link_set_orders_additional_status($link, $pp, 'link_cancelled_additional_status');
+
+    return true;
+}
+
 /** does this order belong to the same customer as that one? */
 function fn_hypay_link_same_customer(array $order, array $other)
 {
@@ -3865,6 +4014,9 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
         hypay_clear_back_marker($oid);
     }
 
+    // the orders are marked as having a link out, when the settings ask for it
+    fn_hypay_link_set_orders_additional_status(fn_hypay_link_get($link_id), $pp, 'link_created_additional_status');
+
     hypay_log($order_id, 'link.create SUCCESS', [
         'payRequestId' => $pay_request_id,
         'paymentURL'   => $payment_url,
@@ -4019,6 +4171,7 @@ function fn_hypay_link_cancel($order_id)
             $link['link_id']
         );
         hypay_log($order_id, 'link cancelled (signed page, local only)', ['link_id' => $link['link_id']]);
+        fn_hypay_link_set_orders_additional_status($link, $pp, 'link_cancelled_additional_status');
         fn_set_notification('W', __('warning'), __('hypay_link_cancel_sign'));
 
         return true;
@@ -4045,6 +4198,7 @@ function fn_hypay_link_cancel($order_id)
             $link['link_id']
         );
         hypay_log($order_id, 'link.delete SUCCESS', ['payRequestId' => $link['pay_request_id']]);
+        fn_hypay_link_set_orders_additional_status($link, $pp, 'link_cancelled_additional_status');
         fn_set_notification('N', __('notice'), __('hypay_link_cancel_ok'));
 
         return true;
@@ -4078,6 +4232,7 @@ function fn_hypay_link_cancel($order_id)
             fn_hypay_format_error($ccode),
             $link['link_id']
         );
+        fn_hypay_link_set_orders_additional_status($link, $pp, 'link_cancelled_additional_status');
         fn_set_notification('W', __('warning'), __('hypay_link_cancel_not_found'));
 
         return true;
@@ -4190,6 +4345,7 @@ function fn_hypay_link_check($order_id, $quiet = false, $timeout = 45)
             __('hypay_link_check_cancelled_remote'),
             $link['link_id']
         );
+        fn_hypay_link_set_orders_additional_status($link, $pp, 'link_cancelled_additional_status');
         fn_set_notification('W', __('warning'), __('hypay_link_check_cancelled_remote'));
 
         return 'cancelled';
@@ -4205,9 +4361,14 @@ function fn_hypay_link_check($order_id, $quiet = false, $timeout = 45)
 /**
  * The page-open lookup: at most once a minute per link, and with a short
  * timeout, so an order page is never held up for long by a slow gateway.
+ * A link past its lifetime is expired first - see fn_hypay_link_expire_if_due().
  */
 function fn_hypay_link_auto_check($order_id)
 {
+    if (fn_hypay_link_expire_if_due($order_id)) {
+        return;
+    }
+
     $link = fn_hypay_link_get_active($order_id);
     if (empty($link) || (int) $link['checked_at'] > TIME - 60 || ($link['kind'] ?? 'request') === 'sign') {
         return;
@@ -4229,9 +4390,10 @@ function fn_hypay_link_claim_paid($link_id, $via, $trans_id = '')
 {
     return (bool) db_query(
         "UPDATE ?:hypay_payment_links SET status = 'paid', paid_via = ?s, paid_at = ?i, trans_id = ?s, last_error = ''"
-        // a signed page cancelled here still opens at Hyp: money taken on it
-        // is recorded all the same
-        . " WHERE link_id = ?i AND (status = 'active' OR (status = 'cancelled' AND kind = 'sign'))",
+        // a signed page cancelled here still opens at Hyp, and an expired link
+        // may not have been withdrawn there: money taken on either is recorded
+        // all the same
+        . " WHERE link_id = ?i AND (status IN ('active', 'expired') OR (status = 'cancelled' AND kind = 'sign'))",
         (string) $via,
         TIME,
         (string) $trans_id,
@@ -4462,7 +4624,7 @@ function fn_hypay_link_find_for_return($order_id)
         $row = db_get_row(
             "SELECT l.* FROM ?:hypay_payment_links AS l"
             . " INNER JOIN ?:hypay_payment_link_orders AS lo ON lo.link_id = l.link_id"
-            . " WHERE lo.order_id = ?i AND (l.status IN ('active', 'paid') OR (l.status = 'cancelled' AND l.kind = 'sign'))"
+            . " WHERE lo.order_id = ?i AND (l.status IN ('active', 'paid', 'expired') OR (l.status = 'cancelled' AND l.kind = 'sign'))"
             . " ORDER BY l.link_id DESC LIMIT 1",
             $order_id
         );
@@ -4477,7 +4639,7 @@ function fn_hypay_link_find_for_return($order_id)
 
     $rows = db_get_array(
         "SELECT * FROM ?:hypay_payment_links WHERE info = ?s"
-        . " AND (status IN ('active', 'paid') OR (status = 'cancelled' AND kind = 'sign')) ORDER BY link_id DESC",
+        . " AND (status IN ('active', 'paid', 'expired') OR (status = 'cancelled' AND kind = 'sign')) ORDER BY link_id DESC",
         $info
     );
 
@@ -4639,7 +4801,10 @@ function fn_hypay_get_link_panel_data($order_id)
         'sent_to'       => (string) ($link['sent_to'] ?? ''),
         'amount'        => $amount,
         'created_at'    => (int) ($link['created_at'] ?? 0),
+        // for an expired link, the moment it ran out
         'cancelled_at'  => (int) ($link['cancelled_at'] ?? 0),
+        // when an active link will run out, 0 when the settings set no limit
+        'expires_at'    => ($state === 'active') ? fn_hypay_link_expires_at($link, $pp_link) : 0,
         'paid_at'       => (int) ($link['paid_at'] ?? 0),
         'trans_id'      => (string) ($link['trans_id'] ?? ''),
         'doc_number'    => (string) ($link['doc_number'] ?? ''),

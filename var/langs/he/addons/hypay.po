@@ -1076,3 +1076,47 @@ msgstr "הקישור סומן כמבוטל. הוא נוצר בלי שליחה ד
 msgctxt "Languages::hypay_link_check_sign"
 msgid "This link was created without sending it through Hyp, so Hyp cannot be asked about it: its payment is recorded when the customer finishes paying."
 msgstr "הקישור הזה נוצר בלי שליחה דרך Hyp, ולכן אי אפשר לשאול את Hyp עליו: התשלום יירשם כשהלקוח יסיים לשלם."
+
+msgctxt "Languages::hypay_link_error_truncated"
+msgid "This link was saved cut short and could not be paid (Hyp answered \"Action is not good\"). Create a new one."
+msgstr "הקישור נשמר קטוע ולא ניתן היה לשלם בו (Hyp השיב \"Action is not good\"). צרו קישור חדש."
+
+msgctxt "Languages::hypay_link_state_expired"
+msgid "Link expired on [date]"
+msgstr "תוקף הקישור פג ב-[date]"
+
+msgctxt "Languages::hypay_link_expired_recreate"
+msgid "The customer can no longer pay with this link. Create a new one below."
+msgstr "הלקוח כבר לא יכול לשלם בקישור הזה. צרו קישור חדש למטה."
+
+msgctxt "Languages::hypay_link_expires_on"
+msgid "valid until [date]"
+msgstr "בתוקף עד [date]"
+
+msgctxt "Languages::hypay_link_expired_not_withdrawn"
+msgid "Hyp did not confirm the link was withdrawn: if the customer still pays with it, the payment is recorded on the orders."
+msgstr "Hyp לא אישר את ביטול הקישור: אם הלקוח ישלם בכל זאת, התשלום יירשם בהזמנות."
+
+msgctxt "Languages::hypay_link_lifetime_days"
+msgid "Link lifetime, days"
+msgstr "תוקף הקישור, ימים"
+
+msgctxt "Languages::hypay_link_lifetime_days_desc"
+msgid "After this many days an unpaid link is withdrawn at Hyp and shown as expired in the payment link window, which offers to create a new one. Empty or 0: no limit."
+msgstr "לאחר מספר ימים זה קישור שלא שולם מבוטל ב-Hyp ומוצג בחלון קישור התשלום כפג תוקף, עם הצעה ליצור קישור חדש. ריק או 0: ללא הגבלה."
+
+msgctxt "Languages::hypay_link_created_additional_status"
+msgid "Additional status after the link is created"
+msgstr "סטטוס נוסף לאחר יצירת הקישור"
+
+msgctxt "Languages::hypay_link_created_additional_status_desc"
+msgid "Every order the payment link pays for gets this additional status once the link is created."
+msgstr "כל ההזמנות שהקישור משלם עליהן יקבלו סטטוס נוסף זה לאחר יצירת הקישור."
+
+msgctxt "Languages::hypay_link_cancelled_additional_status"
+msgid "Additional status after the link is cancelled"
+msgstr "סטטוס נוסף לאחר ביטול הקישור"
+
+msgctxt "Languages::hypay_link_cancelled_additional_status_desc"
+msgid "Every order the payment link paid for gets this additional status once the link is cancelled - from here or from the Hyp portal - or expires."
+msgstr "כל ההזמנות שהקישור שילם עליהן יקבלו סטטוס נוסף זה לאחר ביטול הקישור (כאן או בפורטל Hyp) או כשתוקפו פג."
