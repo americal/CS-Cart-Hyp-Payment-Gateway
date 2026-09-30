@@ -64,36 +64,44 @@ if ($mode === 'capture') {
     return [CONTROLLER_STATUS_OK, 'orders.details?order_id=' . $order_id . '&hypay_result=capture'];
 }
 
-// hypay_link_open brings the page back with the payment link panel open, so
-// the link just created (or the outcome of the action) is right in front of
-// whoever clicked
-if ($mode === 'link_create') {
-    // the other orders ticked in the panel, as "1001,1002" or order_ids[]
-    $order_ids = $_REQUEST['order_ids'] ?? [];
-    if (!is_array($order_ids)) {
-        $order_ids = explode(',', (string) $order_ids);
+// The payment link buttons. The window posts them with hypay_ajax=1 and gets
+// itself back, redrawn with the outcome, in place of the old one - the page
+// does not reload and the dialog is not reopened. Without the flag (JavaScript
+// off, an old cached window) the order page is shown again, plainly.
+if (in_array($mode, ['link_create', 'link_cancel', 'link_check'], true)) {
+    if ($mode === 'link_create') {
+        // the other orders ticked in the window, as "1001,1002" or order_ids[]
+        $order_ids = $_REQUEST['order_ids'] ?? [];
+        if (!is_array($order_ids)) {
+            $order_ids = explode(',', (string) $order_ids);
+        }
+
+        fn_hypay_link_create(
+            $order_id,
+            (string) ($_REQUEST['email'] ?? ''),
+            (string) ($_REQUEST['cell'] ?? ''),
+            array_filter(array_map('intval', $order_ids))
+        );
+    } elseif ($mode === 'link_cancel') {
+        fn_hypay_link_cancel($order_id);
+    } else {
+        fn_hypay_link_check($order_id);
     }
 
-    fn_hypay_link_create(
-        $order_id,
-        (string) ($_REQUEST['email'] ?? ''),
-        (string) ($_REQUEST['cell'] ?? ''),
-        array_filter(array_map('intval', $order_ids))
-    );
+    if (!empty($_REQUEST['hypay_ajax'])) {
+        // the notifications the action raised belong in the window, not on the
+        // next page the admin happens to open
+        $notices = function_exists('fn_get_notifications') ? (array) fn_get_notifications() : [];
 
-    return [CONTROLLER_STATUS_OK, 'orders.details?order_id=' . $order_id . '&hypay_result=link&hypay_link_open=1'];
-}
+        $view = Tygh::$app['view'];
+        $view->assign('hypay_link', fn_hypay_get_link_panel_data($order_id));
+        $view->assign('hypay_link_order_id', $order_id);
+        $view->assign('hypay_link_notices', array_values(array_filter($notices, 'is_array')));
+        $view->display('addons/hypay/views/hypay/link_panel.tpl');
+        exit;
+    }
 
-if ($mode === 'link_cancel') {
-    fn_hypay_link_cancel($order_id);
-
-    return [CONTROLLER_STATUS_OK, 'orders.details?order_id=' . $order_id . '&hypay_result=link&hypay_link_open=1'];
-}
-
-if ($mode === 'link_check') {
-    fn_hypay_link_check($order_id);
-
-    return [CONTROLLER_STATUS_OK, 'orders.details?order_id=' . $order_id . '&hypay_result=link&hypay_link_open=1'];
+    return [CONTROLLER_STATUS_OK, 'orders.details?order_id=' . $order_id];
 }
 
 if ($mode === 'void') {
