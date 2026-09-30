@@ -1370,3 +1370,27 @@ msgstr "Thank you! The amount for order #[order_id] is held on your card and wil
 msgctxt "Languages::hypay_customer_payment_failed"
 msgid "The payment was not completed."
 msgstr "The payment was not completed."
+
+msgctxt "Languages::hypay_verify_return"
+msgid "Verify payments with Hyp"
+msgstr "Verify payments with Hyp"
+
+msgctxt "Languages::hypay_verify_return_desc"
+msgid "Before a payment is recorded on an order, the store checks with Hyp, server to server, that the customer's return really came from Hyp for this order and amount - so nobody can mark an order paid by opening the return address by hand. Payment pages are requested with Sign=True while this is on, whatever the Sign box says. Switch it off only to diagnose a problem."
+msgstr "Before a payment is recorded on an order, the store checks with Hyp, server to server, that the customer's return really came from Hyp for this order and amount - so nobody can mark an order paid by opening the return address by hand. Payment pages are requested with Sign=True while this is on, whatever the Sign box says. Switch it off only to diagnose a problem."
+
+msgctxt "Languages::hypay_unverified"
+msgid "Unverified return"
+msgstr "Unverified return"
+
+msgctxt "Languages::hypay_pi_unverified"
+msgid "[date]: a return claiming a payment could not be verified with Hyp - nothing was recorded. Check the transaction in the Hyp portal."
+msgstr "[date]: a return claiming a payment could not be verified with Hyp - nothing was recorded. Check the transaction in the Hyp portal."
+
+msgctxt "Languages::hypay_link_unverified"
+msgid "A return claiming this link was paid could not be verified with Hyp, so nothing was recorded. Check the transaction in the Hyp portal."
+msgstr "A return claiming this link was paid could not be verified with Hyp, so nothing was recorded. Check the transaction in the Hyp portal."
+
+msgctxt "Languages::hypay_customer_payment_unverified"
+msgid "We could not confirm your payment automatically. If you were charged, the store will confirm it shortly."
+msgstr "We could not confirm your payment automatically. If you were charged, the store will confirm it shortly."

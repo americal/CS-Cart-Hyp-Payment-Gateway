@@ -621,6 +621,50 @@ is created automatically.
 
 ---
 
+## 🛡️ Verifying the return from Hyp
+
+Hyp reports the outcome of a payment by sending the customer's browser back to
+the store's `payment_notification` URL, with the result in the query string
+(`CCode=0`, `Amount`, `Order`, …). That is an ordinary address anyone can open
+and edit, so on its own it proves nothing: before this check, opening it with
+`CCode=0` and an order number was enough to mark that order paid.
+
+Now every return that would record money — a charge (`CCode=0`) or a J5 hold
+(`CCode=700`) — is checked with Hyp, **server to server**, before anything is
+written. The customer's session plays no part in it, so it works the same for a
+guest, a customer signed in as somebody else, or nobody at all.
+
+- **Signed return.** While verification is on, every payment page — checkout
+  and payment links made without e-mail / SMS — is requested with `Sign=True`
+  (whatever the *Sign* checkbox says), and Hyp adds a `Sign` value to the return.
+  The store passes the parameters it received back to
+  `APISign` / `What=VERIFY` with the terminal's `KEY` and `PassP`; `CCode=0`
+  means Hyp signed exactly these values. The signed `Order` has to be the order
+  the return is recorded on, no parameter may appear twice (Hyp would check the
+  first one, PHP reads the last), and the `Amount` has to match the order total
+  (or the link's amount).
+- **A link Hyp sent by e-mail / SMS** whose return carries no signature is
+  confirmed with `payRequest` / `LIST`: the link has to be paid (`status=3`),
+  with the same transaction Id when Hyp gives one.
+
+A return that does not check out changes nothing — no status, no document, no
+link marked paid. The order's payment information gets an *Unverified return*
+line (it never repeats anything the request said), the link window says so, and
+the customer is told the store will confirm the payment. A verified return that
+arrives later clears the line. A link Hyp sent is still settled by the LIST
+lookup from the order page if its return was refused.
+
+**Setting:** *Verify payments with Hyp* (on by default). Switch it off only to
+diagnose a problem.
+
+**When updating:** payment pages opened before the update were requested
+without `Sign=True` (unless the *Sign* box was ticked), so their returns carry
+no signature and are not recorded automatically. Re-create payment links made
+without e-mail / SMS that are still unpaid; links sent by e-mail / SMS are
+confirmed through LIST and are not affected.
+
+---
+
 ## 🔒 3-D Secure (3DS)
 
 **There is no 3DS setting in this add-on, for J5 or for anything else — by design.**

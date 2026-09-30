@@ -87,6 +87,44 @@ if (defined('PAYMENT_NOTIFICATION')) {
         hypay_log($order_id, 'WARNING: J5 was requested but the transaction was charged (CCode=0)');
     }
 
+    /* ----------------------------------------------------------------------
+     * Is it really Hyp saying so? A return that would record money - a charge
+     * or a hold - is checked with Hyp, server to server, before anything is
+     * written. One that does not check out changes nothing: no status, no
+     * document, no link marked paid. See fn_hypay_verify_return().
+     * --------------------------------------------------------------------*/
+    if ($is_success || $is_j5_auth) {
+        $verified = fn_hypay_verify_return($order_id, (array) $order_info, (array) $pp, (array) $hypay_link);
+        hypay_log($order_id, 'return verification', $verified);
+
+        if (!$verified['ok']) {
+            // Where the merchant will see it - and nothing the request itself
+            // said, which anyone could have typed
+            fn_hypay_update_payment_info($order_id, [
+                'hypay_unverified' => __('hypay_pi_unverified', ['[date]' => date('d.m.Y H:i', TIME)]),
+            ]);
+            if (!empty($hypay_link)) {
+                db_query(
+                    "UPDATE ?:hypay_payment_links SET last_error = ?s WHERE link_id = ?i",
+                    __('hypay_link_unverified'),
+                    $hypay_link['link_id']
+                );
+            }
+
+            fn_set_notification('W', __('warning'), __('hypay_customer_payment_unverified'));
+            $url = fn_hypay_link_customer_url((array) $order_info);
+            hypay_log($order_id, 'return NOT verified, nothing recorded; redirect', $url);
+            hypay_clean_redirect($url);
+
+            return;
+        }
+
+        // an unverified return seen earlier is answered by this one
+        if (!empty($order_info['payment_info']['hypay_unverified'])) {
+            fn_hypay_update_payment_info($order_id, ['hypay_unverified' => '']);
+        }
+    }
+
     // status mapping
     $success_status = !empty($pp['success_status']) ? $pp['success_status'] : 'O';
     $fail_status    = !empty($pp['fail_status'])    ? $pp['fail_status']    : 'D';
@@ -595,7 +633,8 @@ $params_sign = [
     'Amount'      => round((float) $order_info['total'], 2),
     'UTF8'        => hypay_bool($pp['utf8']    ?? 'Y'),
     'UTF8out'     => hypay_bool($pp['utf8out'] ?? 'Y'),
-    'Sign'        => hypay_bool($pp['sign']    ?? 'N'),
+    // always True while returns are verified - see fn_hypay_verify_return()
+    'Sign'        => hypay_sign_flag($pp),
     'PageLang'    => $page_lang,
 
     // customer meta. Hyp echoes ClientName/ClientLName (as Fild1), street and

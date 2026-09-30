@@ -394,6 +394,19 @@
      </div>
  </div>
 
+ {* Checking the customer's return with Hyp before a payment is recorded.
+    On unless switched off: an unchecked box posts nothing, so the hidden N
+    is what says "off". *}
+ <div class="control-group">
+     <label class="control-label" for="hypay_verify_return">{__("hypay_verify_return")}</label>
+     <div class="controls">
+         <input type="hidden" name="payment_data[processor_params][verify_return]" value="N" />
+         <input type="checkbox" name="payment_data[processor_params][verify_return]" id="hypay_verify_return" value="Y"
+                {if $processor_params.verify_return != "N"}checked="checked"{/if} />
+         <p class="muted description">{__("hypay_verify_return_desc")}</p>
+     </div>
+ </div>
+
  <div class="control-group">
      <label class="control-label" for="hypay_pagelang">{__("hypay_pagelang")}</label>
      <div class="controls">
