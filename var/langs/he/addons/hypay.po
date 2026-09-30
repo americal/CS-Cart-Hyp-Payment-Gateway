@@ -1168,3 +1168,27 @@ msgstr "תודה! הסכום להזמנה #[order_id] נתפס בכרטיס של
 msgctxt "Languages::hypay_customer_payment_failed"
 msgid "The payment was not completed."
 msgstr "התשלום לא הושלם."
+
+msgctxt "Languages::hypay_verify_return"
+msgid "Verify payments with Hyp"
+msgstr "אימות תשלומים מול Hyp"
+
+msgctxt "Languages::hypay_verify_return_desc"
+msgid "Before a payment is recorded on an order, the store checks with Hyp, server to server, that the customer's return really came from Hyp for this order and amount - so nobody can mark an order paid by opening the return address by hand. Payment pages are requested with Sign=True while this is on, whatever the Sign box says. Switch it off only to diagnose a problem."
+msgstr "לפני שתשלום נרשם בהזמנה, החנות בודקת מול Hyp (שרת-לשרת) שהחזרה של הלקוח אכן הגיעה מ-Hyp עבור ההזמנה והסכום האלה - כך שאיש לא יוכל לסמן הזמנה כשולמה על ידי פתיחת כתובת החזרה ידנית. כל עוד האימות פעיל, דפי התשלום נשלחים עם Sign=True בלי קשר לתיבת Sign. כבו רק לצורך אבחון."
+
+msgctxt "Languages::hypay_unverified"
+msgid "Unverified return"
+msgstr "חזרה לא מאומתת"
+
+msgctxt "Languages::hypay_pi_unverified"
+msgid "[date]: a return claiming a payment could not be verified with Hyp - nothing was recorded. Check the transaction in the Hyp portal."
+msgstr "[date]: חזרה שמדווחת על תשלום לא אומתה מול Hyp - דבר לא נרשם. בדקו את העסקה בפורטל Hyp."
+
+msgctxt "Languages::hypay_link_unverified"
+msgid "A return claiming this link was paid could not be verified with Hyp, so nothing was recorded. Check the transaction in the Hyp portal."
+msgstr "חזרה שמדווחת שהקישור שולם לא אומתה מול Hyp, ולכן דבר לא נרשם. בדקו את העסקה בפורטל Hyp."
+
+msgctxt "Languages::hypay_customer_payment_unverified"
+msgid "We could not confirm your payment automatically. If you were charged, the store will confirm it shortly."
+msgstr "לא הצלחנו לאשר את התשלום באופן אוטומטי. אם חויבת, החנות תאשר את התשלום בקרוב."

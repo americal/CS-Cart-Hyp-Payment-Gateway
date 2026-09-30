@@ -1370,3 +1370,27 @@ msgstr "Спасибо! Сумма заказа #[order_id] заблокиров
 msgctxt "Languages::hypay_customer_payment_failed"
 msgid "The payment was not completed."
 msgstr "Оплата не была завершена."
+
+msgctxt "Languages::hypay_verify_return"
+msgid "Verify payments with Hyp"
+msgstr "Проверять оплаты в Hyp"
+
+msgctxt "Languages::hypay_verify_return_desc"
+msgid "Before a payment is recorded on an order, the store checks with Hyp, server to server, that the customer's return really came from Hyp for this order and amount - so nobody can mark an order paid by opening the return address by hand. Payment pages are requested with Sign=True while this is on, whatever the Sign box says. Switch it off only to diagnose a problem."
+msgstr "Прежде чем записать оплату в заказ, магазин напрямую (сервер-сервер) проверяет в Hyp, что возврат клиента действительно пришёл от Hyp для этого заказа и этой суммы, — поэтому никто не сможет отметить заказ оплаченным, открыв адрес возврата вручную. Пока проверка включена, страницы оплаты запрашиваются с Sign=True, независимо от галочки Sign. Отключайте только для диагностики."
+
+msgctxt "Languages::hypay_unverified"
+msgid "Unverified return"
+msgstr "Непроверенный возврат"
+
+msgctxt "Languages::hypay_pi_unverified"
+msgid "[date]: a return claiming a payment could not be verified with Hyp - nothing was recorded. Check the transaction in the Hyp portal."
+msgstr "[date]: возврат, сообщающий об оплате, не прошёл проверку в Hyp — ничего не записано. Проверьте сделку в портале Hyp."
+
+msgctxt "Languages::hypay_link_unverified"
+msgid "A return claiming this link was paid could not be verified with Hyp, so nothing was recorded. Check the transaction in the Hyp portal."
+msgstr "Возврат, сообщающий об оплате этой ссылки, не прошёл проверку в Hyp, поэтому ничего не записано. Проверьте сделку в портале Hyp."
+
+msgctxt "Languages::hypay_customer_payment_unverified"
+msgid "We could not confirm your payment automatically. If you were charged, the store will confirm it shortly."
+msgstr "Нам не удалось автоматически подтвердить оплату. Если деньги были списаны, магазин подтвердит оплату в ближайшее время."

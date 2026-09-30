@@ -530,6 +530,150 @@ function hypay_bool($v)
     return (!empty($v) && $v !== 'N' && $v !== '0') ? 'True' : 'False';
 }
 
+/**
+ * The Sign flag a payment page is requested with. Verifying the return needs
+ * Hyp to sign it, so with verification on (the default) it is always True,
+ * whatever the Sign checkbox says.
+ */
+function hypay_sign_flag(array $pp)
+{
+    return fn_hypay_verify_enabled($pp) ? 'True' : hypay_bool($pp['sign'] ?? 'N');
+}
+
+/** is the customer's return checked with Hyp before it is recorded? */
+function fn_hypay_verify_enabled(array $pp)
+{
+    return ($pp['verify_return'] ?? 'Y') !== 'N';
+}
+
+/**
+ * Did this payment_notification return really come from Hyp, for this order
+ * and this amount?
+ *
+ * The return is an ordinary GET the customer's browser makes, so anyone can
+ * open the same URL with CCode=0 typed in. Before this check, that alone marked
+ * the order paid. Now the store asks Hyp itself, server to server - which is
+ * why it works the same for a guest, a customer signed in as somebody else, or
+ * nobody at all: the customer's session plays no part in it.
+ *
+ *   - Signed return (the page was requested with Sign=True, as every page is
+ *     while verification is on): the parameters Hyp sent are passed back to
+ *     APISign / What=VERIFY with the terminal's KEY and PassP. CCode=0 means
+ *     Hyp signed exactly these values - order, amount, result - and nobody
+ *     changed them on the way.
+ *   - A link Hyp sent by e-mail / SMS (payRequest) whose return carries no
+ *     signature: LIST, which says whether that link has been paid (status 3).
+ *
+ * The amount is compared as well: the return has to pay what the order or
+ * the link asks for.
+ *
+ * @param array $link the payment link the return belongs to, if any
+ *
+ * @return array ['ok' => bool, 'how' => off|sign|list, 'error' => text]
+ */
+function fn_hypay_verify_return($order_id, array $order_info, array $pp, array $link = [])
+{
+    if (!fn_hypay_verify_enabled($pp)) {
+        return ['ok' => true, 'how' => 'off', 'error' => ''];
+    }
+
+    $expected = !empty($link) ? round((float) $link['amount'], 2) : round((float) ($order_info['total'] ?? 0), 2);
+    $amount   = hypay_request_value(['Amount']);
+    if ($amount === '' || !is_numeric($amount) || abs((float) $amount - $expected) >= 0.01) {
+        return ['ok' => false, 'how' => 'amount', 'error' => 'amount ' . $amount . ' != expected ' . $expected];
+    }
+
+    $masof = trim((string) ($pp['masof']   ?? ''));
+    $key   = trim((string) ($pp['api_key'] ?? ''));
+    $passp = trim((string) ($pp['passp']   ?? ''));
+
+    if (hypay_request_value(['Sign']) !== '') {
+        if ($masof === '' || $key === '' || $passp === '') {
+            return ['ok' => false, 'how' => 'sign', 'error' => 'terminal number, API key or PassP missing in the settings'];
+        }
+
+        // Hyp's own parameters exactly as they arrived - raw, so the values it
+        // signed go back byte for byte - without the store's own ones
+        $own   = ['dispatch', 'payment', 'mode', 'action', 'what', 'key', 'passp', 'masof'];
+        $pairs = [];
+        $seen  = [];
+        foreach (explode('&', (string) ($_SERVER['QUERY_STRING'] ?? '')) as $pair) {
+            if ($pair === '') {
+                continue;
+            }
+            $name = strtolower(urldecode(strstr($pair, '=', true) ?: $pair));
+
+            // A name given twice is how a genuine return is dressed up as
+            // another: Hyp checks the first Order or Amount, PHP reads the last
+            if (isset($seen[$name])) {
+                return ['ok' => false, 'how' => 'sign', 'error' => 'parameter ' . $name . ' given more than once'];
+            }
+            $seen[$name] = true;
+
+            if (!in_array($name, $own, true)) {
+                $pairs[] = $pair;
+            }
+        }
+
+        // the order Hyp signed has to be the order this return is recorded on
+        if ((int) hypay_request_value(['Order']) !== (int) $order_id) {
+            return ['ok' => false, 'how' => 'sign', 'error' => 'the signed order is not order ' . (int) $order_id];
+        }
+
+        $query = http_build_query([
+            'action' => 'APISign',
+            'What'   => 'VERIFY',
+            'KEY'    => $key,
+            'PassP'  => $passp,
+            'Masof'  => $masof,
+        ]) . ($pairs ? '&' . implode('&', $pairs) : '');
+
+        hypay_log($order_id, 'verify request', ['params' => count($pairs)]);
+        $response = trim((string) Http::get(HYPAY_API_URL . '?' . $query, ['timeout' => 20]));
+        hypay_log($order_id, 'verify response', $response);
+
+        $parsed = [];
+        parse_str($response, $parsed);
+        $ccode = trim((string) ($parsed['CCode'] ?? ''));
+
+        return $ccode === '0'
+            ? ['ok' => true, 'how' => 'sign', 'error' => '']
+            : ['ok' => false, 'how' => 'sign', 'error' => fn_hypay_format_error($ccode, $parsed['errMsg'] ?? '', $response)];
+    }
+
+    // no signature: only a link Hyp sent itself can still be confirmed, by
+    // asking Hyp whether it was paid
+    if (!empty($link) && ($link['kind'] ?? 'request') === 'request') {
+        $credentials = fn_hypay_link_credentials($pp);
+        if (!$credentials) {
+            return ['ok' => false, 'how' => 'list', 'error' => 'terminal number or PassP missing in the settings'];
+        }
+
+        $result = fn_hypay_link_api_request($order_id, $credentials + [
+            'action'   => 'payRequest',
+            'iCommand' => 'LIST',
+        ], 'verify.list', 20);
+
+        foreach ((array) $result['json'] as $row) {
+            if (!is_array($row) || (string) ($row['payRequestId'] ?? '') !== (string) $link['pay_request_id']) {
+                continue;
+            }
+
+            $trans_id  = trim((string) ($row['transId'] ?? ''));
+            $return_id = hypay_request_value(['Id', 'TransId']);
+            if ((string) ($row['status'] ?? '') === '3' && ($trans_id === '' || $return_id === '' || $trans_id === $return_id)) {
+                return ['ok' => true, 'how' => 'list', 'error' => ''];
+            }
+
+            return ['ok' => false, 'how' => 'list', 'error' => 'LIST status ' . ($row['status'] ?? '?')];
+        }
+
+        return ['ok' => false, 'how' => 'list', 'error' => 'the link is not among the ones LIST returned'];
+    }
+
+    return ['ok' => false, 'how' => 'sign', 'error' => 'the return carries no signature'];
+}
+
 /** put non-empty scalar into assoc array */
 function hypay_put(&$arr, $key, $val)
 {
@@ -2405,6 +2549,11 @@ function fn_hypay_localize_payment_info(&$order)
         }
     }
 
+    // cleared by the verified return that followed it
+    if (isset($order['payment_info']['hypay_unverified']) && $order['payment_info']['hypay_unverified'] === '') {
+        unset($order['payment_info']['hypay_unverified']);
+    }
+
     // last, so it sees whatever the J5 branch merged in, and so the special
     // card type it prints comes from the transaction that branch already read
     $order['payment_info'] = fn_hypay_merge_card_line(
@@ -4157,7 +4306,7 @@ function fn_hypay_link_sign($order_id, array $order_info, array $orders, $amount
         'Amount'      => round((float) $amount, 2),
         'UTF8'        => hypay_bool($pp['utf8']    ?? 'Y'),
         'UTF8out'     => hypay_bool($pp['utf8out'] ?? 'Y'),
-        'Sign'        => hypay_bool($pp['sign']    ?? 'N'),
+        'Sign'        => hypay_sign_flag($pp),
         'PageLang'    => $page_lang,
         'ClientName'  => hypay_sanitize_url_echo($ez_name !== '' ? $ez_name : ($order_info['firstname'] ?? '')),
         'ClientLName' => hypay_sanitize_url_echo($ez_name !== '' ? ''       : ($order_info['lastname']  ?? '')),
