@@ -945,7 +945,7 @@ msgstr "Закрыть"
 
 msgctxt "Languages::hypay_link_create"
 msgid "Create and send link"
-msgstr "Создать и отправить ссылку"
+msgstr "Создать и отправить"
 
 msgctxt "Languages::hypay_link_send_email"
 msgid "Send by e-mail"
@@ -984,8 +984,8 @@ msgid "Paid by payment link on [date]"
 msgstr "Оплачен по ссылке [date]"
 
 msgctxt "Languages::hypay_link_confirm_create"
-msgid "The payment link will be sent to the customer. Continue?"
-msgstr "Ссылка на оплату будет отправлена покупателю. Продолжить?"
+msgid "Create the payment link for the selected orders?"
+msgstr "Создать ссылку на оплату выбранных заказов?"
 
 msgctxt "Languages::hypay_link_confirm_cancel"
 msgid "Cancel this payment link? The customer will no longer be able to pay with it."
@@ -1202,3 +1202,79 @@ msgstr "Hyp не включил API платёжных ссылок (payRequest)
 msgctxt "Languages::hypay_link_hint_902"
 msgid "Hyp did not accept the terminal number or the API password (PassP) of terminal [masof]. Check them in the Hypay payment method settings."
 msgstr "Hyp не принял номер терминала или пароль API (PassP) терминала [masof]. Проверьте их в настройках способа оплаты Hypay."
+
+msgctxt "Languages::hypay_link_create_only"
+msgid "Create link"
+msgstr "Создать ссылку"
+
+msgctxt "Languages::hypay_link_error_network"
+msgid "Hyp could not be reached from the store. Try again in a moment."
+msgstr "Не удалось связаться с магазином. Попробуйте ещё раз через минуту."
+
+msgctxt "Languages::hypay_link_customer"
+msgid "Customer"
+msgstr "Клиент"
+
+msgctxt "Languages::hypay_link_open"
+msgid "Open"
+msgstr "Открыть"
+
+msgctxt "Languages::hypay_link_not_sent"
+msgid "Not sent: copy the link and send it to the customer yourself"
+msgstr "Не отправлялась: скопируйте ссылку и отправьте клиенту сами"
+
+msgctxt "Languages::hypay_link_total_orders"
+msgid "Total orders"
+msgstr "Всего заказов"
+
+msgctxt "Languages::hypay_link_status_filter"
+msgid "Status filter"
+msgstr "Фильтр статуса"
+
+msgctxt "Languages::hypay_link_col_document"
+msgid "Document"
+msgstr "Документ"
+
+msgctxt "Languages::hypay_link_col_doc_type"
+msgid "Document type"
+msgstr "Тип документа"
+
+msgctxt "Languages::hypay_link_col_doc_number"
+msgid "Document #"
+msgstr "№ документа"
+
+msgctxt "Languages::hypay_link_in_other_link"
+msgid "in another link"
+msgstr "в другой ссылке"
+
+msgctxt "Languages::hypay_link_paid_by_link"
+msgid "paid by link"
+msgstr "оплачен по ссылке"
+
+msgctxt "Languages::hypay_link_delivery"
+msgid "Send the link"
+msgstr "Отправка ссылки"
+
+msgctxt "Languages::hypay_link_copy_only_hint"
+msgid "Untick both to only create the link: it is shown here to copy and send the customer your own way."
+msgstr "Снимите обе галочки, чтобы только создать ссылку: она появится здесь, скопируете и отправите клиенту как удобно."
+
+msgctxt "Languages::hypay_doc_type_300"
+msgid "Proforma Invoice"
+msgstr "Proforma Invoice"
+
+msgctxt "Languages::hypay_doc_type_305"
+msgid "Tax Invoice"
+msgstr "Tax Invoice"
+
+msgctxt "Languages::hypay_link_created_ok_copy"
+msgid "Payment link created. Copy it and send it to the customer."
+msgstr "Ссылка на оплату создана. Скопируйте её и отправьте клиенту."
+
+msgctxt "Languages::hypay_link_cancel_sign"
+msgid "The link is marked as cancelled here. It was not sent through Hyp, so Hyp cannot withdraw it: if the customer still pays with it, the payment is recorded on the orders."
+msgstr "Ссылка отмечена как отменённая. Она создавалась без отправки через Hyp, поэтому Hyp не может её отозвать: если клиент всё же оплатит, платёж запишется в заказы."
+
+msgctxt "Languages::hypay_link_check_sign"
+msgid "This link was created without sending it through Hyp, so Hyp cannot be asked about it: its payment is recorded when the customer finishes paying."
+msgstr "Эта ссылка создана без отправки через Hyp, поэтому запросить её статус у Hyp нельзя: оплата запишется, когда клиент завершит платёж."

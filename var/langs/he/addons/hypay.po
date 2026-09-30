@@ -743,7 +743,7 @@ msgstr "סגירה"
 
 msgctxt "Languages::hypay_link_create"
 msgid "Create and send link"
-msgstr "יצירה ושליחה של הקישור"
+msgstr "יצירה ושליחה"
 
 msgctxt "Languages::hypay_link_send_email"
 msgid "Send by e-mail"
@@ -782,8 +782,8 @@ msgid "Paid by payment link on [date]"
 msgstr "שולם בקישור לתשלום ב-[date]"
 
 msgctxt "Languages::hypay_link_confirm_create"
-msgid "The payment link will be sent to the customer. Continue?"
-msgstr "הקישור לתשלום יישלח ללקוח. להמשיך?"
+msgid "Create the payment link for the selected orders?"
+msgstr "ליצור קישור לתשלום עבור ההזמנות שנבחרו?"
 
 msgctxt "Languages::hypay_link_confirm_cancel"
 msgid "Cancel this payment link? The customer will no longer be able to pay with it."
@@ -1000,3 +1000,79 @@ msgstr "Hyp לא הפעיל את ה-API של קישורי התשלום (payReque
 msgctxt "Languages::hypay_link_hint_902"
 msgid "Hyp did not accept the terminal number or the API password (PassP) of terminal [masof]. Check them in the Hypay payment method settings."
 msgstr "Hyp לא קיבל את מספר המסוף או את סיסמת ה-API (PassP) של מסוף [masof]. בדקו אותם בהגדרות אמצעי התשלום Hypay."
+
+msgctxt "Languages::hypay_link_create_only"
+msgid "Create link"
+msgstr "יצירת קישור"
+
+msgctxt "Languages::hypay_link_error_network"
+msgid "Hyp could not be reached from the store. Try again in a moment."
+msgstr "לא ניתן היה להתחבר לחנות. נסו שוב בעוד רגע."
+
+msgctxt "Languages::hypay_link_customer"
+msgid "Customer"
+msgstr "לקוח"
+
+msgctxt "Languages::hypay_link_open"
+msgid "Open"
+msgstr "פתיחה"
+
+msgctxt "Languages::hypay_link_not_sent"
+msgid "Not sent: copy the link and send it to the customer yourself"
+msgstr "לא נשלח: העתיקו את הקישור ושלחו אותו ללקוח בעצמכם"
+
+msgctxt "Languages::hypay_link_total_orders"
+msgid "Total orders"
+msgstr "סך הכול הזמנות"
+
+msgctxt "Languages::hypay_link_status_filter"
+msgid "Status filter"
+msgstr "סינון לפי סטטוס"
+
+msgctxt "Languages::hypay_link_col_document"
+msgid "Document"
+msgstr "מסמך"
+
+msgctxt "Languages::hypay_link_col_doc_type"
+msgid "Document type"
+msgstr "סוג מסמך"
+
+msgctxt "Languages::hypay_link_col_doc_number"
+msgid "Document #"
+msgstr "מס' מסמך"
+
+msgctxt "Languages::hypay_link_in_other_link"
+msgid "in another link"
+msgstr "בקישור אחר"
+
+msgctxt "Languages::hypay_link_paid_by_link"
+msgid "paid by link"
+msgstr "שולם בקישור"
+
+msgctxt "Languages::hypay_link_delivery"
+msgid "Send the link"
+msgstr "שליחת הקישור"
+
+msgctxt "Languages::hypay_link_copy_only_hint"
+msgid "Untick both to only create the link: it is shown here to copy and send the customer your own way."
+msgstr "בטלו את שתי הבחירות כדי רק ליצור את הקישור: הוא יוצג כאן להעתקה ולשליחה ללקוח בדרך שנוחה לכם."
+
+msgctxt "Languages::hypay_doc_type_300"
+msgid "Proforma Invoice"
+msgstr "חשבון עסקה"
+
+msgctxt "Languages::hypay_doc_type_305"
+msgid "Tax Invoice"
+msgstr "חשבונית מס"
+
+msgctxt "Languages::hypay_link_created_ok_copy"
+msgid "Payment link created. Copy it and send it to the customer."
+msgstr "הקישור לתשלום נוצר. העתיקו אותו ושלחו ללקוח."
+
+msgctxt "Languages::hypay_link_cancel_sign"
+msgid "The link is marked as cancelled here. It was not sent through Hyp, so Hyp cannot withdraw it: if the customer still pays with it, the payment is recorded on the orders."
+msgstr "הקישור סומן כמבוטל. הוא נוצר בלי שליחה דרך Hyp, ולכן Hyp לא יכול לבטל אותו: אם הלקוח ישלם בכל זאת, התשלום יירשם בהזמנות."
+
+msgctxt "Languages::hypay_link_check_sign"
+msgid "This link was created without sending it through Hyp, so Hyp cannot be asked about it: its payment is recorded when the customer finishes paying."
+msgstr "הקישור הזה נוצר בלי שליחה דרך Hyp, ולכן אי אפשר לשאול את Hyp עליו: התשלום יירשם כשהלקוח יסיים לשלם."

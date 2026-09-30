@@ -457,8 +457,23 @@ It opens a window (a dialog, not part of the order form) where the merchant can:
 Under the menu item the order page says what became of the last link — *created
 on …*, *cancelled on …*, or, once it is paid, **Paid by payment link on *date,
 time*** (which the Payment information block also shows, as a line of the
-payment). After Create, Cancel or Check payment the window opens again with the
-outcome in it.
+payment). The window's buttons work in place: Create, Cancel and Check payment
+redraw the window with the outcome, without reloading the page. When a payment
+is found, the order page reloads as the window closes, so it shows the payment.
+
+The window lists the orders the way the EzCount Doc Generator does: order,
+date, total, status, whether it has a document, and that document's type and
+number, with a status filter and the sum of what is ticked. Orders that already
+have a document or a link of their own are listed but cannot be ticked.
+
+**Send it, or just make it.** Only *Send by e-mail* is ticked by default. Untick
+both e-mail and SMS to only create the link: it is shown in the window to copy
+and send the customer any way you like. `payRequest` does not make a link
+without somewhere to send it, so that link is the signed payment page the
+checkout uses (`APISign` / `SIGN`) — the payment comes back the same way and is
+recorded on every order of the link. Hyp keeps no record of it as a payment
+link: *Check payment* is not offered, and *Cancel* marks it cancelled in the
+store only (a payment made on it anyway is still recorded).
 
 **Terminal permission.** The link API needs its own permission on the terminal:
 sending links by hand from the Hyp portal does not grant it. Hyp refuses the

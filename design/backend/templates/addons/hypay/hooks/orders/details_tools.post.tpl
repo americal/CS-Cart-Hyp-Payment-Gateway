@@ -26,20 +26,5 @@
         {/if}
     </a>
 
-    {* back from Create / Cancel / Check payment: the window opens again, with
-       the outcome in it *}
-    {if $smarty.request.hypay_link_open}
-    {literal}
-    <script type="text/javascript">
-    (function () {
-        var jq = window.jQuery || (window.Tygh && window.Tygh.$);
-        if (!jq) { return; }
-        jq(function () {
-            window.setTimeout(function () { jq('#hypay_link_opener').trigger('click'); }, 300);
-        });
-    })();
-    </script>
-    {/literal}
-    {/if}
 </li>
 {/if}
