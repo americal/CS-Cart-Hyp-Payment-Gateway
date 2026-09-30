@@ -140,6 +140,42 @@
      </div>
  </div>
 
+ {* How long a link stays payable. Past it the link is withdrawn at Hyp and
+    shown as expired, with a new one on offer. Empty or 0: no limit. *}
+ <div class="control-group">
+     <label class="control-label" for="elm_hypay_link_lifetime_days">{__("hypay_link_lifetime_days")}</label>
+     <div class="controls">
+         <input type="number" min="0" step="1" class="input-mini" id="elm_hypay_link_lifetime_days"
+                name="payment_data[processor_params][link_lifetime_days]"
+                value="{$processor_params.link_lifetime_days|default:""}" />
+         <p class="muted description">{__("hypay_link_lifetime_days_desc")}</p>
+     </div>
+ </div>
+
+ {* Additional statuses the orders of a link get when it is created, and when
+    it is cancelled or expires. Same rule as the other additional statuses:
+    shown only while the add-on that owns them is active, otherwise the stored
+    value rides through in a hidden field. *}
+ {foreach ["link_created_additional_status", "link_cancelled_additional_status"] as $hypay_link_add_key}
+     {$hypay_link_add_value = $processor_params.$hypay_link_add_key|default:""}
+     {if $hypay_additional_statuses}
+         <div class="control-group">
+             <label class="control-label" for="elm_hypay_{$hypay_link_add_key}">{__("hypay_`$hypay_link_add_key`")}</label>
+             <div class="controls">
+                 <select name="payment_data[processor_params][{$hypay_link_add_key}]" id="elm_hypay_{$hypay_link_add_key}">
+                     <option value="">{__("hypay_additional_status_none")}</option>
+                     {foreach from=$hypay_additional_statuses item="status" key="s_key"}
+                         <option value="{$s_key}" {if $s_key == $hypay_link_add_value}selected="selected"{/if}>{$status}</option>
+                     {/foreach}
+                 </select>
+                 <p class="muted description">{__("hypay_`$hypay_link_add_key`_desc")}</p>
+             </div>
+         </div>
+     {elseif $hypay_link_add_value}
+         <input type="hidden" name="payment_data[processor_params][{$hypay_link_add_key}]" value="{$hypay_link_add_value|escape}" />
+     {/if}
+ {/foreach}
+
  <hr>
 
  {* --- J5 (two-phase commit) --- *}

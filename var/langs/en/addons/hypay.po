@@ -1278,3 +1278,47 @@ msgstr "The link is marked as cancelled here. It was not sent through Hyp, so Hy
 msgctxt "Languages::hypay_link_check_sign"
 msgid "This link was created without sending it through Hyp, so Hyp cannot be asked about it: its payment is recorded when the customer finishes paying."
 msgstr "This link was created without sending it through Hyp, so Hyp cannot be asked about it: its payment is recorded when the customer finishes paying."
+
+msgctxt "Languages::hypay_link_error_truncated"
+msgid "This link was saved cut short and could not be paid (Hyp answered \"Action is not good\"). Create a new one."
+msgstr "This link was saved cut short and could not be paid (Hyp answered \"Action is not good\"). Create a new one."
+
+msgctxt "Languages::hypay_link_state_expired"
+msgid "Link expired on [date]"
+msgstr "Link expired on [date]"
+
+msgctxt "Languages::hypay_link_expired_recreate"
+msgid "The customer can no longer pay with this link. Create a new one below."
+msgstr "The customer can no longer pay with this link. Create a new one below."
+
+msgctxt "Languages::hypay_link_expires_on"
+msgid "valid until [date]"
+msgstr "valid until [date]"
+
+msgctxt "Languages::hypay_link_expired_not_withdrawn"
+msgid "Hyp did not confirm the link was withdrawn: if the customer still pays with it, the payment is recorded on the orders."
+msgstr "Hyp did not confirm the link was withdrawn: if the customer still pays with it, the payment is recorded on the orders."
+
+msgctxt "Languages::hypay_link_lifetime_days"
+msgid "Link lifetime, days"
+msgstr "Link lifetime, days"
+
+msgctxt "Languages::hypay_link_lifetime_days_desc"
+msgid "After this many days an unpaid link is withdrawn at Hyp and shown as expired in the payment link window, which offers to create a new one. Empty or 0: no limit."
+msgstr "After this many days an unpaid link is withdrawn at Hyp and shown as expired in the payment link window, which offers to create a new one. Empty or 0: no limit."
+
+msgctxt "Languages::hypay_link_created_additional_status"
+msgid "Additional status after the link is created"
+msgstr "Additional status after the link is created"
+
+msgctxt "Languages::hypay_link_created_additional_status_desc"
+msgid "Every order the payment link pays for gets this additional status once the link is created."
+msgstr "Every order the payment link pays for gets this additional status once the link is created."
+
+msgctxt "Languages::hypay_link_cancelled_additional_status"
+msgid "Additional status after the link is cancelled"
+msgstr "Additional status after the link is cancelled"
+
+msgctxt "Languages::hypay_link_cancelled_additional_status_desc"
+msgid "Every order the payment link paid for gets this additional status once the link is cancelled - from here or from the Hyp portal - or expires."
+msgstr "Every order the payment link paid for gets this additional status once the link is cancelled - from here or from the Hyp portal - or expires."

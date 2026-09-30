@@ -23,6 +23,8 @@
             <br /><small class="text-success">{__("hypay_link_state_active", ["[date]" => $hypay_link_menu.created_at|date_format:$hypay_link_menu_date])}</small>
         {elseif $hypay_link_menu.state == "cancelled"}
             <br /><small class="muted">{__("hypay_link_state_cancelled", ["[date]" => $hypay_link_menu.cancelled_at|date_format:$hypay_link_menu_date])}</small>
+        {elseif $hypay_link_menu.state == "expired"}
+            <br /><small class="text-warning">{__("hypay_link_state_expired", ["[date]" => $hypay_link_menu.cancelled_at|date_format:$hypay_link_menu_date])}</small>
         {/if}
     </a>
 

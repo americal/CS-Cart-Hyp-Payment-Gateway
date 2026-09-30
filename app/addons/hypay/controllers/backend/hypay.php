@@ -10,6 +10,7 @@
  * dispatch[hypay.link_create] — create a payment link and send it (payRequest)
  * dispatch[hypay.link_cancel] — cancel the order's active payment link
  * dispatch[hypay.link_check]  — ask Hyp whether the link has been paid
+ * (each of them, and the window, first expires a link past its lifetime)
  * hypay.link_panel (GET)      — the payment link window (dialog content)
  *****************************************************************************/
 
@@ -28,6 +29,9 @@ if ($mode === 'link_panel' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     if ($order_id <= 0) {
         return [CONTROLLER_STATUS_NO_PAGE];
     }
+
+    // a link past its lifetime opens as expired, with a new one on offer
+    fn_hypay_link_expire_if_due($order_id);
 
     Tygh::$app['view']->assign('hypay_link', fn_hypay_get_link_panel_data($order_id));
     Tygh::$app['view']->assign('hypay_link_order_id', $order_id);
@@ -69,6 +73,11 @@ if ($mode === 'capture') {
 // does not reload and the dialog is not reopened. Without the flag (JavaScript
 // off, an old cached window) the order page is shown again, plainly.
 if (in_array($mode, ['link_create', 'link_cancel', 'link_check'], true)) {
+    // A link that ran out while the window stood open: there is nothing left
+    // to check or cancel, and the redrawn window says it expired. Creating
+    // goes ahead - the expired link no longer stands in the way.
+    $expired = fn_hypay_link_expire_if_due($order_id);
+
     if ($mode === 'link_create') {
         // the other orders ticked in the window, as "1001,1002" or order_ids[]
         $order_ids = $_REQUEST['order_ids'] ?? [];
@@ -82,6 +91,8 @@ if (in_array($mode, ['link_create', 'link_cancel', 'link_check'], true)) {
             (string) ($_REQUEST['cell'] ?? ''),
             array_filter(array_map('intval', $order_ids))
         );
+    } elseif ($expired) {
+        // nothing left to cancel or check
     } elseif ($mode === 'link_cancel') {
         fn_hypay_link_cancel($order_id);
     } else {

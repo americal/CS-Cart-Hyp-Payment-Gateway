@@ -11,6 +11,8 @@
  *  already has), where to send it - or nowhere, to copy it yourself - Create.
  *  Active link: the link, Copy, the orders it covers, Check payment, Cancel.
  *  Paid: when, the transaction, the document.
+ *  Expired (past the lifetime the settings give a link): when it ran out, and
+ *  the same form as for no link, to make a new one.
  * ========================================================================== *}
 
 {if $hypay_link.hidden}
@@ -88,6 +90,9 @@
             <div class="hypay-lp-card__title">
                 {__("hypay_link_url")}
                 <span class="hypay-lp-badge hypay-lp-badge--ok">{__("hypay_link_state_active", ["[date]" => $hypay_link.created_at|date_format:$hypay_lp_date])}</span>
+                {if $hypay_link.expires_at}
+                    <span class="hypay-lp-badge hypay-lp-badge--muted">{__("hypay_link_expires_on", ["[date]" => $hypay_link.expires_at|date_format:$hypay_lp_date])}</span>
+                {/if}
             </div>
             <div class="hypay-lp-copy">
                 <input type="text" class="hypay-lp-url" readonly="readonly" dir="ltr" value="{$hypay_link.payment_url}" />
@@ -113,6 +118,13 @@
     {elseif $hypay_link.state == "cancelled"}
         <div class="hypay-lp-banner hypay-lp-banner--muted">
             {__("hypay_link_state_cancelled", ["[date]" => $hypay_link.cancelled_at|date_format:$hypay_lp_date])}
+            {if $hypay_link.last_error}<div class="hypay-lp-banner__meta">{$hypay_link.last_error}</div>{/if}
+        </div>
+    {elseif $hypay_link.state == "expired"}
+        <div class="hypay-lp-banner hypay-lp-banner--warn">
+            <strong>{__("hypay_link_state_expired", ["[date]" => $hypay_link.cancelled_at|date_format:$hypay_lp_date])}</strong>
+            <div class="hypay-lp-banner__meta">{__("hypay_link_expired_recreate")}</div>
+            {if $hypay_link.last_error}<div class="hypay-lp-banner__meta">{$hypay_link.last_error}</div>{/if}
         </div>
     {/if}
 
@@ -197,7 +209,7 @@
             <div class="hypay-lp-card__title">{__("hypay_link_delivery")}</div>
             <div class="hypay-lp-send">
                 <label class="checkbox hypay-lp-send__toggle">
-                    <input type="checkbox" class="hypay-lp-send-email" {if $hypay_link.email}checked="checked"{/if} />
+                    <input type="checkbox" class="hypay-lp-send-email" />
                     {__("hypay_link_send_email")}
                 </label>
                 <input type="email" class="input-large hypay-lp-email" dir="ltr" autocomplete="off" value="{$hypay_link.email}" />
@@ -246,6 +258,7 @@
 .hypay-lp-banner { border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; }
 .hypay-lp-banner--ok { background: #eaf7ee; border: 1px solid #b9e3c6; color: #1e6b36; }
 .hypay-lp-banner--muted { background: #f4f5f7; border: 1px solid #e3e6ea; color: #6b7280; }
+.hypay-lp-banner--warn { background: #fff7e6; border: 1px solid #f3d9a4; color: #8a5a00; }
 .hypay-lp-banner__meta { margin-top: 4px; color: #3f4a54; }
 .hypay-lp-alert { border-radius: 6px; padding: 8px 12px; margin: 0 0 10px; }
 .hypay-lp-alert--n, .hypay-lp-alert--i { background: #eaf7ee; color: #1e6b36; border: 1px solid #b9e3c6; }
@@ -272,6 +285,7 @@
 .hypay-lp-tag--ok { background: #e2f5e8; color: #1e6b36; }
 .hypay-lp-badge { font-weight: 400; font-size: 11px; padding: 1px 8px; border-radius: 10px; }
 .hypay-lp-badge--ok { background: #e2f5e8; color: #1e6b36; }
+.hypay-lp-badge--muted { background: #eef0f3; color: #4b5563; }
 .hypay-lp-copy { display: flex; gap: 6px; align-items: center; }
 .hypay-lp-copy .hypay-lp-url { flex: 1 1 auto; min-width: 0; margin: 0; font-family: monospace; }
 .hypay-lp-meta { margin-top: 8px; color: #4b5563; }

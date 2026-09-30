@@ -1278,3 +1278,47 @@ msgstr "Ссылка отмечена как отменённая. Она соз
 msgctxt "Languages::hypay_link_check_sign"
 msgid "This link was created without sending it through Hyp, so Hyp cannot be asked about it: its payment is recorded when the customer finishes paying."
 msgstr "Эта ссылка создана без отправки через Hyp, поэтому запросить её статус у Hyp нельзя: оплата запишется, когда клиент завершит платёж."
+
+msgctxt "Languages::hypay_link_error_truncated"
+msgid "This link was saved cut short and could not be paid (Hyp answered \"Action is not good\"). Create a new one."
+msgstr "Эта ссылка была сохранена обрезанной и не могла быть оплачена (Hyp отвечал «Action is not good»). Создайте новую."
+
+msgctxt "Languages::hypay_link_state_expired"
+msgid "Link expired on [date]"
+msgstr "Срок действия ссылки истёк [date]"
+
+msgctxt "Languages::hypay_link_expired_recreate"
+msgid "The customer can no longer pay with this link. Create a new one below."
+msgstr "Клиент больше не может оплатить по этой ссылке. Создайте новую ниже."
+
+msgctxt "Languages::hypay_link_expires_on"
+msgid "valid until [date]"
+msgstr "действует до [date]"
+
+msgctxt "Languages::hypay_link_expired_not_withdrawn"
+msgid "Hyp did not confirm the link was withdrawn: if the customer still pays with it, the payment is recorded on the orders."
+msgstr "Hyp не подтвердил отзыв ссылки: если клиент всё же оплатит по ней, оплата будет записана в заказы."
+
+msgctxt "Languages::hypay_link_lifetime_days"
+msgid "Link lifetime, days"
+msgstr "Срок действия ссылки, дней"
+
+msgctxt "Languages::hypay_link_lifetime_days_desc"
+msgid "After this many days an unpaid link is withdrawn at Hyp and shown as expired in the payment link window, which offers to create a new one. Empty or 0: no limit."
+msgstr "Через столько дней неоплаченная ссылка отзывается в Hyp и показывается в окне платёжной ссылки как просроченная, с предложением создать новую. Пусто или 0: без ограничения."
+
+msgctxt "Languages::hypay_link_created_additional_status"
+msgid "Additional status after the link is created"
+msgstr "Дополнительный статус после создания ссылки"
+
+msgctxt "Languages::hypay_link_created_additional_status_desc"
+msgid "Every order the payment link pays for gets this additional status once the link is created."
+msgstr "Все заказы, которые оплачивает ссылка, получают этот дополнительный статус после её создания."
+
+msgctxt "Languages::hypay_link_cancelled_additional_status"
+msgid "Additional status after the link is cancelled"
+msgstr "Дополнительный статус после отмены ссылки"
+
+msgctxt "Languages::hypay_link_cancelled_additional_status_desc"
+msgid "Every order the payment link paid for gets this additional status once the link is cancelled - from here or from the Hyp portal - or expires."
+msgstr "Все заказы, которые оплачивала ссылка, получают этот дополнительный статус после её отмены (здесь или в портале Hyp) или истечения срока."
