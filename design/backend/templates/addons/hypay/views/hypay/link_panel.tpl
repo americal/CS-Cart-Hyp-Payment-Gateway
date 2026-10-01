@@ -10,7 +10,7 @@
  *  No link yet: the customer, J4 (charge now, the default) or J5 (hold only,
  *  this order alone), where to send it - or nowhere, to copy it yourself -
  *  the orders to pay for (with the document each already has), Create.
- *  The buttons always sit at the bottom of the window, in view while it scrolls.
+ *  The buttons are the window's footer: always in view, the rest scrolls.
  *  Active link: the link, Copy, the orders it covers, Check payment, Cancel.
  *  Paid: when, the transaction, the document.
  *  Expired (past the lifetime the settings give a link): when it ran out, and
@@ -36,6 +36,9 @@
      data-label-create="{__("hypay_link_create_only")}"
      data-label-send="{__("hypay_link_create")}"
      data-error-network="{__("hypay_link_error_network")}">
+
+    {* everything but the buttons: scrolls inside the window when it is long *}
+    <div class="hypay-lp-body">
 
     {* the outcome of the last button, when the window was redrawn by one *}
     {foreach $hypay_link_notices|default:[] as $notice}
@@ -254,9 +257,11 @@
         <p class="muted hypay-lp-note">{if $hypay_link.statuses_set}{__("hypay_link_no_other_orders")}{else}{__("hypay_link_no_statuses_set")}{/if}</p>
     {/if}
 
+    </div>
+
     {* ------------------------------------------------- buttons (Close, then the
-       actions, the main one rightmost), kept in view at the bottom of the
-       dialog however long the orders table grows *}
+       actions, the main one rightmost): the window's footer, always in view
+       below the body however long the orders table grows *}
     <div class="hypay-lp-actions">
         <span class="hypay-lp-busy" style="display: none;"><span class="hypay-lp-spinner"></span>{__("hypay_j5_working")}</span>
         <button type="button" class="btn cm-dialog-closer hypay-lp-close">{__("hypay_link_close")}</button>
@@ -277,10 +282,10 @@
 
 {literal}
 <style>
-/* the window fills the dialog, so its buttons sit at the bottom of the frame -
-   and stay there (sticky) while a long orders table scrolls under them */
-#content_hypay_payment_link { display: flex; flex-direction: column; }
-.hypay-lp { min-width: 760px; padding: 2px 4px 4px; font-size: 13px; flex: 1 0 auto; display: flex; flex-direction: column; }
+/* the window is fitted to the dialog (see fit below): a body that scrolls and
+   a footer with the buttons, edge to edge, that does not */
+.hypay-lp { min-width: 760px; font-size: 13px; display: flex; flex-direction: column; box-sizing: border-box; }
+.hypay-lp-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 12px 16px 4px; }
 @media (max-width: 820px) { .hypay-lp { min-width: 0; } }
 .hypay-lp-card { border: 1px solid #e3e6ea; border-radius: 8px; background: #fafbfc; padding: 12px 16px; margin-bottom: 14px; }
 .hypay-lp-card__title { font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -328,8 +333,7 @@
 .hypay-lp-send input[type=email], .hypay-lp-send input[type=text] { margin: 0; }
 .hypay-lp-send--off input[type=email], .hypay-lp-send--off input[type=text] { opacity: .45; }
 .hypay-lp-note { margin: 4px 0 10px; font-size: 12px; }
-.hypay-lp-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: auto;
-    position: sticky; bottom: 0; z-index: 2; background: #fff; padding: 12px 0 8px; border-top: 1px solid #e3e6ea; box-shadow: 0 -6px 8px -6px rgba(0, 0, 0, .12); }
+.hypay-lp-actions { flex: 0 0 auto; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 12px 16px; background: #fff; border-top: 1px solid #e3e6ea; }
 .hypay-lp-danger { color: #a12626; }
 .hypay-lp-busy { color: #6b7280; display: inline-flex; align-items: center; gap: 6px; margin-right: auto; }
 .hypay-lp-spinner { width: 14px; height: 14px; border: 2px solid #d6dae0; border-top-color: #4a90d9; border-radius: 50%; animation: hypay-lp-spin .8s linear infinite; }
@@ -514,6 +518,7 @@
                     block.parentNode.replaceChild(fresh, block);
                     if (reload) { fresh.setAttribute('data-reload-on-close', '1'); }
                     window.hypayLinkPanel(fresh);
+                    window.hypayLinkFit();
                 }).catch(function () {
                     block.className = block.className.replace(/\s*is-busy/g, '');
                     if (busy) { busy.style.display = 'none'; }
@@ -542,6 +547,27 @@
         };
     }
 
+    // The window takes the whole inside of the dialog, over its padding, so
+    // the footer runs edge to edge at the bottom and only the body scrolls.
+    // Refitted whenever the dialog changes size; the current window is looked
+    // up each time, as the buttons replace it.
+    if (!window.hypayLinkFit) {
+        window.hypayLinkFit = function () {
+            var block = document.getElementById('hypay_link_dialog_block');
+            var content = block && block.parentNode;
+            if (!content || !/(^|\s)ui-dialog-content(\s|$)/.test(content.className)) { return; }
+            if (!content.getAttribute('data-hypay-fit')) {
+                content.setAttribute('data-hypay-fit', '1');
+                if (window.ResizeObserver) { new ResizeObserver(window.hypayLinkFit).observe(content); }
+                window.addEventListener('resize', window.hypayLinkFit);
+            }
+            if (!content.clientHeight) { return; }
+            var cs = window.getComputedStyle(content);
+            block.style.margin = '-' + cs.paddingTop + ' -' + cs.paddingRight + ' -' + cs.paddingBottom + ' -' + cs.paddingLeft;
+            block.style.height = content.clientHeight + 'px';
+        };
+    }
+
     // CS-Cart may run this a moment before the markup is in place
     var tries = 0;
     var start = function () {
@@ -551,6 +577,7 @@
             return;
         }
         window.hypayLinkPanel(block);
+        window.hypayLinkFit();
     };
     start();
 })();
