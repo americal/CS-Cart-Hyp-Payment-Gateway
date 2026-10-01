@@ -10,7 +10,8 @@
  *  No link yet: the customer, J4 (charge now, the default) or J5 (hold only,
  *  this order alone), where to send it - or nowhere, to copy it yourself -
  *  the orders to pay for (with the document each already has), Create.
- *  The buttons are the window's footer: always in view, the rest scrolls.
+ *  The buttons are the dialog's footer, as in CS-Cart's own windows: always
+ *  in view, the rest scrolls above them. Closed by the dialog's cross.
  *  Active link: the link, Copy, the orders it covers, Check payment, Cancel.
  *  Paid: when, the transaction, the document.
  *  Expired (past the lifetime the settings give a link): when it ran out, and
@@ -36,9 +37,6 @@
      data-label-create="{__("hypay_link_create_only")}"
      data-label-send="{__("hypay_link_create")}"
      data-error-network="{__("hypay_link_error_network")}">
-
-    {* everything but the buttons: scrolls inside the window when it is long *}
-    <div class="hypay-lp-body">
 
     {* the outcome of the last button, when the window was redrawn by one *}
     {foreach $hypay_link_notices|default:[] as $notice}
@@ -257,14 +255,12 @@
         <p class="muted hypay-lp-note">{if $hypay_link.statuses_set}{__("hypay_link_no_other_orders")}{else}{__("hypay_link_no_statuses_set")}{/if}</p>
     {/if}
 
-    </div>
-
-    {* ------------------------------------------------- buttons (Close, then the
-       actions, the main one rightmost): the window's footer, always in view
-       below the body however long the orders table grows *}
-    <div class="hypay-lp-actions">
+    {* ----------------------------------------------------------------- buttons
+       CS-Cart's dialog footer, as in its own windows: the dialog finds
+       .buttons-container, pins it to its bottom edge and lets the rest scroll
+       above it. No Close: the dialog's own cross closes it. *}
+    <div class="buttons-container buttons-container-picker hypay-lp-actions">
         <span class="hypay-lp-busy" style="display: none;"><span class="hypay-lp-spinner"></span>{__("hypay_j5_working")}</span>
-        <button type="button" class="btn cm-dialog-closer hypay-lp-close">{__("hypay_link_close")}</button>
         {if $hypay_lp_pick}
             {if $hypay_link.can_create}
                 <button type="button" class="btn btn-primary hypay-lp-action" data-action="create">{__("hypay_link_create")}</button>
@@ -282,10 +278,7 @@
 
 {literal}
 <style>
-/* the window fills the dialog (see hypayLinkFit below): a body that scrolls
-   and a footer with the buttons, edge to edge, that does not */
-.hypay-lp { min-width: 760px; font-size: 13px; display: flex; flex-direction: column; box-sizing: border-box; flex: 1 1 auto; min-height: 0; }
-.hypay-lp-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 12px 16px 4px; }
+.hypay-lp { min-width: 760px; padding: 2px 4px 4px; font-size: 13px; }
 @media (max-width: 820px) { .hypay-lp { min-width: 0; } }
 .hypay-lp-card { border: 1px solid #e3e6ea; border-radius: 8px; background: #fafbfc; padding: 12px 16px; margin-bottom: 14px; }
 .hypay-lp-card__title { font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -333,7 +326,7 @@
 .hypay-lp-send input[type=email], .hypay-lp-send input[type=text] { margin: 0; }
 .hypay-lp-send--off input[type=email], .hypay-lp-send--off input[type=text] { opacity: .45; }
 .hypay-lp-note { margin: 4px 0 10px; font-size: 12px; }
-.hypay-lp-actions { flex: 0 0 auto; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 12px 16px; background: #fff; border-top: 1px solid #e3e6ea; }
+.hypay-lp-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .hypay-lp-danger { color: #a12626; }
 .hypay-lp-busy { color: #6b7280; display: inline-flex; align-items: center; gap: 6px; margin-right: auto; }
 .hypay-lp-spinner { width: 14px; height: 14px; border: 2px solid #d6dae0; border-top-color: #4a90d9; border-radius: 50%; animation: hypay-lp-spin .8s linear infinite; }
@@ -355,18 +348,6 @@
             var $qa = function (sel) { return block.querySelectorAll(sel); };
             var jq  = window.jQuery || (window.Tygh && window.Tygh.$);
             var changed_to_paid = false;
-
-            // --- close: CS-Cart's cm-dialog-closer, with a fallback
-            var closers = $qa('.hypay-lp-close');
-            for (var i = 0; i < closers.length; i++) {
-                closers[i].addEventListener('click', function () {
-                    if (!jq) { return; }
-                    var dialog = jq(block).closest('.ui-dialog-content');
-                    if (dialog.length && dialog.is(':visible')) {
-                        try { dialog.dialog('close'); } catch (e) {}
-                    }
-                });
-            }
 
             // --- copy
             var copy = $q('.hypay-lp-copy-btn');
@@ -515,10 +496,16 @@
                     }
                     var reload = changed_to_paid || block.getAttribute('data-reload-on-close') === '1';
 
+                    // the footer keeps the place the dialog pinned it to
+                    var bar = block.querySelector('.buttons-container');
+                    var fresh_bar = fresh.querySelector('.buttons-container');
+                    if (bar && fresh_bar && bar.getAttribute('style')) {
+                        fresh_bar.setAttribute('style', bar.getAttribute('style'));
+                    }
+
                     block.parentNode.replaceChild(fresh, block);
                     if (reload) { fresh.setAttribute('data-reload-on-close', '1'); }
                     window.hypayLinkPanel(fresh);
-                    window.hypayLinkFit();
                 }).catch(function () {
                     block.className = block.className.replace(/\s*is-busy/g, '');
                     if (busy) { busy.style.display = 'none'; }
@@ -547,52 +534,6 @@
         };
     }
 
-    // The window takes the whole inside of the dialog, so the footer runs edge
-    // to edge along its bottom and only the body scrolls. CS-Cart puts it in
-    // wrappers of its own (.ui-dialog-content, .object-container - with
-    // paddings, and a height set from the window, not from the content): each
-    // one between the window and .ui-dialog is made a column that hands all
-    // its height down, without padding. Redone when the dialog is shown again
-    // or changes size; the current window is looked up each time, as the
-    // buttons replace it.
-    if (!window.hypayLinkFit) {
-        window.hypayLinkFit = function () {
-            var block = document.getElementById('hypay_link_dialog_block');
-            var dialog = block && block.parentNode;
-            while (dialog && dialog.nodeType === 1 && !/(^|\s)ui-dialog(\s|$)/.test(dialog.className)) {
-                dialog = dialog.parentNode;
-            }
-            if (!dialog || dialog.nodeType !== 1) { return; }
-
-            for (var node = block; node !== dialog; node = node.parentNode) {
-                var parent = node.parentNode;
-                if (parent === dialog) {
-                    // the dialog itself: also holds the title bar, keeps its padding
-                    parent.style.display = 'flex';
-                    parent.style.flexDirection = 'column';
-                } else {
-                    // !important: CS-Cart forces display on .ui-dialog-content
-                    parent.style.setProperty('display', 'flex', 'important');
-                    parent.style.setProperty('flex-direction', 'column', 'important');
-                    parent.style.setProperty('padding', '0', 'important');
-                }
-                if (node !== block) {
-                    node.style.setProperty('flex', '1 1 auto', 'important');
-                    node.style.setProperty('min-height', '0', 'important');
-                }
-            }
-
-            var content = block.parentNode;
-            while (content !== dialog && !/(^|\s)ui-dialog-content(\s|$)/.test(content.className)) {
-                content = content.parentNode;
-            }
-            if (content !== dialog && !content.getAttribute('data-hypay-fit')) {
-                content.setAttribute('data-hypay-fit', '1');
-                if (window.ResizeObserver) { new ResizeObserver(window.hypayLinkFit).observe(content); }
-            }
-        };
-    }
-
     // CS-Cart may run this a moment before the markup is in place
     var tries = 0;
     var start = function () {
@@ -602,7 +543,6 @@
             return;
         }
         window.hypayLinkPanel(block);
-        window.hypayLinkFit();
     };
     start();
 })();
