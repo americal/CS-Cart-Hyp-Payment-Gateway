@@ -7,9 +7,10 @@
  *  hypay.link_* with hypay_ajax=1 and the window is redrawn in place with the
  *  answer - no reload, and no dialog opening itself again afterwards.
  *
- *  No link yet: the customer, the orders to pay for (with the document each
- *  already has), J4 (charge now, the default) or J5 (hold only, this order
- *  alone), where to send it - or nowhere, to copy it yourself - Create.
+ *  No link yet: the customer, J4 (charge now, the default) or J5 (hold only,
+ *  this order alone), where to send it - or nowhere, to copy it yourself -
+ *  the orders to pay for (with the document each already has), Create.
+ *  The buttons always sit at the bottom of the window.
  *  Active link: the link, Copy, the orders it covers, Check payment, Cancel.
  *  Paid: when, the transaction, the document.
  *  Expired (past the lifetime the settings give a link): when it ran out, and
@@ -136,13 +137,54 @@
         </div>
     {/if}
 
+    {$hypay_lp_pick = ($hypay_link.state != "active" && $hypay_link.state != "paid")}
+
+    {* ------------------------------------------------------------- deal type *}
+    {if $hypay_lp_pick}
+        <div class="hypay-lp-card">
+            <div class="hypay-lp-card__title">{__("hypay_link_deal")}</div>
+            <label class="radio hypay-lp-deal">
+                <input type="radio" name="hypay_lp_deal" class="hypay-lp-deal-input" value="j4" checked="checked" />
+                {__("hypay_link_deal_j4")}
+                <small class="muted">— {__("hypay_link_deal_j4_desc")}</small>
+            </label>
+            <label class="radio hypay-lp-deal">
+                <input type="radio" name="hypay_lp_deal" class="hypay-lp-deal-input" value="j5" />
+                {__("hypay_link_deal_j5")}
+                <small class="muted">— {__("hypay_link_deal_j5_desc")}</small>
+            </label>
+        </div>
+    {/if}
+
+    {* ---------------------------------------------------------------- delivery *}
+    {if $hypay_lp_pick}
+        <div class="hypay-lp-card">
+            <div class="hypay-lp-card__title">{__("hypay_link_delivery")}</div>
+            <div class="hypay-lp-send">
+                <label class="checkbox hypay-lp-send__toggle">
+                    <input type="checkbox" class="hypay-lp-send-email" />
+                    {__("hypay_link_send_email")}
+                </label>
+                <input type="email" class="input-large hypay-lp-email" dir="ltr" autocomplete="off" value="{$hypay_link.email}" />
+            </div>
+            <div class="hypay-lp-send">
+                <label class="checkbox hypay-lp-send__toggle">
+                    <input type="checkbox" class="hypay-lp-send-sms" />
+                    {__("hypay_link_send_sms")}
+                </label>
+                <input type="text" class="input-medium hypay-lp-cell" dir="ltr" inputmode="tel" autocomplete="off"
+                       value="{$hypay_link.cell}" placeholder="0501234567" />
+            </div>
+            <p class="muted hypay-lp-note hypay-lp-copy-only">{__("hypay_link_copy_only_hint")}</p>
+        </div>
+    {/if}
+
     {* ------------------------------------------------------------------ orders *}
     {if $hypay_link.state == "active" || $hypay_link.state == "paid"}
         {$hypay_lp_rows = $hypay_link.link_orders}
     {else}
         {$hypay_lp_rows = $hypay_link.candidates}
     {/if}
-    {$hypay_lp_pick = ($hypay_link.state != "active" && $hypay_link.state != "paid")}
 
     <div class="hypay-lp-toolbar">
         <div><strong>{__("hypay_link_total_orders")}:</strong> <span class="hypay-lp-count">{$hypay_lp_rows|count}</span></div>
@@ -212,48 +254,9 @@
         <p class="muted hypay-lp-note">{if $hypay_link.statuses_set}{__("hypay_link_no_other_orders")}{else}{__("hypay_link_no_statuses_set")}{/if}</p>
     {/if}
 
-    {* ------------------------------------------------------------- deal type *}
-    {if $hypay_lp_pick}
-        <div class="hypay-lp-card">
-            <div class="hypay-lp-card__title">{__("hypay_link_deal")}</div>
-            <label class="radio hypay-lp-deal">
-                <input type="radio" name="hypay_lp_deal" class="hypay-lp-deal-input" value="j4" checked="checked" />
-                {__("hypay_link_deal_j4")}
-                <small class="muted">— {__("hypay_link_deal_j4_desc")}</small>
-            </label>
-            <label class="radio hypay-lp-deal">
-                <input type="radio" name="hypay_lp_deal" class="hypay-lp-deal-input" value="j5" />
-                {__("hypay_link_deal_j5")}
-                <small class="muted">— {__("hypay_link_deal_j5_desc")}</small>
-            </label>
-        </div>
-    {/if}
-
-    {* ---------------------------------------------------------------- delivery *}
-    {if $hypay_lp_pick}
-        <div class="hypay-lp-card">
-            <div class="hypay-lp-card__title">{__("hypay_link_delivery")}</div>
-            <div class="hypay-lp-send">
-                <label class="checkbox hypay-lp-send__toggle">
-                    <input type="checkbox" class="hypay-lp-send-email" />
-                    {__("hypay_link_send_email")}
-                </label>
-                <input type="email" class="input-large hypay-lp-email" dir="ltr" autocomplete="off" value="{$hypay_link.email}" />
-            </div>
-            <div class="hypay-lp-send">
-                <label class="checkbox hypay-lp-send__toggle">
-                    <input type="checkbox" class="hypay-lp-send-sms" />
-                    {__("hypay_link_send_sms")}
-                </label>
-                <input type="text" class="input-medium hypay-lp-cell" dir="ltr" inputmode="tel" autocomplete="off"
-                       value="{$hypay_link.cell}" placeholder="0501234567" />
-            </div>
-            <p class="muted hypay-lp-note hypay-lp-copy-only">{__("hypay_link_copy_only_hint")}</p>
-        </div>
-    {/if}
-
     {* ----------------------------------------------------------------- buttons *}
     <div class="hypay-lp-actions">
+        <span class="hypay-lp-busy" style="display: none;"><span class="hypay-lp-spinner"></span>{__("hypay_j5_working")}</span>
         {if $hypay_lp_pick}
             {if $hypay_link.can_create}
                 <button type="button" class="btn btn-primary hypay-lp-action" data-action="create">{__("hypay_link_create")}</button>
@@ -267,13 +270,14 @@
             <button type="button" class="btn hypay-lp-action hypay-lp-danger" data-action="cancel">{__("hypay_link_cancel")}</button>
         {/if}
         <button type="button" class="btn cm-dialog-closer hypay-lp-close">{__("hypay_link_close")}</button>
-        <span class="hypay-lp-busy" style="display: none;"><span class="hypay-lp-spinner"></span>{__("hypay_j5_working")}</span>
     </div>
 </div>
 
 {literal}
 <style>
-.hypay-lp { min-width: 760px; padding: 2px 4px 4px; font-size: 13px; }
+/* the window fills the dialog, so its buttons sit at the bottom of the frame */
+#content_hypay_payment_link { display: flex; flex-direction: column; }
+.hypay-lp { min-width: 760px; padding: 2px 4px 4px; font-size: 13px; flex: 1 0 auto; display: flex; flex-direction: column; }
 @media (max-width: 820px) { .hypay-lp { min-width: 0; } }
 .hypay-lp-card { border: 1px solid #e3e6ea; border-radius: 8px; background: #fafbfc; padding: 12px 16px; margin-bottom: 14px; }
 .hypay-lp-card__title { font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -321,9 +325,9 @@
 .hypay-lp-send input[type=email], .hypay-lp-send input[type=text] { margin: 0; }
 .hypay-lp-send--off input[type=email], .hypay-lp-send--off input[type=text] { opacity: .45; }
 .hypay-lp-note { margin: 4px 0 10px; font-size: 12px; }
-.hypay-lp-actions { display: flex; align-items: center; gap: 8px; padding-top: 4px; }
+.hypay-lp-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px solid #e3e6ea; }
 .hypay-lp-danger { color: #a12626; }
-.hypay-lp-busy { color: #6b7280; display: inline-flex; align-items: center; gap: 6px; }
+.hypay-lp-busy { color: #6b7280; display: inline-flex; align-items: center; gap: 6px; margin-right: auto; }
 .hypay-lp-spinner { width: 14px; height: 14px; border: 2px solid #d6dae0; border-top-color: #4a90d9; border-radius: 50%; animation: hypay-lp-spin .8s linear infinite; }
 @keyframes hypay-lp-spin { to { transform: rotate(360deg); } }
 .hypay-lp.is-busy { opacity: .7; pointer-events: none; }
