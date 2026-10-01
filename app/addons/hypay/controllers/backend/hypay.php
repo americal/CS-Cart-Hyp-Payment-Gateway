@@ -77,6 +77,12 @@ if (in_array($mode, ['link_create', 'link_cancel', 'link_check'], true)) {
     // A link that ran out while the window stood open: there is nothing left
     // to check or cancel, and the redrawn window says it expired. Creating
     // goes ahead - the expired link no longer stands in the way.
+    // What was queued before the action (CS-Cart's own warnings, such as the
+    // changed core files one) is not the window's to show.
+    $queued = isset(Tygh::$app['session']['notifications'])
+        ? array_keys((array) Tygh::$app['session']['notifications'])
+        : [];
+
     $expired = fn_hypay_link_expire_if_due($order_id);
 
     if ($mode === 'link_create') {
@@ -104,13 +110,22 @@ if (in_array($mode, ['link_create', 'link_cancel', 'link_check'], true)) {
 
     if (!empty($_REQUEST['hypay_ajax'])) {
         // the notifications the action raised belong in the window, not on the
-        // next page the admin happens to open
-        $notices = function_exists('fn_get_notifications') ? (array) fn_get_notifications() : [];
+        // next page the admin happens to open; the rest stay queued for it
+        $notices = [];
+        if (isset(Tygh::$app['session']['notifications'])) {
+            foreach ((array) Tygh::$app['session']['notifications'] as $key => $notice) {
+                if (in_array($key, $queued, true) || !is_array($notice)) {
+                    continue;
+                }
+                $notices[] = $notice;
+                unset(Tygh::$app['session']['notifications'][$key]);
+            }
+        }
 
         $view = Tygh::$app['view'];
         $view->assign('hypay_link', fn_hypay_get_link_panel_data($order_id));
         $view->assign('hypay_link_order_id', $order_id);
-        $view->assign('hypay_link_notices', array_values(array_filter($notices, 'is_array')));
+        $view->assign('hypay_link_notices', $notices);
         $view->display('addons/hypay/views/hypay/link_panel.tpl');
         exit;
     }
