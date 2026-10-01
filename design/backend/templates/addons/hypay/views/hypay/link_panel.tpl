@@ -282,9 +282,9 @@
 
 {literal}
 <style>
-/* the window is fitted to the dialog (see fit below): a body that scrolls and
-   a footer with the buttons, edge to edge, that does not */
-.hypay-lp { min-width: 760px; font-size: 13px; display: flex; flex-direction: column; box-sizing: border-box; }
+/* the window fills the dialog (see hypayLinkFit below): a body that scrolls
+   and a footer with the buttons, edge to edge, that does not */
+.hypay-lp { min-width: 760px; font-size: 13px; display: flex; flex-direction: column; box-sizing: border-box; flex: 1 1 auto; min-height: 0; }
 .hypay-lp-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 12px 16px 4px; }
 @media (max-width: 820px) { .hypay-lp { min-width: 0; } }
 .hypay-lp-card { border: 1px solid #e3e6ea; border-radius: 8px; background: #fafbfc; padding: 12px 16px; margin-bottom: 14px; }
@@ -547,24 +547,49 @@
         };
     }
 
-    // The window takes the whole inside of the dialog, over its padding, so
-    // the footer runs edge to edge at the bottom and only the body scrolls.
-    // Refitted whenever the dialog changes size; the current window is looked
-    // up each time, as the buttons replace it.
+    // The window takes the whole inside of the dialog, so the footer runs edge
+    // to edge along its bottom and only the body scrolls. CS-Cart puts it in
+    // wrappers of its own (.ui-dialog-content, .object-container - with
+    // paddings, and a height set from the window, not from the content): each
+    // one between the window and .ui-dialog is made a column that hands all
+    // its height down, without padding. Redone when the dialog is shown again
+    // or changes size; the current window is looked up each time, as the
+    // buttons replace it.
     if (!window.hypayLinkFit) {
         window.hypayLinkFit = function () {
             var block = document.getElementById('hypay_link_dialog_block');
-            var content = block && block.parentNode;
-            if (!content || !/(^|\s)ui-dialog-content(\s|$)/.test(content.className)) { return; }
-            if (!content.getAttribute('data-hypay-fit')) {
+            var dialog = block && block.parentNode;
+            while (dialog && dialog.nodeType === 1 && !/(^|\s)ui-dialog(\s|$)/.test(dialog.className)) {
+                dialog = dialog.parentNode;
+            }
+            if (!dialog || dialog.nodeType !== 1) { return; }
+
+            for (var node = block; node !== dialog; node = node.parentNode) {
+                var parent = node.parentNode;
+                if (parent === dialog) {
+                    // the dialog itself: also holds the title bar, keeps its padding
+                    parent.style.display = 'flex';
+                    parent.style.flexDirection = 'column';
+                } else {
+                    // !important: CS-Cart forces display on .ui-dialog-content
+                    parent.style.setProperty('display', 'flex', 'important');
+                    parent.style.setProperty('flex-direction', 'column', 'important');
+                    parent.style.setProperty('padding', '0', 'important');
+                }
+                if (node !== block) {
+                    node.style.setProperty('flex', '1 1 auto', 'important');
+                    node.style.setProperty('min-height', '0', 'important');
+                }
+            }
+
+            var content = block.parentNode;
+            while (content !== dialog && !/(^|\s)ui-dialog-content(\s|$)/.test(content.className)) {
+                content = content.parentNode;
+            }
+            if (content !== dialog && !content.getAttribute('data-hypay-fit')) {
                 content.setAttribute('data-hypay-fit', '1');
                 if (window.ResizeObserver) { new ResizeObserver(window.hypayLinkFit).observe(content); }
-                window.addEventListener('resize', window.hypayLinkFit);
             }
-            if (!content.clientHeight) { return; }
-            var cs = window.getComputedStyle(content);
-            block.style.margin = '-' + cs.paddingTop + ' -' + cs.paddingRight + ' -' + cs.paddingBottom + ' -' + cs.paddingLeft;
-            block.style.height = content.clientHeight + 'px';
         };
     }
 
