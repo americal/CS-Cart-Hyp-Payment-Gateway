@@ -10,7 +10,7 @@
  *  No link yet: the customer, J4 (charge now, the default) or J5 (hold only,
  *  this order alone), where to send it - or nowhere, to copy it yourself -
  *  the orders to pay for (with the document each already has), Create.
- *  The buttons always sit at the bottom of the window.
+ *  The buttons always sit at the bottom of the window, in view while it scrolls.
  *  Active link: the link, Copy, the orders it covers, Check payment, Cancel.
  *  Paid: when, the transaction, the document.
  *  Expired (past the lifetime the settings give a link): when it ran out, and
@@ -254,9 +254,12 @@
         <p class="muted hypay-lp-note">{if $hypay_link.statuses_set}{__("hypay_link_no_other_orders")}{else}{__("hypay_link_no_statuses_set")}{/if}</p>
     {/if}
 
-    {* ----------------------------------------------------------------- buttons *}
+    {* ------------------------------------------------- buttons (Close, then the
+       actions, the main one rightmost), kept in view at the bottom of the
+       dialog however long the orders table grows *}
     <div class="hypay-lp-actions">
         <span class="hypay-lp-busy" style="display: none;"><span class="hypay-lp-spinner"></span>{__("hypay_j5_working")}</span>
+        <button type="button" class="btn cm-dialog-closer hypay-lp-close">{__("hypay_link_close")}</button>
         {if $hypay_lp_pick}
             {if $hypay_link.can_create}
                 <button type="button" class="btn btn-primary hypay-lp-action" data-action="create">{__("hypay_link_create")}</button>
@@ -269,13 +272,13 @@
             {/if}
             <button type="button" class="btn hypay-lp-action hypay-lp-danger" data-action="cancel">{__("hypay_link_cancel")}</button>
         {/if}
-        <button type="button" class="btn cm-dialog-closer hypay-lp-close">{__("hypay_link_close")}</button>
     </div>
 </div>
 
 {literal}
 <style>
-/* the window fills the dialog, so its buttons sit at the bottom of the frame */
+/* the window fills the dialog, so its buttons sit at the bottom of the frame -
+   and stay there (sticky) while a long orders table scrolls under them */
 #content_hypay_payment_link { display: flex; flex-direction: column; }
 .hypay-lp { min-width: 760px; padding: 2px 4px 4px; font-size: 13px; flex: 1 0 auto; display: flex; flex-direction: column; }
 @media (max-width: 820px) { .hypay-lp { min-width: 0; } }
@@ -325,7 +328,8 @@
 .hypay-lp-send input[type=email], .hypay-lp-send input[type=text] { margin: 0; }
 .hypay-lp-send--off input[type=email], .hypay-lp-send--off input[type=text] { opacity: .45; }
 .hypay-lp-note { margin: 4px 0 10px; font-size: 12px; }
-.hypay-lp-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px solid #e3e6ea; }
+.hypay-lp-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: auto;
+    position: sticky; bottom: 0; z-index: 2; background: #fff; padding: 12px 0 8px; border-top: 1px solid #e3e6ea; box-shadow: 0 -6px 8px -6px rgba(0, 0, 0, .12); }
 .hypay-lp-danger { color: #a12626; }
 .hypay-lp-busy { color: #6b7280; display: inline-flex; align-items: center; gap: 6px; margin-right: auto; }
 .hypay-lp-spinner { width: 14px; height: 14px; border: 2px solid #d6dae0; border-top-color: #4a90d9; border-radius: 50%; animation: hypay-lp-spin .8s linear infinite; }
