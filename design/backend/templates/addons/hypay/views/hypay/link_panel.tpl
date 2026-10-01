@@ -32,7 +32,6 @@
      data-url-cancel="{"hypay.link_cancel"|fn_url}"
      data-url-check="{"hypay.link_check"|fn_url}"
      data-order-id="{$hypay_link.order_id}"
-     data-confirm-create="{__("hypay_link_confirm_create")}"
      data-confirm-cancel="{__("hypay_link_confirm_cancel")}"
      data-label-create="{__("hypay_link_create_only")}"
      data-label-send="{__("hypay_link_create")}"
@@ -469,7 +468,6 @@
                     var ids = picked().ids;
                     if (ids.length) { params.append('order_ids', ids.join(',')); }
                     params.append('deal', deal());
-                    if (!window.confirm(block.getAttribute('data-confirm-create'))) { return; }
                 }
                 if (action === 'cancel' && !window.confirm(block.getAttribute('data-confirm-cancel'))) { return; }
 
