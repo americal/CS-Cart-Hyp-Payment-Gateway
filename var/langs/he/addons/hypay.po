@@ -1216,3 +1216,11 @@ msgstr "יש לבצע את ההזמנה מחדש ולהשלים את התשלו�
 msgctxt "Languages::hypay_unpaid_button"
 msgid "Place the order again"
 msgstr "ביצוע ההזמנה מחדש"
+
+msgctxt "Languages::hypay_unpaid_retry_pay"
+msgid "Press \"Go to payment\" and complete the payment. Do not leave the payment form until the payment is finished."
+msgstr "יש ללחוץ על \"מעבר לתשלום\" ולהשלים את התשלום. אין לצאת מטופס התשלום לפני שהתשלום הסתיים."
+
+msgctxt "Languages::hypay_unpaid_button_pay"
+msgid "Go to payment"
+msgstr "מעבר לתשלום"

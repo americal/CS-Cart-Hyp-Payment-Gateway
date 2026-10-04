@@ -1418,3 +1418,11 @@ msgstr "Пожалуйста, оформите заказ заново и опл
 msgctxt "Languages::hypay_unpaid_button"
 msgid "Place the order again"
 msgstr "Оформить заказ заново"
+
+msgctxt "Languages::hypay_unpaid_retry_pay"
+msgid "Press \"Go to payment\" and complete the payment. Do not leave the payment form until the payment is finished."
+msgstr "Нажмите «Перейти к оплате» и завершите оплату. Не выходите из формы оплаты, пока оплата не будет завершена."
+
+msgctxt "Languages::hypay_unpaid_button_pay"
+msgid "Go to payment"
+msgstr "Перейти к оплате"

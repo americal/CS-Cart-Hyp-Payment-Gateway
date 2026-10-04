@@ -572,27 +572,99 @@ function fn_hypay_clear_pending_checkout($order_id = 0)
 /**
  * Tell the customer the order was NOT placed - as a popup in the middle of the
  * page that stays until it is closed, not a toast in the corner.
+ *
+ * With $can_pay the order itself is still waiting for its money (Incomplete),
+ * and the button opens the payment form for it again. Without it - a declined
+ * card - the button leads back to the checkout, where the cart still is.
  */
-function fn_hypay_notify_payment_not_completed($order_id)
+function fn_hypay_notify_payment_not_completed($order_id, $can_pay = false)
 {
     // the same notice twice in a row says nothing new
     fn_hypay_drop_unpaid_notice();
 
-    $checkout_url = htmlspecialchars(fn_url('checkout.checkout', 'C', 'current'), ENT_QUOTES, 'UTF-8');
+    $button_url = $can_pay
+        ? fn_url('hypay.pay?order_id=' . (int) $order_id, 'C', 'current')
+        : fn_url('checkout.checkout', 'C', 'current');
+    $button_url = htmlspecialchars($button_url, ENT_QUOTES, 'UTF-8');
 
     $html = '<div ' . HYPAY_UNPAID_NOTICE_MARK . '="' . (int) $order_id . '"'
         . ' style="padding:18px 20px;border:3px solid #d32f2f;border-radius:6px;background:#fdecea;color:#8e1b1b;font-size:16px;line-height:1.5;">'
         . '<p style="margin:0 0 12px;font-size:22px;font-weight:bold;color:#c62828;">&#9888; ' . __('hypay_unpaid_title') . '</p>'
         . '<p style="margin:0 0 10px;">' . __('hypay_unpaid_text', ['[order_id]' => (int) $order_id]) . '</p>'
-        . '<p style="margin:0 0 16px;font-weight:bold;">' . __('hypay_unpaid_retry') . '</p>'
-        . '<p style="margin:0;"><a href="' . $checkout_url . '" class="ty-btn ty-btn__primary"'
+        . '<p style="margin:0 0 16px;font-weight:bold;">' . __($can_pay ? 'hypay_unpaid_retry_pay' : 'hypay_unpaid_retry') . '</p>'
+        . '<p style="margin:0;"><a href="' . $button_url . '" class="ty-btn ty-btn__primary"'
         . ' style="display:inline-block;padding:10px 18px;background:#c62828;color:#fff;border-radius:4px;text-decoration:none;font-weight:bold;">'
-        . __('hypay_unpaid_button') . '</a></p>'
+        . __($can_pay ? 'hypay_unpaid_button_pay' : 'hypay_unpaid_button') . '</a></p>'
         . '</div>';
 
     // type I is the storefront's dialog (the one "added to cart" uses);
     // state K keeps it open until the customer closes it
     fn_set_notification('I', __('hypay_unpaid_title'), $html, 'K');
+}
+
+/**
+ * Is this a Hypay order still waiting for its money, that the visitor in this
+ * session may pay for? Incomplete means Hyp never answered for it: a charge,
+ * a hold and a decline all move the order out of that status.
+ */
+function fn_hypay_order_awaits_payment($order_id)
+{
+    $order_id = (int) $order_id;
+    if ($order_id <= 0 || !fn_check_payment_script('hypay.php', $order_id)) {
+        return false;
+    }
+
+    $order_info = fn_get_order_info($order_id);
+    if (empty($order_info)) {
+        return false;
+    }
+
+    $incomplete = defined('STATUS_INCOMPLETED_ORDER') ? STATUS_INCOMPLETED_ORDER : 'N';
+
+    return (string) $order_info['status'] === $incomplete
+        && fn_hypay_customer_can_view_order($order_info);
+}
+
+/**
+ * Send the customer to the Hyp payment form for an order already placed - the
+ * same thing CS-Cart's fn_start_payment() does at checkout: the processor
+ * script asks Hyp for a payment page and redirects there. It does not come
+ * back on success; it returns only if it could not start the payment.
+ */
+function fn_hypay_restart_payment($order_id)
+{
+    $order_info = fn_get_order_info((int) $order_id);
+    if (empty($order_info['payment_id'])) {
+        return false;
+    }
+    $processor_data = fn_get_payment_method_data($order_info['payment_id']);
+    $mode           = 'place_order';
+
+    // a payment form is on its way - no "not placed" popup to greet the return
+    fn_hypay_drop_unpaid_notice();
+
+    hypay_log($order_id, 'payment restarted for an order left unpaid');
+    include __DIR__ . '/payments/hypay.php';
+
+    return false;
+}
+
+/**
+ * checkout.complete for an order nobody has paid for yet.
+ *
+ * A customer who pressed "back" on the Hyp page and then "Place order" again
+ * is sent by CS-Cart straight to the "thank you" page, without any payment -
+ * the order it shows is still Incomplete. That page must never stand for an
+ * unpaid card order: the payment form opens instead, for that same order.
+ */
+function fn_hypay_complete_unpaid_order($order_id)
+{
+    if (!fn_hypay_order_awaits_payment($order_id)) {
+        return;
+    }
+
+    hypay_log($order_id, 'checkout.complete reached for an unpaid order: back to the payment form');
+    fn_hypay_restart_payment($order_id);
 }
 
 /** take the "not placed" popup back out of the queue, if it is there */
@@ -615,7 +687,7 @@ function fn_hypay_drop_unpaid_notice()
  * again, yet Hyp never sent them back: no return came, so the order is still
  * Incomplete. They left the payment page without paying - say so.
  */
-function fn_hypay_check_unpaid_checkout($controller)
+function fn_hypay_check_unpaid_checkout($controller, $mode = '')
 {
     if (empty(\Tygh::$app['session']['hypay_pending_checkout'])) {
         return;
@@ -625,7 +697,9 @@ function fn_hypay_check_unpaid_checkout($controller)
     // (it is about to settle the order), not AJAX, not an image or a feed
     if (defined('AJAX_REQUEST')
         || strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET'
-        || in_array((string) $controller, ['payment_notification', 'image', 'debugger', 'robots', 'sitemap_generator', 'xmlsitemap'], true)
+        || in_array((string) $controller, ['payment_notification', 'hypay', 'image', 'debugger', 'robots', 'sitemap_generator', 'xmlsitemap'], true)
+        // checkout.complete sends an unpaid order to the payment form itself
+        || ((string) $controller === 'checkout' && (string) $mode === 'complete')
     ) {
         return;
     }
@@ -637,18 +711,15 @@ function fn_hypay_check_unpaid_checkout($controller)
     $order_id = (int) \Tygh::$app['session']['hypay_pending_checkout'];
     fn_hypay_clear_pending_checkout();
 
-    $incomplete = defined('STATUS_INCOMPLETED_ORDER') ? STATUS_INCOMPLETED_ORDER : 'N';
-    $status     = (string) db_get_field("SELECT status FROM ?:orders WHERE order_id = ?i", $order_id);
-
-    if ($status !== $incomplete) {
+    if (!fn_hypay_order_awaits_payment($order_id)) {
         // settled some other way (a return in another tab, the admin)
         return;
     }
 
-    hypay_log($order_id, 'customer is back in the store without paying (order still Incomplete), told to order again', [
+    hypay_log($order_id, 'customer is back in the store without paying (order still Incomplete), told to pay', [
         'dispatch' => (string) ($_REQUEST['dispatch'] ?? ''),
     ]);
-    fn_hypay_notify_payment_not_completed($order_id);
+    fn_hypay_notify_payment_not_completed($order_id, true);
 }
 
 /** checkbox -> "True"/"False" strings per Hypay API taste */
