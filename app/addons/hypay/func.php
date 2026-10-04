@@ -593,19 +593,62 @@ function fn_hypay_notify_payment_not_completed($order_id, $can_pay = false, $ret
         : fn_url('checkout.checkout', 'C', 'current');
     $button_url = htmlspecialchars($button_url, ENT_QUOTES, 'UTF-8');
 
-    $html = '<div ' . HYPAY_UNPAID_NOTICE_MARK . '="' . (int) $order_id . '"'
-        . ' style="padding:18px 20px;border:3px solid #d32f2f;border-radius:6px;background:#fdecea;color:#8e1b1b;font-size:16px;line-height:1.5;">'
-        . '<p style="margin:0 0 12px;font-size:22px;font-weight:bold;color:#c62828;">&#9888; ' . __('hypay_unpaid_title') . '</p>'
-        . '<p style="margin:0 0 10px;">' . __('hypay_unpaid_text', ['[order_id]' => (int) $order_id]) . '</p>'
-        . '<p style="margin:0 0 16px;font-weight:bold;">' . __($retry_text, ['[order_id]' => (int) $order_id]) . '</p>'
-        . '<p style="margin:0;"><a href="' . $button_url . '" class="ty-btn ty-btn__primary"'
-        . ' style="display:inline-block;padding:10px 18px;background:#c62828;color:#fff;border-radius:4px;text-decoration:none;font-weight:bold;">'
-        . __($can_pay ? 'hypay_unpaid_button_pay' : 'hypay_unpaid_button') . '</a></p>'
+    // the title is the dialog's own header; the body explains and offers the
+    // one thing to do next
+    $html = fn_hypay_unpaid_notice_css()
+        . '<div class="hypay-unpaid" ' . HYPAY_UNPAID_NOTICE_MARK . '="' . (int) $order_id . '">'
+        . '<div class="hypay-unpaid__icon" aria-hidden="true">'
+        . '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        . '<rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20"/><path d="M15 14.5l3 3m0-3l-3 3"/></svg>'
+        . '</div>'
+        . '<p class="hypay-unpaid__lead">' . __('hypay_unpaid_text', ['[order_id]' => (int) $order_id]) . '</p>'
+        . '<div class="hypay-unpaid__hint">'
+        . '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        . '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>'
+        . '<span>' . __($retry_text, ['[order_id]' => (int) $order_id]) . '</span>'
+        . '</div>'
+        . '<a href="' . $button_url . '" class="hypay-unpaid__btn">'
+        . __($can_pay ? 'hypay_unpaid_button_pay' : 'hypay_unpaid_button') . '</a>'
         . '</div>';
 
     // type I is the storefront's dialog (the one "added to cart" uses);
     // state K keeps it open until the customer closes it
     fn_set_notification('I', __('hypay_unpaid_title'), $html, 'K');
+}
+
+/**
+ * The look of the "not placed" dialog. It travels inside the notification
+ * itself, so it needs no template of the theme's and is gone with the dialog.
+ *
+ * While the dialog is up, its overlay is lifted above everything else on the
+ * page - other add-ons put their own widgets very high (the pickup map's
+ * search box sits at z-index 10000) and stayed clickable through it.
+ */
+function fn_hypay_unpaid_notice_css()
+{
+    return '<style>'
+        // the dialog and its overlay, above any other widget of the page
+        . 'body:has(.hypay-unpaid) .ui-widget-overlay{z-index:2147483000!important;background:rgba(17,24,39,.62)!important;opacity:1!important;'
+        . '-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}'
+        . '.cm-notification-content-extended:has(.hypay-unpaid){z-index:2147483001!important;border:0!important;border-radius:16px!important;'
+        . 'overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.35)!important}'
+        . '.cm-notification-content-extended:has(.hypay-unpaid)>h1{color:#b42318;border-bottom:1px solid #f1f1f1}'
+        // the body
+        . '.hypay-unpaid{box-sizing:border-box;max-width:520px;margin:0 auto;padding:12px 8px 6px;text-align:center;color:#1f2937;font-family:inherit}'
+        . '.hypay-unpaid *{box-sizing:border-box}'
+        . '.hypay-unpaid__icon{width:72px;height:72px;margin:0 auto 18px;border-radius:50%;background:#fef3f2;color:#d92d20;'
+        . 'display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 8px #fffbfa}'
+        . '.hypay-unpaid__icon svg{width:34px;height:34px}'
+        . '.hypay-unpaid__lead{margin:0 0 16px;font-size:17px;line-height:1.55;color:#101828}'
+        . '.hypay-unpaid__hint{display:flex;gap:10px;align-items:flex-start;margin:0 0 22px;padding:12px 14px;border-radius:12px;'
+        . 'background:#fffaeb;border:1px solid #fedf89;color:#93370d;font-size:14px;line-height:1.5;text-align:start}'
+        . '.hypay-unpaid__hint svg{flex:0 0 18px;width:18px;height:18px;margin-top:2px}'
+        . '.hypay-unpaid__btn{display:block;width:100%;padding:14px 20px;border-radius:12px;background:#d92d20;color:#fff!important;'
+        . 'font-size:16px;font-weight:600;line-height:1.2;text-decoration:none!important;box-shadow:0 6px 16px rgba(217,45,32,.28);'
+        . 'transition:background .15s,transform .15s}'
+        . '.hypay-unpaid__btn:hover,.hypay-unpaid__btn:focus{background:#b42318;transform:translateY(-1px)}'
+        . '@media (max-width:480px){.hypay-unpaid__lead{font-size:16px}.hypay-unpaid__icon{width:60px;height:60px}}'
+        . '</style>';
 }
 
 /**
