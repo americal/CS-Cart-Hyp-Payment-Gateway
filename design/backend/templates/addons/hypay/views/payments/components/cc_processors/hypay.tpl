@@ -50,13 +50,16 @@
 
  {* --- Order statuses mapping --- *}
  {$statuses = $smarty.const.STATUSES_ORDER|fn_get_simple_statuses}
+ {* Statuses an order may be moved to: all but the forbidden one (HYPAY_STATUS_FORBIDDEN),
+    which the add-on never sets - see fn_hypay_guarded_status_change() *}
+ {$hypay_target_statuses = ""|fn_hypay_target_order_statuses}
 
  {assign var="succ_status" value=$processor_params.success_status|default:"O"}
  <div class="control-group">
      <label class="control-label" for="elm_hypay_success_status">{__("hypay_success_status")}:</label>
      <div class="controls">
          <select name="payment_data[processor_params][success_status]" id="elm_hypay_success_status">
-             {foreach from=$statuses item="status" key="s_key"}
+             {foreach from=$hypay_target_statuses item="status" key="s_key"}
                  <option value="{$s_key}" {if $s_key == $succ_status}selected="selected"{/if}>{$status}</option>
              {/foreach}
          </select>
@@ -92,7 +95,7 @@
      <label class="control-label" for="elm_hypay_fail_status">{__("hypay_fail_status")}:</label>
      <div class="controls">
          <select name="payment_data[processor_params][fail_status]" id="elm_hypay_fail_status">
-             {foreach from=$statuses item="status" key="s_key"}
+             {foreach from=$hypay_target_statuses item="status" key="s_key"}
                  <option value="{$s_key}" {if $s_key == $fail_status}selected="selected"{/if}>{$status}</option>
              {/foreach}
          </select>
@@ -239,7 +242,7 @@
      <label class="control-label" for="elm_hypay_j5_auth_status">{__("hypay_j5_auth_status")}</label>
      <div class="controls">
          <select name="payment_data[processor_params][j5_auth_status]" id="elm_hypay_j5_auth_status">
-             {foreach from=$statuses item="status" key="s_key"}
+             {foreach from=$hypay_target_statuses item="status" key="s_key"}
                  <option value="{$s_key}" {if $s_key == $hypay_j5_auth_status}selected="selected"{/if}>{$status}</option>
              {/foreach}
          </select>
@@ -274,7 +277,7 @@
      <label class="control-label" for="elm_hypay_j5_captured_status">{__("hypay_j5_captured_status")}</label>
      <div class="controls">
          <select name="payment_data[processor_params][j5_captured_status]" id="elm_hypay_j5_captured_status">
-             {foreach from=$statuses item="status" key="s_key"}
+             {foreach from=$hypay_target_statuses item="status" key="s_key"}
                  <option value="{$s_key}" {if $s_key == $hypay_j5_captured_status}selected="selected"{/if}>{$status}</option>
              {/foreach}
          </select>
@@ -305,7 +308,7 @@
      <label class="control-label" for="elm_hypay_j5_void_status">{__("hypay_j5_void_status")}</label>
      <div class="controls">
          <select name="payment_data[processor_params][j5_void_status]" id="elm_hypay_j5_void_status">
-             {foreach from=$statuses item="status" key="s_key"}
+             {foreach from=$hypay_target_statuses item="status" key="s_key"}
                  <option value="{$s_key}" {if $s_key == $hypay_j5_void_status}selected="selected"{/if}>{$status}</option>
              {/foreach}
          </select>

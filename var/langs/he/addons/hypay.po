@@ -1192,3 +1192,11 @@ msgstr "חזרה שמדווחת שהקישור שולם לא אומתה מול H
 msgctxt "Languages::hypay_customer_payment_unverified"
 msgid "We could not confirm your payment automatically. If you were charged, the store will confirm it shortly."
 msgstr "לא הצלחנו לאשר את התשלום באופן אוטומטי. אם חויבת, החנות תאשר את התשלום בקרוב."
+
+msgctxt "Languages::hypay_stock"
+msgid "Order status"
+msgstr "סטטוס הזמנה"
+
+msgctxt "Languages::hypay_pi_status_fallback"
+msgid "[date]: CS-Cart wanted to put the order in status [forbidden] (Backordered - not enough stock for one of the products). The add-on never uses [forbidden], so the order was put in status [status] instead. The products were NOT taken off the stock - check the stock before shipping."
+msgstr "[date]: CS-Cart ניסה להעביר את ההזמנה לסטטוס [forbidden] (Backordered - אחד המוצרים חסר במלאי). התוסף לעולם אינו משתמש בסטטוס [forbidden], ולכן ההזמנה הועברה לסטטוס [status]. המוצרים לא הורדו מהמלאי - יש לבדוק את המלאי לפני המשלוח."
