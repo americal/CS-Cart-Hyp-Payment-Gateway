@@ -29,7 +29,8 @@ https://hypay.docs.apiary.io/
   declined card) is shown a popup that the order was **not** placed and must be
   placed and paid again, instead of the "thank you" page. Pressing "Place
   order" again for an order still left unpaid opens the payment form for it
-  rather than the "thank you" page
+  rather than the "thank you" page, and the cart keeps its products until the
+  payment actually goes through
 - Compatible with CS-Cart payment processor architecture
 
 ---

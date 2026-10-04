@@ -762,6 +762,7 @@ $payment_link = $base . $response;
 // without Hyp sending them, they are told the order was not placed
 if ($back === 'front') {
     fn_hypay_set_pending_checkout($order_id);
+    fn_hypay_snapshot_cart($order_id);
 }
 
 hypay_log($order_id, 'redirect to payment', $payment_link);
