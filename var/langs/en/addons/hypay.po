@@ -1426,3 +1426,7 @@ msgstr "Press \"Go to payment\" and complete the payment. Do not leave the payme
 msgctxt "Languages::hypay_unpaid_button_pay"
 msgid "Go to payment"
 msgstr "Go to payment"
+
+msgctxt "Languages::hypay_unpaid_basket_changed"
+msgid "The cart was changed after order #[order_id] was created, so that order cannot be paid. Check the cart and press \"Place order\" again - a new order will be created and the payment form will open."
+msgstr "The cart was changed after order #[order_id] was created, so that order cannot be paid. Check the cart and press \"Place order\" again - a new order will be created and the payment form will open."

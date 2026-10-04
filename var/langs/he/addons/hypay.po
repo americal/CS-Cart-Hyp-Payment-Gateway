@@ -1224,3 +1224,7 @@ msgstr "יש ללחוץ על \"מעבר לתשלום\" ולהשלים את הת�
 msgctxt "Languages::hypay_unpaid_button_pay"
 msgid "Go to payment"
 msgstr "מעבר לתשלום"
+
+msgctxt "Languages::hypay_unpaid_basket_changed"
+msgid "The cart was changed after order #[order_id] was created, so that order cannot be paid. Check the cart and press \"Place order\" again - a new order will be created and the payment form will open."
+msgstr "העגלה שונתה לאחר יצירת הזמנה #[order_id], ולכן לא ניתן לשלם עליה. יש לבדוק את העגלה וללחוץ שוב על \"ביצוע הזמנה\" - תיווצר הזמנה חדשה ויפתח טופס התשלום."
