@@ -33,6 +33,18 @@ if (!defined('HYPAY_ADDITIONAL_STATUSES_ADDON')) { define('HYPAY_ADDITIONAL_STAT
  */
 if (!defined('HYPAY_EZ_INT_DOC_TYPE_PARAM')) { define('HYPAY_EZ_INT_DOC_TYPE_PARAM', 'EZ.type'); }
 
+/**
+ * The status this add-on never leaves an order in. CS-Cart puts an order in it
+ * on its own - Backordered - when a status change has to take the products off
+ * the stock and one of them runs short; this store uses the letter for a bank
+ * transfer, so a card payment that ended up in it reads as something it is not.
+ * See fn_hypay_guarded_status_change().
+ */
+if (!defined('HYPAY_STATUS_FORBIDDEN')) { define('HYPAY_STATUS_FORBIDDEN', 'B'); }
+
+/** what the order gets instead of HYPAY_STATUS_FORBIDDEN */
+if (!defined('HYPAY_STATUS_FORBIDDEN_FALLBACK')) { define('HYPAY_STATUS_FORBIDDEN_FALLBACK', 'O'); }
+
 /** global debug switch (filled from payment settings later) */
 if (!isset($GLOBALS['HYPAY_DEBUG'])) { $GLOBALS['HYPAY_DEBUG'] = false; }
 
@@ -2698,7 +2710,191 @@ function fn_hypay_change_order_status_silently($order_id, $status_to)
 
     hypay_log($order_id, 'order status changed silently', ['status' => $status_to]);
 
-    fn_change_order_status($order_id, $status_to, '', $force_notification);
+    fn_hypay_guarded_status_change($order_id, function () use ($order_id, $status_to, $force_notification) {
+        fn_change_order_status($order_id, $status_to, '', $force_notification);
+    });
+}
+
+/* ============================================================================
+ * Forbidden status guard
+ * ==========================================================================*/
+
+/**
+ * Is a status change of this add-on's under way for the order? A counter, not
+ * a flag, so a guarded change made from inside another one does not switch the
+ * guard off for the outer one when it ends.
+ *
+ * @param int       $order_id order the change is for
+ * @param bool|null $enter    true to enter a guarded change, false to leave it,
+ *                            null to just ask
+ *
+ * @return bool
+ */
+function fn_hypay_status_guard($order_id, $enter = null)
+{
+    static $active = [];
+
+    $order_id = (int) $order_id;
+
+    if ($enter === true) {
+        $active[$order_id] = ($active[$order_id] ?? 0) + 1;
+    } elseif ($enter === false && !empty($active[$order_id])) {
+        $active[$order_id]--;
+    }
+
+    return !empty($active[$order_id]);
+}
+
+/**
+ * Remember, for the rest of the request, that the guard had to step in on an
+ * order - the check after the change writes it down on the order page.
+ *
+ * @param int       $order_id order concerned
+ * @param bool|null $set      true to remember, false to forget, null to ask
+ *
+ * @return bool whether the guard stepped in
+ */
+function fn_hypay_status_guard_tripped($order_id, $set = null)
+{
+    static $tripped = [];
+
+    $order_id = (int) $order_id;
+
+    if ($set === true) {
+        $tripped[$order_id] = true;
+    } elseif ($set === false) {
+        unset($tripped[$order_id]);
+    }
+
+    return !empty($tripped[$order_id]);
+}
+
+/**
+ * Run a status change of this add-on's so that it can never end in
+ * HYPAY_STATUS_FORBIDDEN.
+ *
+ * Two layers, because either alone has a gap:
+ *   1. while $change runs, the change_order_status hook turns the forbidden
+ *      status into the fallback before CS-Cart writes it, logs it or sends a
+ *      notification about it - whether CS-Cart chose it itself (stock ran short)
+ *      or the payment settings asked for it;
+ *   2. afterwards the order is read back, and if it is in the forbidden status
+ *      anyway - the hook did not run, another add-on changed it after ours - it
+ *      is written over directly.
+ *
+ * The products of an order the guard stepped in on were NOT taken off the
+ * stock: CS-Cart had already given back what it took before it gave up. The
+ * order page says so, because nobody else will.
+ *
+ * @param int      $order_id order whose status is changed
+ * @param callable $change   the change itself (fn_finish_payment, fn_change_order_status...)
+ *
+ * @return mixed whatever $change returns
+ */
+function fn_hypay_guarded_status_change($order_id, callable $change)
+{
+    $order_id = (int) $order_id;
+
+    fn_hypay_status_guard($order_id, true);
+    try {
+        $result = $change();
+    } finally {
+        fn_hypay_status_guard($order_id, false);
+    }
+
+    if (fn_hypay_status_guard($order_id)) {
+        // an outer guarded change is still running and checks when it ends
+        return $result;
+    }
+
+    $status_now = (string) db_get_field('SELECT status FROM ?:orders WHERE order_id = ?i', $order_id);
+    if ($status_now === HYPAY_STATUS_FORBIDDEN) {
+        db_query(
+            'UPDATE ?:orders SET status = ?s WHERE order_id = ?i AND status = ?s',
+            HYPAY_STATUS_FORBIDDEN_FALLBACK,
+            $order_id,
+            HYPAY_STATUS_FORBIDDEN
+        );
+        fn_hypay_status_guard_tripped($order_id, true);
+        hypay_log($order_id, 'WARNING: order found in the forbidden status after the change, overwritten directly', [
+            'from' => HYPAY_STATUS_FORBIDDEN,
+            'to'   => HYPAY_STATUS_FORBIDDEN_FALLBACK,
+        ]);
+    }
+
+    if (fn_hypay_status_guard_tripped($order_id)) {
+        fn_hypay_status_guard_tripped($order_id, false);
+        fn_hypay_update_payment_info($order_id, [
+            'hypay_stock' => __('hypay_pi_status_fallback', [
+                '[date]'      => date('d.m.Y H:i', TIME),
+                '[forbidden]' => HYPAY_STATUS_FORBIDDEN,
+                '[status]'    => HYPAY_STATUS_FORBIDDEN_FALLBACK,
+            ]),
+        ]);
+    }
+
+    return $result;
+}
+
+/**
+ * Hook: change_order_status. CS-Cart calls it once the stock has been dealt
+ * with and before the new status is written, with the status passed by
+ * reference - the last moment the status can still be changed cleanly.
+ *
+ * Only a change this add-on is making is touched; one an administrator makes
+ * by hand goes through as it is.
+ */
+function fn_hypay_change_order_status(&$status_to, &$status_from, &$order_info, &$force_notification = [], &$order_statuses = [], &$place_order = false)
+{
+    $order_id = (int) ($order_info['order_id'] ?? 0);
+
+    if ((string) $status_to !== HYPAY_STATUS_FORBIDDEN || !fn_hypay_status_guard($order_id)) {
+        return;
+    }
+
+    hypay_log($order_id, 'forbidden status replaced before it was written', [
+        'from'        => $status_from,
+        'requested'   => HYPAY_STATUS_FORBIDDEN,
+        'written'     => HYPAY_STATUS_FORBIDDEN_FALLBACK,
+        'stock_taken' => false,
+    ]);
+
+    $status_to = HYPAY_STATUS_FORBIDDEN_FALLBACK;
+    fn_hypay_status_guard_tripped($order_id, true);
+}
+
+/**
+ * A status read from the payment settings, made safe to use: the forbidden one
+ * becomes the fallback. Settings saved before the forbidden status was taken
+ * off the lists may still hold it.
+ *
+ * Applied where the settings are read, so the forbidden status is never even
+ * asked for: one that still reaches the change_order_status hook is then
+ * always CS-Cart's own doing - a product ran short.
+ *
+ * @param string $status one-letter status code
+ *
+ * @return string
+ */
+function fn_hypay_allowed_status($status)
+{
+    $status = (string) $status;
+
+    return $status === HYPAY_STATUS_FORBIDDEN ? HYPAY_STATUS_FORBIDDEN_FALLBACK : $status;
+}
+
+/**
+ * Order statuses the payment settings may choose as a target: all of them but
+ * the forbidden one.
+ *
+ * @return array [status code => description]
+ */
+function fn_hypay_target_order_statuses($type = '')
+{
+    $statuses = fn_get_simple_statuses(defined('STATUSES_ORDER') ? STATUSES_ORDER : 'O');
+    unset($statuses[HYPAY_STATUS_FORBIDDEN]);
+
+    return $statuses;
 }
 
 /* ============================================================================
@@ -3101,7 +3297,7 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
         ]),
     ]);
 
-    $captured_status = !empty($pp['j5_captured_status']) ? $pp['j5_captured_status'] : ($pp['success_status'] ?? 'P');
+    $captured_status = fn_hypay_allowed_status(!empty($pp['j5_captured_status']) ? $pp['j5_captured_status'] : ($pp['success_status'] ?? 'P'));
     fn_hypay_change_order_status_silently($order_id, $captured_status);
 
     if (!empty($pp['j5_captured_additional_status'])) {
@@ -3283,7 +3479,7 @@ function fn_hypay_void_j5($order_id)
         ]),
     ]);
 
-    $void_status = !empty($pp['j5_void_status']) ? $pp['j5_void_status'] : 'I';
+    $void_status = fn_hypay_allowed_status(!empty($pp['j5_void_status']) ? $pp['j5_void_status'] : 'I');
     fn_hypay_change_order_status_silently($order_id, $void_status);
 
     if ($confirmed) {
@@ -4667,7 +4863,9 @@ function fn_hypay_link_finish_order($order_id, array $pp_response, array $pp, $a
     fn_hypay_update_payment_info($order_id, $pp_response);
 
     if ($status !== '') {
-        fn_change_order_status($order_id, $status);
+        fn_hypay_guarded_status_change($order_id, function () use ($order_id, $status) {
+            fn_change_order_status($order_id, $status);
+        });
     }
 
     // a J5 hold gets the additional status of a hold, a charge that of a charge
@@ -4746,7 +4944,7 @@ function fn_hypay_link_settle_from_list($order_id, array $link, $trans_id)
     $pp_response = [
         'reason_text'  => '🟢 Success',
         'hypay_link'   => fn_hypay_link_paid_label($link),
-        'order_status' => !empty($pp['success_status']) ? $pp['success_status'] : 'O',
+        'order_status' => fn_hypay_allowed_status(!empty($pp['success_status']) ? $pp['success_status'] : 'O'),
     ];
     if ($trans_id !== '') {
         $pp_response['transaction_id'] = $trans_id;

@@ -1394,3 +1394,11 @@ msgstr "Возврат, сообщающий об оплате этой ссыл
 msgctxt "Languages::hypay_customer_payment_unverified"
 msgid "We could not confirm your payment automatically. If you were charged, the store will confirm it shortly."
 msgstr "Нам не удалось автоматически подтвердить оплату. Если деньги были списаны, магазин подтвердит оплату в ближайшее время."
+
+msgctxt "Languages::hypay_stock"
+msgid "Order status"
+msgstr "Статус заказа"
+
+msgctxt "Languages::hypay_pi_status_fallback"
+msgid "[date]: CS-Cart wanted to put the order in status [forbidden] (Backordered - not enough stock for one of the products). The add-on never uses [forbidden], so the order was put in status [status] instead. The products were NOT taken off the stock - check the stock before shipping."
+msgstr "[date]: CS-Cart хотел поставить заказу статус [forbidden] (Backordered — одного из товаров не хватило на складе). Модуль никогда не ставит [forbidden], поэтому заказ получил статус [status]. Товары НЕ списаны со склада — проверьте остатки перед отгрузкой."

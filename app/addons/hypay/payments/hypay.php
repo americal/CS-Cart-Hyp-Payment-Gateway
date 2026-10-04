@@ -126,9 +126,9 @@ if (defined('PAYMENT_NOTIFICATION')) {
     }
 
     // status mapping
-    $success_status = !empty($pp['success_status']) ? $pp['success_status'] : 'O';
-    $fail_status    = !empty($pp['fail_status'])    ? $pp['fail_status']    : 'D';
-    $j5_auth_status = !empty($pp['j5_auth_status']) ? $pp['j5_auth_status'] : 'O';
+    $success_status = fn_hypay_allowed_status(!empty($pp['success_status']) ? $pp['success_status'] : 'O');
+    $fail_status    = fn_hypay_allowed_status(!empty($pp['fail_status'])    ? $pp['fail_status']    : 'D');
+    $j5_auth_status = fn_hypay_allowed_status(!empty($pp['j5_auth_status']) ? $pp['j5_auth_status'] : 'O');
 
     // brand mapping (Hypay codes → human names)
     $brand_name = hypay_brand_name($_REQUEST['Brand'] ?? '');
@@ -412,7 +412,9 @@ if (defined('PAYMENT_NOTIFICATION')) {
                 fn_set_notification('N', __('notice'), __('hypay_link_customer_authorized', ['[order_id]' => $order_id]));
             } else {
                 hypay_log($order_id, 'fn_finish_payment payload (J5)', $pp_response);
-                fn_finish_payment($order_id, $pp_response);
+                fn_hypay_guarded_status_change($order_id, function () use ($order_id, $pp_response) {
+                    fn_finish_payment($order_id, $pp_response);
+                });
             }
 
             // the hold went through, so the order stands: the money is only
@@ -467,7 +469,9 @@ if (defined('PAYMENT_NOTIFICATION')) {
         ];
         $pp_response = fn_hypay_clean_payment_info($pp_response);
         hypay_log($order_id, 'fn_finish_payment payload', $pp_response);
-        fn_finish_payment($order_id, $pp_response);
+        fn_hypay_guarded_status_change($order_id, function () use ($order_id, $pp_response) {
+            fn_finish_payment($order_id, $pp_response);
+        });
         hypay_log($order_id, 'fn_finish_payment done');
 
         $order_completed = $is_success;
@@ -722,10 +726,12 @@ hypay_log($order_id, 'SIGN response raw', $response);
 if (!$response || strpos($response, 'signature=') === false) {
     hypay_log($order_id, 'SIGN failed');
     $pp_response = [
-        'order_status' => $pp['fail_status'] ?? 'D',
+        'order_status' => fn_hypay_allowed_status($pp['fail_status'] ?? 'D'),
         'reason_text'  => '🔴 Hypay SIGN failed',
     ];
-    fn_finish_payment($order_id, $pp_response);
+    fn_hypay_guarded_status_change($order_id, function () use ($order_id, $pp_response) {
+        fn_finish_payment($order_id, $pp_response);
+    });
     fn_order_placement_routines('checkout_redirect', $order_id);
     return;
 }
