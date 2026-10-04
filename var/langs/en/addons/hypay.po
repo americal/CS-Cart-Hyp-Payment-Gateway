@@ -1402,3 +1402,31 @@ msgstr "Order status"
 msgctxt "Languages::hypay_pi_status_fallback"
 msgid "[date]: CS-Cart wanted to put the order in status [forbidden] (Backordered - not enough stock for one of the products). The add-on never uses [forbidden], so the order was put in status [status] instead. The products were NOT taken off the stock - check the stock before shipping."
 msgstr "[date]: CS-Cart wanted to put the order in status [forbidden] (Backordered - not enough stock for one of the products). The add-on never uses [forbidden], so the order was put in status [status] instead. The products were NOT taken off the stock - check the stock before shipping."
+
+msgctxt "Languages::hypay_unpaid_title"
+msgid "Order NOT placed"
+msgstr "Order NOT placed"
+
+msgctxt "Languages::hypay_unpaid_text"
+msgid "The payment for order #[order_id] was not completed, so the order has NOT been placed."
+msgstr "The payment for order #[order_id] was not completed, so the order has NOT been placed."
+
+msgctxt "Languages::hypay_unpaid_retry"
+msgid "Please place the order again and complete the payment on the payment page. Do not leave the payment form until the payment is finished."
+msgstr "Please place the order again and complete the payment on the payment page. Do not leave the payment form until the payment is finished."
+
+msgctxt "Languages::hypay_unpaid_button"
+msgid "Place the order again"
+msgstr "Place the order again"
+
+msgctxt "Languages::hypay_unpaid_retry_pay"
+msgid "Press \"Go to payment\" and complete the payment. Do not leave the payment form until the payment is finished."
+msgstr "Press \"Go to payment\" and complete the payment. Do not leave the payment form until the payment is finished."
+
+msgctxt "Languages::hypay_unpaid_button_pay"
+msgid "Go to payment"
+msgstr "Go to payment"
+
+msgctxt "Languages::hypay_unpaid_basket_changed"
+msgid "The cart was changed after order #[order_id] was created, so that order cannot be paid. Check the cart and press \"Place order\" again - a new order will be created and the payment form will open."
+msgstr "The cart was changed after order #[order_id] was created, so that order cannot be paid. Check the cart and press \"Place order\" again - a new order will be created and the payment form will open."

@@ -531,9 +531,367 @@ function fn_hypay_clear_cart($order_id)
         fn_save_cart_content($cart, $auth['user_id']);
     }
 
+    fn_hypay_drop_cart_snapshot($order_id);
+
     hypay_log($order_id, 'cart cleared after a completed payment', ['products_removed' => $products_before]);
 
     return true;
+}
+
+/* ============================================================================
+ * Checkout left unpaid
+ *
+ * CS-Cart creates the order (status Incomplete) before the customer ever sees
+ * the Hyp page. A customer who leaves that page without paying - the browser's
+ * back button, the page's own cancel button, a closed tab - must not be left
+ * believing the order went through: they are told, loudly, that it did not,
+ * and that it has to be placed and paid again without leaving the form.
+ * ==========================================================================*/
+
+/** what marks the add-on's own "not placed" popup among the queued notifications */
+if (!defined('HYPAY_UNPAID_NOTICE_MARK')) { define('HYPAY_UNPAID_NOTICE_MARK', 'data-hypay-unpaid'); }
+
+/** remember, in the customer's session, the order now waiting on the Hyp page */
+function fn_hypay_set_pending_checkout($order_id)
+{
+    if (isset(\Tygh::$app['session'])) {
+        \Tygh::$app['session']['hypay_pending_checkout'] = (int) $order_id;
+    }
+}
+
+/** forget it again: Hyp has answered, or the customer has been told */
+function fn_hypay_clear_pending_checkout($order_id = 0)
+{
+    if (!isset(\Tygh::$app['session']['hypay_pending_checkout'])) {
+        return;
+    }
+    if ($order_id && (int) \Tygh::$app['session']['hypay_pending_checkout'] !== (int) $order_id) {
+        return;
+    }
+    unset(\Tygh::$app['session']['hypay_pending_checkout']);
+}
+
+/**
+ * Tell the customer the order was NOT placed - as a popup in the middle of the
+ * page that stays until it is closed, not a toast in the corner.
+ *
+ * With $can_pay the order itself is still waiting for its money (Incomplete),
+ * and the button opens the payment form for it again. Without it - a declined
+ * card - the button leads back to the checkout, where the cart still is.
+ */
+function fn_hypay_notify_payment_not_completed($order_id, $can_pay = false, $retry_text = '')
+{
+    if ($retry_text === '') {
+        $retry_text = $can_pay ? 'hypay_unpaid_retry_pay' : 'hypay_unpaid_retry';
+    }
+
+    // the same notice twice in a row says nothing new
+    fn_hypay_drop_unpaid_notice();
+
+    $button_url = $can_pay
+        ? fn_url('hypay.pay?order_id=' . (int) $order_id, 'C', 'current')
+        : fn_url('checkout.checkout', 'C', 'current');
+    $button_url = htmlspecialchars($button_url, ENT_QUOTES, 'UTF-8');
+
+    $html = '<div ' . HYPAY_UNPAID_NOTICE_MARK . '="' . (int) $order_id . '"'
+        . ' style="padding:18px 20px;border:3px solid #d32f2f;border-radius:6px;background:#fdecea;color:#8e1b1b;font-size:16px;line-height:1.5;">'
+        . '<p style="margin:0 0 12px;font-size:22px;font-weight:bold;color:#c62828;">&#9888; ' . __('hypay_unpaid_title') . '</p>'
+        . '<p style="margin:0 0 10px;">' . __('hypay_unpaid_text', ['[order_id]' => (int) $order_id]) . '</p>'
+        . '<p style="margin:0 0 16px;font-weight:bold;">' . __($retry_text, ['[order_id]' => (int) $order_id]) . '</p>'
+        . '<p style="margin:0;"><a href="' . $button_url . '" class="ty-btn ty-btn__primary"'
+        . ' style="display:inline-block;padding:10px 18px;background:#c62828;color:#fff;border-radius:4px;text-decoration:none;font-weight:bold;">'
+        . __($can_pay ? 'hypay_unpaid_button_pay' : 'hypay_unpaid_button') . '</a></p>'
+        . '</div>';
+
+    // type I is the storefront's dialog (the one "added to cart" uses);
+    // state K keeps it open until the customer closes it
+    fn_set_notification('I', __('hypay_unpaid_title'), $html, 'K');
+}
+
+/**
+ * Is this a Hypay order still waiting for its money, that the visitor in this
+ * session may pay for? Incomplete means Hyp never answered for it: a charge,
+ * a hold and a decline all move the order out of that status.
+ */
+function fn_hypay_order_awaits_payment($order_id)
+{
+    $order_id = (int) $order_id;
+    if ($order_id <= 0 || !fn_check_payment_script('hypay.php', $order_id)) {
+        return false;
+    }
+
+    $order_info = fn_get_order_info($order_id);
+    if (empty($order_info)) {
+        return false;
+    }
+
+    $incomplete = defined('STATUS_INCOMPLETED_ORDER') ? STATUS_INCOMPLETED_ORDER : 'N';
+
+    return (string) $order_info['status'] === $incomplete
+        && fn_hypay_customer_can_view_order($order_info);
+}
+
+/**
+ * Keep a copy of the cart the customer is about to pay for, so it can be put
+ * back if they come back without paying. Taken on every "Place order" (order
+ * not known yet, $order_id 0) and again when the Hyp page is requested.
+ */
+function fn_hypay_snapshot_cart($order_id)
+{
+    if (empty(\Tygh::$app['session']['cart']['products'])) {
+        return;
+    }
+    \Tygh::$app['session']['hypay_cart_snapshot'] = [
+        'order_id' => (int) $order_id,
+        'cart'     => \Tygh::$app['session']['cart'],
+    ];
+}
+
+/** forget the copy: the order is settled, the cart has done its job */
+function fn_hypay_drop_cart_snapshot($order_id = 0)
+{
+    $snapshot = \Tygh::$app['session']['hypay_cart_snapshot'] ?? null;
+    if ($snapshot === null || ($order_id && (int) ($snapshot['order_id'] ?? 0) !== (int) $order_id)) {
+        return;
+    }
+    unset(\Tygh::$app['session']['hypay_cart_snapshot']);
+}
+
+/** product_id => quantity, to tell whether two baskets hold the same goods */
+function fn_hypay_basket_signature($products)
+{
+    $sig = [];
+    foreach ((array) $products as $item) {
+        if (!is_array($item) || empty($item['product_id'])) {
+            continue;
+        }
+        $pid = (int) $item['product_id'];
+        $sig[$pid] = ($sig[$pid] ?? 0) + (int) ($item['amount'] ?? 0);
+    }
+    ksort($sig);
+
+    return $sig;
+}
+
+/**
+ * Put the goods of an unpaid order back into the cart.
+ *
+ * Pressing "Place order" a second time after leaving the Hyp page makes
+ * CS-Cart empty the cart as if the order had gone through. An empty cart tells
+ * the customer the opposite of the truth, so it is filled again: with the copy
+ * taken before the Hyp page when it holds the same goods as the order (it
+ * keeps everything - coupons, shipping, details), otherwise from the order
+ * itself, the way "Reorder" does it. A cart that still has products is the
+ * customer's and is left alone.
+ *
+ * Returns true when the cart was filled.
+ */
+function fn_hypay_restore_cart($order_id)
+{
+    if (AREA !== 'C' || !isset(\Tygh::$app['session'])) {
+        return false;
+    }
+
+    $session = & \Tygh::$app['session'];
+    if (!empty($session['cart']['products'])) {
+        return false;
+    }
+    if (!isset($session['cart']) || !is_array($session['cart'])) {
+        $session['cart'] = [];
+    }
+    $cart = & $session['cart'];
+    $auth = & $session['auth'];
+
+    $order_info = fn_get_order_info((int) $order_id);
+    if (empty($order_info['products'])) {
+        return false;
+    }
+
+    // what CS-Cart left: the note of which order this session placed
+    $processed = $cart['processed_order_id'] ?? null;
+
+    $snapshot = $session['hypay_cart_snapshot'] ?? null;
+    $source   = '';
+
+    if (!empty($snapshot['cart']['products'])
+        && in_array((int) ($snapshot['order_id'] ?? 0), [0, (int) $order_id], true)
+        && fn_hypay_basket_signature($snapshot['cart']['products']) === fn_hypay_basket_signature($order_info['products'])
+    ) {
+        $cart   = $snapshot['cart'];
+        $source = 'snapshot';
+    } elseif (function_exists('fn_reorder')) {
+        fn_reorder((int) $order_id, $cart, $auth);
+        $source = 'order';
+    }
+
+    if (empty($cart['products'])) {
+        hypay_log($order_id, 'cart could not be restored for the unpaid order', ['source' => $source]);
+        return false;
+    }
+
+    // the next "Place order" must update this same Incomplete order rather
+    // than add a second one, and a paid return must find it named here to
+    // empty the cart again (fn_hypay_clear_cart)
+    if (!empty($processed)) {
+        $cart['processed_order_id'] = $processed;
+    } elseif (empty($cart['processed_order_id'])) {
+        $cart['processed_order_id'] = [(int) $order_id];
+    }
+
+    if (function_exists('fn_save_cart_content') && !empty($auth['user_id'])) {
+        fn_save_cart_content($cart, $auth['user_id']);
+    }
+
+    hypay_log($order_id, 'cart restored for the unpaid order', [
+        'source'   => $source,
+        'products' => count($cart['products']),
+    ]);
+
+    return true;
+}
+
+/**
+ * Send the customer to the Hyp payment form for an order already placed - the
+ * same thing CS-Cart's fn_start_payment() does at checkout: the processor
+ * script asks Hyp for a payment page and redirects there. It does not come
+ * back on success; it returns only if it could not start the payment.
+ */
+function fn_hypay_restart_payment($order_id)
+{
+    $order_info = fn_get_order_info((int) $order_id);
+    if (empty($order_info['payment_id'])) {
+        return false;
+    }
+    $processor_data = fn_get_payment_method_data($order_info['payment_id']);
+    $mode           = 'place_order';
+
+    // a payment form is on its way - no "not placed" popup to greet the return
+    fn_hypay_drop_unpaid_notice();
+
+    // should they leave the payment page once more, the goods are still in
+    // the cart; a paid return empties it again
+    fn_hypay_restore_cart($order_id);
+
+    hypay_log($order_id, 'payment restarted for an order left unpaid');
+    include __DIR__ . '/payments/hypay.php';
+
+    return false;
+}
+
+/**
+ * checkout.complete for an order nobody has paid for yet.
+ *
+ * A customer who pressed "back" on the Hyp page and then "Place order" again
+ * is sent by CS-Cart straight to the "thank you" page, without any payment -
+ * the order it shows is still Incomplete. That page must never stand for an
+ * unpaid card order: the payment form opens instead, for that same order.
+ *
+ * Only if the order holds what the customer has just ordered. CS-Cart reuses
+ * the Incomplete order on the second "Place order" and normally rewrites it
+ * from the cart; should it not have - the customer added or removed something
+ * after leaving the Hyp page, and the order still has the old goods - paying
+ * it would charge for a basket that is no longer theirs. Then the cart is put
+ * back as it was, unlinked from that order, and the next "Place order" makes
+ * a new one from it.
+ *
+ * Returns a URL to send the customer to, or null to let the page show.
+ */
+function fn_hypay_complete_unpaid_order($order_id)
+{
+    if (!fn_hypay_order_awaits_payment($order_id)) {
+        return null;
+    }
+
+    $order_info = fn_get_order_info((int) $order_id);
+    $snapshot   = \Tygh::$app['session']['hypay_cart_snapshot'] ?? null;
+
+    if (!empty($snapshot['cart']['products'])
+        && fn_hypay_basket_signature($snapshot['cart']['products']) !== fn_hypay_basket_signature($order_info['products'] ?? [])
+    ) {
+        hypay_log($order_id, 'checkout.complete for an unpaid order whose goods differ from the cart: new order needed', [
+            'cart'  => fn_hypay_basket_signature($snapshot['cart']['products']),
+            'order' => fn_hypay_basket_signature($order_info['products'] ?? []),
+        ]);
+
+        $cart = $snapshot['cart'];
+        unset($cart['processed_order_id']);
+        \Tygh::$app['session']['cart'] = $cart;
+        unset(\Tygh::$app['session']['hypay_cart_snapshot']);
+        fn_hypay_clear_pending_checkout();
+
+        $auth = \Tygh::$app['session']['auth'] ?? [];
+        if (function_exists('fn_save_cart_content') && !empty($auth['user_id'])) {
+            fn_save_cart_content(\Tygh::$app['session']['cart'], $auth['user_id']);
+        }
+
+        fn_hypay_notify_payment_not_completed($order_id, false, 'hypay_unpaid_basket_changed');
+
+        return fn_url('checkout.checkout', 'C', 'current');
+    }
+
+    hypay_log($order_id, 'checkout.complete reached for an unpaid order: back to the payment form');
+    fn_hypay_restart_payment($order_id);
+
+    // the payment could not start: the order page says how it stands
+    return null;
+}
+
+/** take the "not placed" popup back out of the queue, if it is there */
+function fn_hypay_drop_unpaid_notice()
+{
+    if (empty(\Tygh::$app['session']['notifications'])) {
+        return;
+    }
+    foreach ((array) \Tygh::$app['session']['notifications'] as $key => $notice) {
+        if (is_array($notice) && strpos((string) ($notice['message'] ?? ''), HYPAY_UNPAID_NOTICE_MARK) !== false) {
+            unset(\Tygh::$app['session']['notifications'][$key]);
+        }
+    }
+}
+
+/**
+ * Called on every storefront page (controllers/frontend/init.post.php).
+ *
+ * The customer was sent to Hyp from this session and is browsing the store
+ * again, yet Hyp never sent them back: no return came, so the order is still
+ * Incomplete. They left the payment page without paying - say so.
+ */
+function fn_hypay_check_unpaid_checkout($controller, $mode = '')
+{
+    if (empty(\Tygh::$app['session']['hypay_pending_checkout'])) {
+        return;
+    }
+
+    // only a real page the customer looks at: not the return from Hyp itself
+    // (it is about to settle the order), not AJAX, not an image or a feed
+    if (defined('AJAX_REQUEST')
+        || strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET'
+        || in_array((string) $controller, ['payment_notification', 'hypay', 'image', 'debugger', 'robots', 'sitemap_generator', 'xmlsitemap'], true)
+        // checkout.complete sends an unpaid order to the payment form itself
+        || ((string) $controller === 'checkout' && (string) $mode === 'complete')
+    ) {
+        return;
+    }
+    $accept = (string) ($_SERVER['HTTP_ACCEPT'] ?? '');
+    if ($accept !== '' && stripos($accept, 'text/html') === false) {
+        return;
+    }
+
+    $order_id = (int) \Tygh::$app['session']['hypay_pending_checkout'];
+    fn_hypay_clear_pending_checkout();
+
+    if (!fn_hypay_order_awaits_payment($order_id)) {
+        // settled some other way (a return in another tab, the admin)
+        return;
+    }
+
+    // the goods stay in the cart: the order is not placed
+    fn_hypay_restore_cart($order_id);
+
+    hypay_log($order_id, 'customer is back in the store without paying (order still Incomplete), told to pay', [
+        'dispatch' => (string) ($_REQUEST['dispatch'] ?? ''),
+    ]);
+    fn_hypay_notify_payment_not_completed($order_id, true);
 }
 
 /** checkbox -> "True"/"False" strings per Hypay API taste */
