@@ -609,12 +609,16 @@ function fn_hypay_notify_payment_not_completed($order_id, $can_pay = false, $ret
         . '</div>'
         . '<a href="' . $button_url . '" class="hypay-unpaid__btn">'
         . __($can_pay ? 'hypay_unpaid_button_pay' : 'hypay_unpaid_button') . '</a>'
-        . '</div>'
-        . fn_hypay_unpaid_notice_js();
+        . '</div>';
 
     // type I is the storefront's dialog (the one "added to cart" uses);
     // state K keeps it open until the customer closes it
     fn_set_notification('I', __('hypay_unpaid_title'), $html, 'K');
+}
+
+/** the "not placed" dialog while it is open: in <body>, and not hidden */
+if (!defined('HYPAY_UNPAID_OPEN')) {
+    define('HYPAY_UNPAID_OPEN', 'body>.cm-notification-content-extended:not([style*="display: none"]):not([style*="display:none"]) .hypay-unpaid');
 }
 
 /**
@@ -625,25 +629,31 @@ function fn_hypay_notify_payment_not_completed($order_id, $can_pay = false, $ret
  * overlay is not enough: it lives inside the notification container, whose
  * z-index caps whatever the overlay is given, and other add-ons put widgets
  * far above that (the pickup map's search box at 10000, Google's suggestions
- * at 100000). So the dialog brings a backdrop of its own, straight in <body>
- * - see fn_hypay_unpaid_notice_js(). The overlay rule below only stands in
- * for it where scripts do not run.
+ * at 100000). So the backdrop is a layer of <body> itself (body::after), lit
+ * by CSS alone for as long as the dialog is on the page and visible.
+ *
+ * No script: CS-Cart moves inline scripts to the bottom of the page and then
+ * builds the dialog anew from its HTML, so a script holding on to the dialog
+ * it found loses it and takes the backdrop down with it.
+ *
+ * "Visible" is the dialog as a direct child of <body> - where it sits above
+ * everything - without the display:none jQuery leaves on it when it is
+ * closed. Anywhere else the backdrop stays off: it must never cover the very
+ * dialog that closes it.
  */
 function fn_hypay_unpaid_notice_css()
 {
     return '<style>'
-        // the dialog and its overlay, above any other widget of the page
-        . 'body:has(.hypay-unpaid) .ui-widget-overlay{z-index:2147483000!important;background:rgba(17,24,39,.62)!important;opacity:1!important;'
-        . '-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}'
+        // the backdrop: a layer of <body>, above every widget but the dialog;
+        // CS-Cart's own overlay steps aside, and the page stops scrolling
+        . 'html:has(' . HYPAY_UNPAID_OPEN . ') body::after{content:"";position:fixed;top:0;right:0;bottom:0;left:0;'
+        . 'z-index:2147483000;background:rgba(17,24,39,.62);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}'
+        . 'html:has(' . HYPAY_UNPAID_OPEN . ') .ui-widget-overlay{opacity:0!important}'
+        . 'html:has(' . HYPAY_UNPAID_OPEN . '),html:has(' . HYPAY_UNPAID_OPEN . ') body{overflow:hidden!important}'
+        // the dialog itself, above the backdrop
         . '.cm-notification-content-extended:has(.hypay-unpaid){z-index:2147483001!important;border:0!important;border-radius:16px!important;'
         . 'overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.35)!important}'
         . '.cm-notification-content-extended:has(.hypay-unpaid)>h1{color:#b42318;border-bottom:1px solid #f1f1f1}'
-        // the backdrop of our own: in <body>, above everything but the dialog;
-        // CS-Cart's overlay steps aside for it, and the page stops scrolling
-        . '#hypay-unpaid-backdrop{position:fixed;top:0;right:0;bottom:0;left:0;z-index:2147483000;background:rgba(17,24,39,.62);'
-        . '-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}'
-        . 'html.hypay-unpaid-open body .ui-widget-overlay{opacity:0!important}'
-        . 'html.hypay-unpaid-open,html.hypay-unpaid-open body{overflow:hidden!important}'
         // the body
         . '.hypay-unpaid{box-sizing:border-box;max-width:520px;margin:0 auto;padding:12px 8px 6px;text-align:center;color:#1f2937;font-family:inherit}'
         . '.hypay-unpaid *{box-sizing:border-box}'
@@ -660,32 +670,6 @@ function fn_hypay_unpaid_notice_css()
         . '.hypay-unpaid__btn:hover,.hypay-unpaid__btn:focus{background:#b42318;transform:translateY(-1px)}'
         . '@media (max-width:480px){.hypay-unpaid__lead{font-size:16px}.hypay-unpaid__icon{width:60px;height:60px}}'
         . '</style>';
-}
-
-/**
- * The backdrop behind the "not placed" dialog (see fn_hypay_unpaid_notice_css).
- *
- * Put straight into <body>, next to the dialog, so that no container's
- * z-index caps it; the page under it is made inert, so it cannot be reached
- * with the keyboard either. It follows the dialog: shown while the dialog is,
- * gone with everything else the moment the dialog is closed or removed.
- */
-function fn_hypay_unpaid_notice_js()
-{
-    return '<script>(function(){'
-        . 'var mark=document.querySelector(".hypay-unpaid");if(!mark||!document.body)return;'
-        . 'var dlg=mark.closest(".cm-notification-content")||mark;'
-        // only <body> is sure to be above every other widget of the page
-        . 'if(dlg.parentNode!==document.body){document.body.appendChild(dlg);}'
-        . 'var bd=document.getElementById("hypay-unpaid-backdrop");'
-        . 'if(!bd){bd=document.createElement("div");bd.id="hypay-unpaid-backdrop";document.body.insertBefore(bd,dlg);}'
-        . 'var page=document.getElementById("tygh_container"),root=document.documentElement,seen=false;'
-        . 'function set(on){bd.style.display=on?"block":"none";root.classList.toggle("hypay-unpaid-open",on);if(page){page.inert=on;}}'
-        . 'function tick(){var on=dlg.isConnected&&dlg.getClientRects().length>0;'
-        . 'if(on){seen=true;}set(on);'
-        . 'if(!on&&(seen||!dlg.isConnected)){clearInterval(t);if(bd.parentNode){bd.parentNode.removeChild(bd);}}}'
-        . 'var t=setInterval(tick,150);tick();'
-        . '})();</script>';
 }
 
 /**
