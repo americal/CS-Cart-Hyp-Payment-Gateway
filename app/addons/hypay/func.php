@@ -536,6 +536,121 @@ function fn_hypay_clear_cart($order_id)
     return true;
 }
 
+/* ============================================================================
+ * Checkout left unpaid
+ *
+ * CS-Cart creates the order (status Incomplete) before the customer ever sees
+ * the Hyp page. A customer who leaves that page without paying - the browser's
+ * back button, the page's own cancel button, a closed tab - must not be left
+ * believing the order went through: they are told, loudly, that it did not,
+ * and that it has to be placed and paid again without leaving the form.
+ * ==========================================================================*/
+
+/** what marks the add-on's own "not placed" popup among the queued notifications */
+if (!defined('HYPAY_UNPAID_NOTICE_MARK')) { define('HYPAY_UNPAID_NOTICE_MARK', 'data-hypay-unpaid'); }
+
+/** remember, in the customer's session, the order now waiting on the Hyp page */
+function fn_hypay_set_pending_checkout($order_id)
+{
+    if (isset(\Tygh::$app['session'])) {
+        \Tygh::$app['session']['hypay_pending_checkout'] = (int) $order_id;
+    }
+}
+
+/** forget it again: Hyp has answered, or the customer has been told */
+function fn_hypay_clear_pending_checkout($order_id = 0)
+{
+    if (!isset(\Tygh::$app['session']['hypay_pending_checkout'])) {
+        return;
+    }
+    if ($order_id && (int) \Tygh::$app['session']['hypay_pending_checkout'] !== (int) $order_id) {
+        return;
+    }
+    unset(\Tygh::$app['session']['hypay_pending_checkout']);
+}
+
+/**
+ * Tell the customer the order was NOT placed - as a popup in the middle of the
+ * page that stays until it is closed, not a toast in the corner.
+ */
+function fn_hypay_notify_payment_not_completed($order_id)
+{
+    // the same notice twice in a row says nothing new
+    fn_hypay_drop_unpaid_notice();
+
+    $checkout_url = htmlspecialchars(fn_url('checkout.checkout', 'C', 'current'), ENT_QUOTES, 'UTF-8');
+
+    $html = '<div ' . HYPAY_UNPAID_NOTICE_MARK . '="' . (int) $order_id . '"'
+        . ' style="padding:18px 20px;border:3px solid #d32f2f;border-radius:6px;background:#fdecea;color:#8e1b1b;font-size:16px;line-height:1.5;">'
+        . '<p style="margin:0 0 12px;font-size:22px;font-weight:bold;color:#c62828;">&#9888; ' . __('hypay_unpaid_title') . '</p>'
+        . '<p style="margin:0 0 10px;">' . __('hypay_unpaid_text', ['[order_id]' => (int) $order_id]) . '</p>'
+        . '<p style="margin:0 0 16px;font-weight:bold;">' . __('hypay_unpaid_retry') . '</p>'
+        . '<p style="margin:0;"><a href="' . $checkout_url . '" class="ty-btn ty-btn__primary"'
+        . ' style="display:inline-block;padding:10px 18px;background:#c62828;color:#fff;border-radius:4px;text-decoration:none;font-weight:bold;">'
+        . __('hypay_unpaid_button') . '</a></p>'
+        . '</div>';
+
+    // type I is the storefront's dialog (the one "added to cart" uses);
+    // state K keeps it open until the customer closes it
+    fn_set_notification('I', __('hypay_unpaid_title'), $html, 'K');
+}
+
+/** take the "not placed" popup back out of the queue, if it is there */
+function fn_hypay_drop_unpaid_notice()
+{
+    if (empty(\Tygh::$app['session']['notifications'])) {
+        return;
+    }
+    foreach ((array) \Tygh::$app['session']['notifications'] as $key => $notice) {
+        if (is_array($notice) && strpos((string) ($notice['message'] ?? ''), HYPAY_UNPAID_NOTICE_MARK) !== false) {
+            unset(\Tygh::$app['session']['notifications'][$key]);
+        }
+    }
+}
+
+/**
+ * Called on every storefront page (controllers/frontend/init.post.php).
+ *
+ * The customer was sent to Hyp from this session and is browsing the store
+ * again, yet Hyp never sent them back: no return came, so the order is still
+ * Incomplete. They left the payment page without paying - say so.
+ */
+function fn_hypay_check_unpaid_checkout($controller)
+{
+    if (empty(\Tygh::$app['session']['hypay_pending_checkout'])) {
+        return;
+    }
+
+    // only a real page the customer looks at: not the return from Hyp itself
+    // (it is about to settle the order), not AJAX, not an image or a feed
+    if (defined('AJAX_REQUEST')
+        || strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET'
+        || in_array((string) $controller, ['payment_notification', 'image', 'debugger', 'robots', 'sitemap_generator', 'xmlsitemap'], true)
+    ) {
+        return;
+    }
+    $accept = (string) ($_SERVER['HTTP_ACCEPT'] ?? '');
+    if ($accept !== '' && stripos($accept, 'text/html') === false) {
+        return;
+    }
+
+    $order_id = (int) \Tygh::$app['session']['hypay_pending_checkout'];
+    fn_hypay_clear_pending_checkout();
+
+    $incomplete = defined('STATUS_INCOMPLETED_ORDER') ? STATUS_INCOMPLETED_ORDER : 'N';
+    $status     = (string) db_get_field("SELECT status FROM ?:orders WHERE order_id = ?i", $order_id);
+
+    if ($status !== $incomplete) {
+        // settled some other way (a return in another tab, the admin)
+        return;
+    }
+
+    hypay_log($order_id, 'customer is back in the store without paying (order still Incomplete), told to order again', [
+        'dispatch' => (string) ($_REQUEST['dispatch'] ?? ''),
+    ]);
+    fn_hypay_notify_payment_not_completed($order_id);
+}
+
 /** checkbox -> "True"/"False" strings per Hypay API taste */
 function hypay_bool($v)
 {

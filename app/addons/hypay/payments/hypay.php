@@ -66,10 +66,20 @@ if (defined('PAYMENT_NOTIFICATION')) {
 
     hypay_log($order_id, 'payment_notification enter', ['mode' => $mode, 'REQUEST' => $_REQUEST]);
 
+    // Hyp has answered for the checkout this session sent there: the page
+    // checks that look for a customer who left without paying stand down
+    fn_hypay_clear_pending_checkout($order_id);
+
     // what came back: CCode=0 charged, CCode=700 J5 authorization (funds held)
     $ccode       = isset($_REQUEST['CCode']) ? (string) $_REQUEST['CCode'] : '';
     $is_success  = ($ccode === '0');
     $is_j5_auth  = ($ccode === HYPAY_CCODE_J5_AUTHORIZED);
+
+    // a "not placed" popup queued earlier (the customer looked at the store in
+    // another tab while paying) must not greet a payment that went through
+    if ($is_success || $is_j5_auth) {
+        fn_hypay_drop_unpaid_notice();
+    }
 
     // what we asked for when the payment link was built
     $marker      = hypay_get_marker_data($order_id);
@@ -537,6 +547,15 @@ if (defined('PAYMENT_NOTIFICATION')) {
         $url = "{$admin_index}?dispatch=orders.details&order_id={$order_id}";
         hypay_log($order_id, 'redirect admin', $url);
         hypay_clean_redirect($url);
+    } elseif (!$is_success && !$is_j5_auth && fn_hypay_customer_can_view_order($order_info)) {
+        // Declined, or cancelled on the Hyp page: the order was NOT placed.
+        // Not the "thank you" page - it reads as if the order went through.
+        // Back to the checkout instead, with the cart still full, and a popup
+        // that says plainly the order has to be placed and paid again.
+        fn_hypay_notify_payment_not_completed($order_id);
+        $url = fn_url('checkout.checkout', 'C', 'current');
+        hypay_log($order_id, 'redirect customer (payment not completed, back to checkout)', $url);
+        hypay_clean_redirect($url);
     } elseif (fn_hypay_customer_can_view_order($order_info)) {
         $url = fn_url("index.php?dispatch=checkout.complete&order_id={$order_id}", 'C', 'current');
         hypay_log($order_id, 'redirect customer', $url);
@@ -738,6 +757,13 @@ if (!$response || strpos($response, 'signature=') === false) {
 
 // ready: off you go
 $payment_link = $base . $response;
+
+// the customer is on their way to Hyp; should they come back to the store
+// without Hyp sending them, they are told the order was not placed
+if ($back === 'front') {
+    fn_hypay_set_pending_checkout($order_id);
+}
+
 hypay_log($order_id, 'redirect to payment', $payment_link);
 fn_create_payment_form($payment_link, [], 'Hypay', true, 'get');
 return;

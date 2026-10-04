@@ -25,6 +25,9 @@ https://hypay.docs.apiary.io/
 - Configurable merchant credentials
 - Support for authorization and capture flows
 - Payment links sent to the customer by SMS / e-mail from the order page
+- A customer who leaves the payment page without paying (back button, cancel,
+  declined card) is shown a popup that the order was **not** placed and must be
+  placed and paid again, instead of the "thank you" page
 - Compatible with CS-Cart payment processor architecture
 
 ---
