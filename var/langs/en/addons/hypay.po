@@ -1432,7 +1432,6 @@ msgid "The cart was changed after order #[order_id] was created, so that order c
 msgstr "The cart was changed after order #[order_id] was created, so that order cannot be paid. Check the cart and press \"Place order\" again - a new order will be created and the payment form will open."
 
 # Payment link settings (Add-ons -> Hypay -> Settings), automatic payment check
-
 msgctxt "Languages::hypay_link_setting_method_auto"
 msgid "— the order's own Hypay method, otherwise the first active one —"
 msgstr "— the order's own Hypay method, otherwise the first active one —"

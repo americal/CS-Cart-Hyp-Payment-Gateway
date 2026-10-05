@@ -4213,6 +4213,8 @@ function fn_hypay_ensure_addon_settings()
     if ($done || !defined('AREA') || AREA !== 'A') { return; }
     $done = true;
 
+    fn_hypay_repair_addon_texts();
+
     if (fn_hypay_link_settings_installed()
         || !function_exists('fn_update_addon_settings')
         || !class_exists('\Tygh\Addons\SchemesManager')
@@ -4278,6 +4280,164 @@ function fn_hypay_ensure_addon_settings()
         hypay_log(0, 'add-on settings added; payment link settings taken from payment method #' . $pp_id, $moved);
     } catch (\Throwable $e) {
         hypay_log(0, 'add-on settings: could not be added (' . $e->getMessage() . '), the payment link settings stay on the payment method');
+    }
+}
+
+/**
+ * The add-on's texts that an update over an existing installation does not
+ * bring into the database by itself, added where they are missing:
+ *
+ * - language variables new in this version - CS-Cart imports a .po file when
+ *   the add-on is installed, not when its files are replaced;
+ * - the names and tooltips of the add-on settings, when they were added (see
+ *   fn_hypay_ensure_addon_settings()) while the .po files could not be read:
+ *   an earlier build had a comment followed by a blank line in them, which
+ *   CS-Cart's PO parser rejects, so every lookup came back as an error string
+ *   and the settings were created nameless.
+ *
+ * Only what is missing is written: a text the shop has edited stays as it is,
+ * and setting values are never touched. Each part is checked with one query
+ * and does nothing once it has been done.
+ */
+function fn_hypay_repair_addon_texts()
+{
+    if (!class_exists('\Tygh\Languages\Po')) {
+        return;
+    }
+
+    try {
+        $lang_codes = db_get_fields("SELECT lang_code FROM ?:languages");
+        $default    = 'en';
+        $packs      = [];
+        $po_path    = static function ($lang_code) {
+            $dir = (string) Registry::get('config.dir.lang_packs');
+            if ($dir === '') {
+                $dir = rtrim((string) Registry::get('config.dir.root'), '/') . '/var/langs/';
+            }
+
+            return rtrim($dir, '/') . '/' . $lang_code . '/addons/hypay.po';
+        };
+        $po_values = static function ($lang_code, $context) use ($po_path, $default) {
+            $path = $po_path($lang_code);
+            if (!file_exists($path)) {
+                $path = $po_path($default);
+            }
+            $values = file_exists($path) ? \Tygh\Languages\Po::getValues($path, $context) : [];
+
+            return is_array($values) ? $values : [];
+        };
+
+        // 1. language variables: the newest one stands for all of them
+        $canary = db_get_field(
+            "SELECT COUNT(*) FROM ?:language_values WHERE name = ?s AND lang_code = ?s",
+            'hypay_link_auto_paid',
+            CART_LANGUAGE
+        );
+        if (!$canary) {
+            $added = 0;
+            foreach ($lang_codes as $lang_code) {
+                foreach ($po_values($lang_code, 'Languages') as $key => $entry) {
+                    $parts = explode('::', (string) $key, 2);
+                    $name  = (string) ($entry['id'] ?? ($parts[1] ?? ''));
+                    if ($name === '') {
+                        continue;
+                    }
+                    $value = implode('', (array) ($entry['msgstr'] ?? []));
+                    if ($value === '') {
+                        $value = implode('', (array) ($entry['msgid'] ?? []));
+                    }
+                    $added += (int) db_query(
+                        "INSERT IGNORE INTO ?:language_values (lang_code, name, value) VALUES (?s, ?s, ?s)",
+                        $lang_code,
+                        $name,
+                        $value
+                    );
+                }
+            }
+            hypay_log(0, 'language variables added from the .po files', ['added' => $added]);
+        }
+
+        // 2. names of the add-on settings created without them
+        if (!class_exists('\Tygh\Settings') || !class_exists('\Tygh\Addons\SchemesManager')) {
+            return;
+        }
+        $settings = \Tygh\Settings::instance();
+        $section  = $settings->getSectionByName('hypay', \Tygh\Settings::ADDON_SECTION);
+        if (empty($section['section_id'])) {
+            return;
+        }
+        $section_id = (int) $section['section_id'];
+
+        $setting_id = (int) db_get_field(
+            "SELECT object_id FROM ?:settings_objects WHERE section_id = ?i AND name = ?s",
+            $section_id,
+            'link_payment_id'
+        );
+        $named = $setting_id > 0 && trim((string) db_get_field(
+            "SELECT value FROM ?:settings_descriptions WHERE object_id = ?i AND object_type = ?s AND lang_code = ?s",
+            $setting_id,
+            \Tygh\Settings::SETTING_DESCRIPTION,
+            CART_LANGUAGE
+        )) !== '';
+        if ($setting_id <= 0 || $named) {
+            return;
+        }
+
+        $scheme = \Tygh\Addons\SchemesManager::getScheme('hypay');
+        if (empty($scheme)) {
+            return;
+        }
+
+        $describe = static function ($object_id, $object_type, $translations) use ($settings) {
+            foreach ((array) $translations as $translation) {
+                if (!is_array($translation) || empty($translation['lang_code'])) {
+                    continue;
+                }
+                $translation['object_id']   = (int) $object_id;
+                $translation['object_type'] = $object_type;
+                $settings->updateDescription($translation);
+            }
+        };
+
+        foreach ((array) $scheme->getSections() as $tab) {
+            $tab_id = (int) db_get_field(
+                "SELECT section_id FROM ?:settings_sections WHERE parent_id = ?i AND name = ?s",
+                $section_id,
+                (string) $tab['id']
+            );
+            if ($tab_id > 0) {
+                $describe($tab_id, \Tygh\Settings::SECTION_DESCRIPTION, $tab['translations'] ?? []);
+            }
+
+            foreach ((array) $scheme->getSettings($tab['id']) as $item) {
+                if (empty($item['id'])) {
+                    continue;
+                }
+                $object_id = (int) db_get_field(
+                    "SELECT object_id FROM ?:settings_objects WHERE section_id = ?i AND name = ?s",
+                    $section_id,
+                    (string) $item['id']
+                );
+                if ($object_id <= 0) {
+                    continue;
+                }
+                $describe($object_id, \Tygh\Settings::SETTING_DESCRIPTION, $item['translations'] ?? []);
+
+                foreach ((array) ($item['variants'] ?? []) as $variant) {
+                    $variant_id = (int) db_get_field(
+                        "SELECT variant_id FROM ?:settings_variants WHERE object_id = ?i AND name = ?s",
+                        $object_id,
+                        (string) ($variant['id'] ?? '')
+                    );
+                    if ($variant_id > 0) {
+                        $describe($variant_id, \Tygh\Settings::VARIANT_DESCRIPTION, $variant['translations'] ?? []);
+                    }
+                }
+            }
+        }
+        hypay_log(0, 'add-on settings: names and tooltips added');
+    } catch (\Throwable $e) {
+        hypay_log(0, 'add-on texts could not be repaired: ' . $e->getMessage());
     }
 }
 

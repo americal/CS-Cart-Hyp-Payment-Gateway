@@ -1432,7 +1432,6 @@ msgid "The cart was changed after order #[order_id] was created, so that order c
 msgstr "Корзина изменилась после создания заказа #[order_id], поэтому оплатить его нельзя. Проверьте корзину и нажмите «Разместить заказ» ещё раз — будет создан новый заказ и откроется форма оплаты."
 
 # Payment link settings (Add-ons -> Hypay -> Settings), automatic payment check
-
 msgctxt "Languages::hypay_link_setting_method_auto"
 msgid "— the order's own Hypay method, otherwise the first active one —"
 msgstr "— Hypay-метод самого заказа, иначе первый активный —"
