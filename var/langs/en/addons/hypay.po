@@ -1583,3 +1583,27 @@ msgstr "While at least one payment link is still payable, opening the order list
 msgctxt "Languages::hypay_link_cancel_still_active"
 msgid "Hyp did not cancel the link (CCode=250, not found by its id), yet it is still payable at Hyp. It stays active here so that a payment on it is recorded. Cancel it in the Hyp Pay portal (payment links), then press Check payment."
 msgstr "Hyp did not cancel the link (CCode=250, not found by its id), yet it is still payable at Hyp. It stays active here so that a payment on it is recorded. Cancel it in the Hyp Pay portal (payment links), then press Check payment."
+
+msgctxt "SettingsOptions::hypay::link_lang"
+msgid "Language of the link (SMS, e-mail, payment page)"
+msgstr "Language of the link (SMS, e-mail, payment page)"
+
+msgctxt "SettingsTooltips::hypay::link_lang"
+msgid "The language Hyp sends the payment link in - the SMS and the e-mail - and shows its payment page in. Hebrew is Hyp's own default. \"The order's language\": Hebrew for an order placed in Hebrew, English for any other. \"As the payment method sets\": the page language of the payment method the link goes through."
+msgstr "The language Hyp sends the payment link in - the SMS and the e-mail - and shows its payment page in. Hebrew is Hyp's own default. \"The order's language\": Hebrew for an order placed in Hebrew, English for any other. \"As the payment method sets\": the page language of the payment method the link goes through."
+
+msgctxt "SettingsVariants::hypay::link_lang::heb"
+msgid "Hebrew"
+msgstr "Hebrew"
+
+msgctxt "SettingsVariants::hypay::link_lang::eng"
+msgid "English"
+msgstr "English"
+
+msgctxt "SettingsVariants::hypay::link_lang::order"
+msgid "The order's language"
+msgstr "The order's language"
+
+msgctxt "SettingsVariants::hypay::link_lang::method"
+msgid "— as the payment method sets —"
+msgstr "— as the payment method sets —"

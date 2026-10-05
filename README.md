@@ -457,6 +457,7 @@ the same for every link. They are:
 |---|---|
 | *Payment method (terminal) for payment links* | The Hypay payment method every new link goes through: its terminal and `PassP`, its EzCount and payment page settings. A disabled method can be chosen too — a terminal kept for links alone. Left on *the order's own Hypay method, otherwise the first active one*, it works as before. A link already created keeps the method it was made with; the link window names it (*Goes through: … (terminal …)*). |
 | *Link lifetime, days* | See **Link lifetime** below. |
+| *Language of the link (SMS, e-mail, payment page)* | The language Hyp sends the link in and shows its payment page in (`PageLang`): Hebrew (the default, and Hyp's own), English, the order's language (Hebrew for a Hebrew order, English for any other — what earlier versions always did, so most links went out in English), or as the payment method's page language sets. |
 | *Order list: check payment links every, minutes* | How often the order list asks Hyp about the links still out (default 5; 0: never). See **How the payment reaches the order** below. |
 | *Document after a payment link is paid* | 320, 400 or none for every link, or *as the payment method sets* (that method's own EzCount setting). |
 | *Customer's orders offered in the link* | See **Several orders, one link** below. |
@@ -467,6 +468,10 @@ the same for every link. They are:
 
 The additional status settings need the eCom Labs *Additional Order Statuses*
 add-on; without it they offer nothing to choose.
+
+A setting added in a later version is added to an installation that already
+has the others on the next admin page as well, with its default value; the
+existing settings and their values are left alone.
 
 These used to be settings of each Hypay payment method, which left it unclear
 whose settings a link went by when there were several. CS-Cart reads an

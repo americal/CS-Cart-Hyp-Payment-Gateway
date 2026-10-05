@@ -45,6 +45,16 @@
                         <type>input</type>
                         <default_value>5</default_value>
                     </item>
+                    <item id="link_lang">
+                        <type>selectbox</type>
+                        <default_value>heb</default_value>
+                        <variants>
+                            <item id="heb"></item>
+                            <item id="eng"></item>
+                            <item id="order"></item>
+                            <item id="method"></item>
+                        </variants>
+                    </item>
                     <item id="link_doc_type">
                         <type>selectbox</type>
                         <default_value>method</default_value>

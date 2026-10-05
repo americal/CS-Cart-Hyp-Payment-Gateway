@@ -4230,6 +4230,16 @@ function fn_hypay_ensure_addon_settings()
 
     fn_hypay_repair_addon_texts();
 
+    // settings already there, but not every one this version has
+    if (fn_hypay_link_settings_installed() && class_exists('\Tygh\Settings')) {
+        try {
+            $existing = \Tygh\Settings::instance()->getSectionByName('hypay', \Tygh\Settings::ADDON_SECTION);
+            fn_hypay_add_missing_addon_settings((int) ($existing['section_id'] ?? 0));
+        } catch (\Throwable $e) {
+            hypay_log(0, 'add-on settings: new ones could not be added (' . $e->getMessage() . ')');
+        }
+    }
+
     if (fn_hypay_link_settings_installed()
         || !function_exists('fn_update_addon_settings')
         || !class_exists('\Tygh\Addons\SchemesManager')
@@ -4244,7 +4254,10 @@ function fn_hypay_ensure_addon_settings()
         // has only not caught up. Never added twice: that would put the values
         // chosen since back to their defaults.
         $settings = \Tygh\Settings::instance();
-        if (!empty($settings->getSectionByName('hypay', \Tygh\Settings::ADDON_SECTION))) {
+        $existing = $settings->getSectionByName('hypay', \Tygh\Settings::ADDON_SECTION);
+        if (!empty($existing)) {
+            fn_hypay_add_missing_addon_settings((int) ($existing['section_id'] ?? 0));
+
             return;
         }
 
@@ -4296,6 +4309,100 @@ function fn_hypay_ensure_addon_settings()
     } catch (\Throwable $e) {
         hypay_log(0, 'add-on settings: could not be added (' . $e->getMessage() . '), the payment link settings stay on the payment method');
     }
+}
+
+/**
+ * The add-on settings a later version brings, added to an installation that
+ * has the add-on's settings already - the way CS-Cart's own
+ * fn_update_addon_settings() adds each one, for the missing ones only:
+ * existing settings and their values are not touched. The newest setting
+ * stands for all of them, so it costs one query when nothing is missing.
+ */
+function fn_hypay_add_missing_addon_settings($section_id)
+{
+    static $done = false;
+    $section_id  = (int) $section_id;
+    if ($done || $section_id <= 0 || !class_exists('\Tygh\Addons\SchemesManager')) {
+        return;
+    }
+    $done = true;
+
+    $newest = 'link_lang';
+    if (db_get_field("SELECT object_id FROM ?:settings_objects WHERE section_id = ?i AND name = ?s", $section_id, $newest)) {
+        return;
+    }
+
+    $scheme = \Tygh\Addons\SchemesManager::getScheme('hypay');
+    if (empty($scheme)) {
+        return;
+    }
+
+    $settings = \Tygh\Settings::instance();
+    $describe = static function ($object_id, $object_type, $translations) use ($settings) {
+        foreach ((array) $translations as $translation) {
+            if (!is_array($translation) || empty($translation['lang_code'])) {
+                continue;
+            }
+            $translation['object_id']   = (int) $object_id;
+            $translation['object_type'] = $object_type;
+            $settings->updateDescription($translation);
+        }
+    };
+
+    $added = [];
+    foreach ((array) $scheme->getSections() as $tab) {
+        $tab_id = (int) db_get_field(
+            "SELECT section_id FROM ?:settings_sections WHERE parent_id = ?i AND name = ?s",
+            $section_id,
+            (string) $tab['id']
+        );
+        if ($tab_id <= 0) {
+            continue;
+        }
+
+        foreach ((array) $scheme->getSettings($tab['id']) as $k => $item) {
+            if (empty($item['id']) || db_get_field(
+                "SELECT object_id FROM ?:settings_objects WHERE section_id = ?i AND name = ?s",
+                $section_id,
+                (string) $item['id']
+            )) {
+                continue;
+            }
+
+            $setting_id = $settings->update([
+                'name'           => $item['id'],
+                'section_id'     => $section_id,
+                'section_tab_id' => $tab_id,
+                'type'           => $item['type'],
+                'position'       => isset($item['position']) ? $item['position'] : $k * 10,
+                'edition_type'   => $item['edition_type'] ?? 'ROOT,ULT:VENDOR',
+                'is_global'      => 'N',
+                'handler'        => $item['handler'] ?? '',
+                'parent_id'      => 0,
+            ]);
+            if (empty($setting_id)) {
+                continue;
+            }
+
+            $settings->updateValueById($setting_id, $item['default_value'] ?? '', null, false);
+            $describe($setting_id, \Tygh\Settings::SETTING_DESCRIPTION, $item['translations'] ?? []);
+            foreach ((array) ($item['variants'] ?? []) as $variant_k => $variant) {
+                $variant_id = $settings->updateVariant([
+                    'object_id' => $setting_id,
+                    'name'      => $variant['id'],
+                    'position'  => isset($variant['position']) ? $variant['position'] : $variant_k * 10,
+                ]);
+                if (!empty($variant_id)) {
+                    $describe($variant_id, \Tygh\Settings::VARIANT_DESCRIPTION, $variant['translations'] ?? []);
+                }
+            }
+
+            Registry::set('addons.hypay.' . $item['id'], $item['default_value'] ?? '');
+            $added[] = $item['id'];
+        }
+    }
+
+    hypay_log(0, 'add-on settings added to an existing installation', $added);
 }
 
 /**
@@ -5244,12 +5351,8 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
         return false;
     }
 
-    // page language: the same choice the checkout payment page makes
-    $lang2     = hypay_lang2_from_order($order_info);
-    $page_lang = $pp['page_lang'] ?? 'auto';
-    if ($page_lang !== 'ENG' && $page_lang !== 'HEB') {
-        $page_lang = ($lang2 === 'he') ? 'HEB' : 'ENG';
-    }
+    // the language Hyp sends the link in, and shows its payment page in
+    $page_lang = fn_hypay_link_page_lang($order_info, $pp);
 
     // The document Hyp issues itself when the link is paid follows the
     // integrated EzCount settings, exactly as a checkout charge does
@@ -5413,6 +5516,39 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
         : __('hypay_link_created_ok', ['[sent_to]' => $sent_to]));
 
     return true;
+}
+
+/**
+ * PageLang for a payment link: the language of the SMS / e-mail Hyp sends the
+ * link in, and of the payment page it opens - per the payment link setting
+ * "link_lang":
+ *   heb (the default, and Hyp's own) / eng - always that language;
+ *   order  - the order's language: Hebrew for a Hebrew order, else English;
+ *   method - the page language of the payment method the link goes through,
+ *            the order's language when that is "auto".
+ * The order's language alone used to decide, and an order placed or entered
+ * in any other language got its SMS in English.
+ *
+ * @return string HEB | ENG
+ */
+function fn_hypay_link_page_lang(array $order_info, array $pp)
+{
+    $setting = strtolower(trim((string) fn_hypay_link_setting('link_lang')));
+    if ($setting === 'eng') {
+        return 'ENG';
+    }
+    if ($setting === 'method') {
+        $method_lang = (string) ($pp['page_lang'] ?? 'auto');
+        if ($method_lang === 'ENG' || $method_lang === 'HEB') {
+            return $method_lang;
+        }
+        $setting = 'order';
+    }
+    if ($setting === 'order') {
+        return hypay_lang2_from_order($order_info) === 'he' ? 'HEB' : 'ENG';
+    }
+
+    return 'HEB';
 }
 
 /** did Hyp refuse the payRequest because of the customer's name? */
