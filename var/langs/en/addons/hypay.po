@@ -1530,7 +1530,7 @@ msgstr "Order status after the link is paid"
 
 msgctxt "SettingsTooltips::hypay::link_paid_status"
 msgid "Every order the paid link covers moves to this status once the payment is recorded - from the customer's return or from the automatic check. \"As the payment method sets\": the success status of the payment method the link went through."
-msgstr "Every order the paid link covers moves to this status once the payment is recorded - from the customer's return or from the automatic check. \"As the payment method sets\": the success status of the payment method the link went through."
+msgstr "Every order the paid link covers moves to this status once the payment is recorded - from the customer's return or from the automatic check. \"As the payment method sets\": the success status of the payment method the link went through. \"— do not change —\": the orders keep the status they have."
 
 msgctxt "SettingsOptions::hypay::link_paid_additional_status"
 msgid "Additional status after the link is paid"
@@ -1538,7 +1538,7 @@ msgstr "Additional status after the link is paid"
 
 msgctxt "SettingsTooltips::hypay::link_paid_additional_status"
 msgid "Every order the paid link covers gets this additional status once the payment is recorded. \"As the payment method sets\": the additional status that method gives a successful payment. Needs the Additional Order Statuses add-on (eCom Labs)."
-msgstr "Every order the paid link covers gets this additional status once the payment is recorded. \"As the payment method sets\": the additional status that method gives a successful payment. Needs the Additional Order Statuses add-on (eCom Labs)."
+msgstr "Every order the paid link covers gets this additional status once the payment is recorded. \"As the payment method sets\": the additional status that method gives a successful payment. Needs the Additional Order Statuses add-on (eCom Labs). \"— do not change —\": the orders keep the additional status they have."
 
 msgctxt "SettingsOptions::hypay::link_j5_status"
 msgid "Order status after a J5 link is held"
@@ -1546,7 +1546,7 @@ msgstr "Order status after a J5 link is held"
 
 msgctxt "SettingsTooltips::hypay::link_j5_status"
 msgid "The order of a J5 (hold only) link moves to this status once the hold comes back. \"As the payment method sets\": that method's J5 authorization status."
-msgstr "The order of a J5 (hold only) link moves to this status once the hold comes back. \"As the payment method sets\": that method's J5 authorization status."
+msgstr "The order of a J5 (hold only) link moves to this status once the hold comes back. \"As the payment method sets\": that method's J5 authorization status. \"— do not change —\": the orders keep the status they have."
 
 msgctxt "SettingsOptions::hypay::link_j5_additional_status"
 msgid "Additional status after a J5 link is held"
@@ -1554,7 +1554,7 @@ msgstr "Additional status after a J5 link is held"
 
 msgctxt "SettingsTooltips::hypay::link_j5_additional_status"
 msgid "The order of a J5 (hold only) link gets this additional status once the hold comes back. \"As the payment method sets\": that method's J5 additional status. Needs the Additional Order Statuses add-on (eCom Labs)."
-msgstr "The order of a J5 (hold only) link gets this additional status once the hold comes back. \"As the payment method sets\": that method's J5 additional status. Needs the Additional Order Statuses add-on (eCom Labs)."
+msgstr "The order of a J5 (hold only) link gets this additional status once the hold comes back. \"As the payment method sets\": that method's J5 additional status. Needs the Additional Order Statuses add-on (eCom Labs). \"— do not change —\": the orders keep the additional status they have."
 
 msgctxt "SettingsOptions::hypay::link_created_additional_status"
 msgid "Additional status after the link is created"

@@ -18,7 +18,10 @@ if (!defined('BOOTSTRAP')) { die('Access denied'); }
  * still payable. One LIST per terminal answers for all of them, with a short
  * timeout: see fn_hypay_link_auto_check_all().
  */
-if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+// The add-on's functions (func.php) are loaded only while it is active, and
+// CS-Cart can still run this file without them - around an install, an
+// uninstall or a status change of the add-on. Nothing to do then.
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && function_exists('fn_hypay_ensure_addon_settings')) {
     fn_hypay_ensure_addon_settings();
 
     if ($mode === 'details' && !empty($_REQUEST['order_id'])) {
