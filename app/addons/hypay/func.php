@@ -4342,10 +4342,11 @@ function fn_hypay_repair_addon_texts()
             return is_array($values) ? $values : [];
         };
 
-        // 1. language variables: the newest one stands for all of them
+        // 1. language variables: the newest one stands for all of them - move
+        //    it on whenever one is added
         $canary = db_get_field(
             "SELECT COUNT(*) FROM ?:language_values WHERE name = ?s AND lang_code = ?s",
-            'hypay_link_auto_paid',
+            'hypay_link_cancel_still_active',
             CART_LANGUAGE
         );
         if (!$canary) {
@@ -4740,12 +4741,7 @@ function fn_hypay_link_expire_if_due($order_id, $listed = false)
         $credentials = fn_hypay_link_credentials($pp);
         $ccode       = '';
         if ($credentials) {
-            $result = fn_hypay_link_api_request($order_id, $credentials + [
-                'action'     => 'payRequest',
-                'iCommand'   => 'DELETE',
-                'PayRequest' => $link['pay_request_id'],
-            ], 'link.expire', 15);
-            $ccode = trim((string) ($result['params']['CCode'] ?? ''));
+            $ccode = fn_hypay_link_delete($order_id, $pp, $link, 'link.expire', 15)['ccode'];
         }
 
         if ($ccode === '995') {
@@ -4760,7 +4756,9 @@ function fn_hypay_link_expire_if_due($order_id, $listed = false)
             return false;
         }
 
-        if ($ccode !== '0' && $ccode !== '250') {
+        // 250 included: Hyp not finding the link by its id does not make it
+        // unpayable - a payment on it is recorded all the same
+        if ($ccode !== '0') {
             $note = __('hypay_link_expired_not_withdrawn');
         }
     }
@@ -5657,12 +5655,8 @@ function fn_hypay_link_cancel($order_id)
         return false;
     }
 
-    $result = fn_hypay_link_api_request($order_id, $credentials + [
-        'action'     => 'payRequest',
-        'iCommand'   => 'DELETE',
-        'PayRequest' => $link['pay_request_id'],
-    ], 'link.delete');
-    $ccode = trim((string) ($result['params']['CCode'] ?? ''));
+    $result = fn_hypay_link_delete($order_id, $pp, $link, 'link.delete');
+    $ccode  = $result['ccode'];
 
     if ($ccode === '0') {
         db_query(
@@ -5698,7 +5692,53 @@ function fn_hypay_link_cancel($order_id)
     }
 
     if ($ccode === '250') {
-        // Hyp does not know the link (any more): nothing is left to pay with
+        // DELETE did not find the link. That alone does not make it gone: a
+        // link the customer can still pay, marked cancelled here, would take
+        // the money with nothing to record it on. LIST has the last word.
+        $list_error = $list_ccode = '';
+        $rows = fn_hypay_link_list($pp, $order_id, 30, $list_error, $list_ccode);
+        $item = ($rows === null) ? null : fn_hypay_link_find_list_item($rows, $link);
+        hypay_log($order_id, 'link.delete: not found by id, LIST says', [
+            'payRequestId' => $link['pay_request_id'],
+            'listed'       => $rows !== null,
+            'status'       => $item['status'] ?? null,
+        ]);
+
+        if ($item !== null) {
+            $state = fn_hypay_link_apply_list_item($order_id, $link, $pp, $item);
+            if ($state === 'paid') {
+                fn_set_notification('W', __('warning'), __('hypay_link_already_paid'));
+
+                return true;
+            }
+            if ($state === 'cancelled') {
+                fn_set_notification('N', __('notice'), __('hypay_link_cancel_ok'));
+
+                return true;
+            }
+
+            // still payable at Hyp, and Hyp will not cancel it: it stays
+            // active here, and the merchant is told where to cancel it
+            db_query(
+                "UPDATE ?:hypay_payment_links SET last_error = ?s WHERE link_id = ?i",
+                __('hypay_link_cancel_still_active'),
+                $link['link_id']
+            );
+            fn_set_notification('E', __('error'), __('hypay_link_cancel_still_active'));
+
+            return false;
+        }
+
+        if ($rows === null) {
+            // nothing to go by: the link stays as it is
+            $error = fn_hypay_format_error($ccode) . ' ' . $list_error;
+            db_query("UPDATE ?:hypay_payment_links SET last_error = ?s WHERE link_id = ?i", 'cancel: ' . $error, $link['link_id']);
+            fn_set_notification('E', __('error'), __('hypay_link_cancel_failed') . ' ' . $error);
+
+            return false;
+        }
+
+        // not among the terminal's links either: nothing is left to pay with
         db_query(
             "UPDATE ?:hypay_payment_links SET status = 'cancelled', cancelled_at = ?i, last_error = ?s WHERE link_id = ?i AND status = 'active'",
             TIME,
@@ -5717,6 +5757,81 @@ function fn_hypay_link_cancel($order_id)
         . fn_hypay_link_permission_hint($ccode, $pp));
 
     return false;
+}
+
+/**
+ * The code a payRequest link's address ends in - https://pay.hyp.co.il/p/?pay=XXXX
+ * - '' when it has none (a signed payment page).
+ */
+function fn_hypay_link_url_code(array $link)
+{
+    $query = (string) parse_url((string) ($link['payment_url'] ?? ''), PHP_URL_QUERY);
+    $args  = [];
+    parse_str($query, $args);
+
+    return trim((string) ($args['pay'] ?? ''));
+}
+
+/**
+ * iCommand=DELETE for a link.
+ *
+ * Asked by payRequestId, as documented. Should Hyp not find it by that
+ * (CCode=250) and the link's address carry a different code (?pay=...), it is
+ * asked once more by that code: the two are not always the same.
+ *
+ * @return array ['ccode' => Hyp's CCode, 'params' => parsed answer, 'raw' => answer]
+ */
+function fn_hypay_link_delete($order_id, array $pp, array $link, $label, $timeout = 45)
+{
+    $credentials = fn_hypay_link_credentials($pp);
+    $ids         = array_values(array_unique(array_filter([
+        trim((string) $link['pay_request_id']),
+        fn_hypay_link_url_code($link),
+    ], 'strlen')));
+
+    $result = ['params' => [], 'raw' => ''];
+    $ccode  = '';
+    foreach ($ids as $i => $id) {
+        $result = fn_hypay_link_api_request($order_id, $credentials + [
+            'action'     => 'payRequest',
+            'iCommand'   => 'DELETE',
+            'PayRequest' => $id,
+        ], $label . ($i > 0 ? '.by_url_code' : ''), $timeout);
+        $ccode = trim((string) ($result['params']['CCode'] ?? ''));
+        if ($ccode !== '250') {
+            break;
+        }
+    }
+
+    return ['ccode' => $ccode, 'params' => (array) $result['params'], 'raw' => (string) $result['raw']];
+}
+
+/**
+ * The LIST row of a link: by payRequestId, and failing that by its address or
+ * the code the address ends in.
+ *
+ * @param array $rows fn_hypay_link_list()
+ *
+ * @return array|null
+ */
+function fn_hypay_link_find_list_item(array $rows, array $link)
+{
+    $id = (string) ($link['pay_request_id'] ?? '');
+    if ($id !== '' && isset($rows[$id])) {
+        return $rows[$id];
+    }
+
+    $url  = trim((string) ($link['payment_url'] ?? ''));
+    $code = fn_hypay_link_url_code($link);
+    foreach ($rows as $row_id => $row) {
+        if (($url !== '' && trim((string) ($row['paymentURL'] ?? '')) === $url)
+            || ($code !== '' && ((string) $row_id === $code || fn_hypay_link_url_code(['payment_url' => $row['paymentURL'] ?? '']) === $code))
+        ) {
+            return $row;
+        }
+    }
+
+    return null;
 }
 
 /**
@@ -5853,7 +5968,7 @@ function fn_hypay_link_check($order_id, $quiet = false, $timeout = 45)
         return 'unknown';
     }
 
-    $item = $rows[(string) $link['pay_request_id']] ?? null;
+    $item = fn_hypay_link_find_list_item($rows, $link);
     if ($item === null) {
         hypay_log($order_id, 'link.list: link not among the recent ones', ['payRequestId' => $link['pay_request_id']]);
         if (!$quiet) {
@@ -6026,7 +6141,7 @@ function fn_hypay_link_auto_check_all($order_ids = null, $force = false)
         foreach ($group['links'] as $link) {
             $listed[(int) $link['link_id']] = true;
 
-            $item  = $rows[(string) $link['pay_request_id']] ?? null;
+            $item  = fn_hypay_link_find_list_item($rows, $link);
             $state = 'active';
             if ($item !== null) {
                 // each link with the payment method it was made through
@@ -6432,12 +6547,7 @@ function fn_hypay_link_retire($order_id, array $pp)
     $credentials = fn_hypay_link_credentials($pp);
     if (!$credentials) { return; }
 
-    $result = fn_hypay_link_api_request($order_id, $credentials + [
-        'action'     => 'payRequest',
-        'iCommand'   => 'DELETE',
-        'PayRequest' => $link['pay_request_id'],
-    ], 'link.retire', 15);
-    $ccode = trim((string) ($result['params']['CCode'] ?? ''));
+    $ccode = fn_hypay_link_delete($order_id, $pp, $link, 'link.retire', 15)['ccode'];
 
     if ($ccode === '0' || $ccode === '250') {
         db_query(
