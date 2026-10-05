@@ -457,6 +457,7 @@ the same for every link. They are:
 |---|---|
 | *Payment method (terminal) for payment links* | The Hypay payment method every new link goes through: its terminal and `PassP`, its EzCount and payment page settings. A disabled method can be chosen too — a terminal kept for links alone. Left on *the order's own Hypay method, otherwise the first active one*, it works as before. A link already created keeps the method it was made with; the link window names it (*Goes through: … (terminal …)*). |
 | *Link lifetime, days* | See **Link lifetime** below. |
+| *Order list: check payment links every, minutes* | How often the order list asks Hyp about the links still out (default 5; 0: never). See **How the payment reaches the order** below. |
 | *Document after a payment link is paid* | 320, 400 or none for every link, or *as the payment method sets* (that method's own EzCount setting). |
 | *Customer's orders offered in the link* | See **Several orders, one link** below. |
 | *Order status after the link is paid* | The status every order of a paid link moves to; *as the payment method sets* = the method's success status. |
@@ -611,14 +612,22 @@ The link is paid on Hyp's own payment page, and the result comes back two ways:
    A declined card on the link page does not change the order: the link stays
    open for another attempt, and the refusal is shown in the panel.
 2. **The LIST lookup.** When the return never arrives, the admin panel asks Hyp
-   by itself: the **order list** about every link still out, an **order page**
-   about that order's link — before the page is built, so it already shows the
-   payment, the status and the additional status — and **Check payment** on
-   demand. LIST answers for every recent link of a terminal at once, so it is
-   one request per terminal however many links are out; each link is asked
-   about at most every 20 seconds (`HYPAY_LINK_AUTO_CHECK_INTERVAL`), with a
-   15-second timeout (`HYPAY_LINK_AUTO_CHECK_TIMEOUT`). The page says which
-   orders it found paid. `status=3` settles the order with what LIST knows —
+   by itself, before the page is built — so it already shows the payment, the
+   status, the additional status and the document:
+   - an **order page** with a link asks about that link straight away, every
+     time it is opened;
+   - the **order list** asks about every link still out, at most once per
+     *Order list: check payment links every, minutes* (5 by default; 0 turns
+     it off), and only while at least one link is still payable. A link past
+     its *Link lifetime* does not count and never sets a lookup off; when one
+     runs anyway, it is marked expired (and withdrawn at Hyp) unless LIST says
+     it was paid or cancelled in time;
+   - **Check payment** in the link window, on demand.
+
+   LIST answers for every recent link of a terminal at once, so a lookup is
+   one request per terminal however many links are out, with a 15-second
+   timeout (`HYPAY_LINK_AUTO_CHECK_TIMEOUT`). The page says which orders it
+   found paid. `status=3` settles the order with what LIST knows —
    its transaction Id, but no card details; if the return turns up afterwards,
    it fills them in.
 

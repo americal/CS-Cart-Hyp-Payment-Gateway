@@ -1572,3 +1572,11 @@ msgstr "Additional status after the link is cancelled"
 msgctxt "SettingsTooltips::hypay::link_cancelled_additional_status"
 msgid "Every order the payment link paid for gets this additional status once the link is cancelled - from the order page or from the Hyp portal - or expires. Needs the Additional Order Statuses add-on (eCom Labs)."
 msgstr "Every order the payment link paid for gets this additional status once the link is cancelled - from the order page or from the Hyp portal - or expires. Needs the Additional Order Statuses add-on (eCom Labs)."
+
+msgctxt "SettingsOptions::hypay::link_list_check_minutes"
+msgid "Order list: check payment links every, minutes"
+msgstr "Order list: check payment links every, minutes"
+
+msgctxt "SettingsTooltips::hypay::link_list_check_minutes"
+msgid "While at least one payment link is still payable, opening the order list asks Hyp about all of them at most this often - one request per terminal - and records the payments it finds on every order of the link. A link past its lifetime does not count; it is marked expired the next time a check runs. Opening an order with a link asks about that link straight away, every time. 0: the order list never asks. Empty: 5."
+msgstr "While at least one payment link is still payable, opening the order list asks Hyp about all of them at most this often - one request per terminal - and records the payments it finds on every order of the link. A link past its lifetime does not count; it is marked expired the next time a check runs. Opening an order with a link asks about that link straight away, every time. 0: the order list never asks. Empty: 5."

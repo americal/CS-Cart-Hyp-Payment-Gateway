@@ -4077,11 +4077,11 @@ function fn_hypay_get_j5_panel_data($order_id)
  * ==========================================================================*/
 
 /**
- * How often, at most, the store asks Hyp on its own what became of the links
- * still out - from the order page and the order list. LIST answers for every
- * link of a terminal at once, so one call settles them all.
+ * How often, in minutes, the order list asks Hyp on its own what became of the
+ * links still out, when the payment link settings do not say. LIST answers for
+ * every link of a terminal at once, so one call settles them all.
  */
-if (!defined('HYPAY_LINK_AUTO_CHECK_INTERVAL')) { define('HYPAY_LINK_AUTO_CHECK_INTERVAL', 20); }
+if (!defined('HYPAY_LINK_LIST_CHECK_MINUTES')) { define('HYPAY_LINK_LIST_CHECK_MINUTES', 5); }
 
 /** seconds an automatic LIST lookup may take before the page goes on without it */
 if (!defined('HYPAY_LINK_AUTO_CHECK_TIMEOUT')) { define('HYPAY_LINK_AUTO_CHECK_TIMEOUT', 15); }
@@ -4518,9 +4518,12 @@ function fn_hypay_link_set_orders_additional_status(array $link, array $pp, $set
  * paid, not expired. A signed page cannot be withdrawn at Hyp; like a
  * cancelled one, a payment made on it anyway is still recorded.
  *
+ * @param bool $listed the caller has just asked LIST about the link and found
+ *                     it neither paid nor cancelled: Hyp is not asked again
+ *
  * @return bool true when the link was marked expired just now
  */
-function fn_hypay_link_expire_if_due($order_id)
+function fn_hypay_link_expire_if_due($order_id, $listed = false)
 {
     $order_id = (int) $order_id;
     $link     = fn_hypay_link_get_active($order_id);
@@ -4539,14 +4542,16 @@ function fn_hypay_link_expire_if_due($order_id)
     $note = '';
 
     if (($link['kind'] ?? 'request') !== 'sign') {
-        // Hyp is asked at most once a minute, as on page open
-        if ((int) $link['checked_at'] > TIME - 60) {
-            return false;
-        }
+        if (!$listed) {
+            // Hyp is asked at most once a minute
+            if ((int) $link['checked_at'] > TIME - 60) {
+                return false;
+            }
 
-        $state = fn_hypay_link_check($order_id, true, 15);
-        if ($state === 'paid' || $state === 'cancelled') {
-            return false;
+            $state = fn_hypay_link_check($order_id, true, 15);
+            if ($state === 'paid' || $state === 'cancelled') {
+                return false;
+            }
         }
 
         $credentials = fn_hypay_link_credentials($pp);
@@ -5614,28 +5619,48 @@ function fn_hypay_payment_processor_params($payment_id)
 }
 
 /**
+ * How often the order list asks Hyp about the links still out, in seconds:
+ * the payment link setting, in minutes - 5 when it is not set. 0 when the
+ * setting is 0: the list never asks, the order page still does.
+ */
+function fn_hypay_link_list_check_interval()
+{
+    $minutes = trim((string) fn_hypay_link_setting('link_list_check_minutes'));
+    if ($minutes === '' || !is_numeric($minutes)) {
+        $minutes = HYPAY_LINK_LIST_CHECK_MINUTES;
+    }
+
+    return max(0, (int) round((float) $minutes * 60));
+}
+
+/**
  * The lookup the admin panel makes on its own: what became of the payment
  * links still out, so a payment whose return never reached the store is on the
- * order list and the order page the first time anyone looks - status,
- * additional status, document and all - without anybody pressing Check payment.
+ * order list and the order page - status, additional status, document and
+ * all - without anybody pressing Check payment.
  *
- * LIST answers for every recent link of a terminal at once, so it is one call
- * per terminal, however many links are out. Each link is asked about at most
- * once per HYPAY_LINK_AUTO_CHECK_INTERVAL, with a short timeout, so the page
- * is never held up for long by a slow gateway. A link past its lifetime is
- * expired instead - see fn_hypay_link_expire_if_due(). Signed payment pages
- * are not payRequests: LIST does not know them, their payment comes with the
- * customer's return.
+ * - The order page ($force): its own order's link, every time it is opened.
+ * - The order list: every link still out, at most once per the interval the
+ *   payment link settings give it (5 minutes by default), and only while at
+ *   least one link is still payable. A link past its lifetime is not: it
+ *   never sets a lookup off; when one runs anyway it is expired - withdrawn at
+ *   Hyp unless LIST says it was paid or cancelled in time.
+ *
+ * LIST answers for every recent link of a terminal at once, so a lookup is one
+ * request per terminal however many links are out, with a short timeout.
+ * Signed payment pages are not payRequests: LIST does not know them, their
+ * payment comes with the customer's return.
  *
  * @param int[]|null $order_ids only the links of these orders; null for all
+ * @param bool       $force     ask now, whenever Hyp was last asked
  *
- * @return array [paid|cancelled => order ids] what the lookup changed
+ * @return array [paid|cancelled|expired => order ids] what the lookup changed
  */
-function fn_hypay_link_auto_check_all($order_ids = null)
+function fn_hypay_link_auto_check_all($order_ids = null, $force = false)
 {
     fn_hypay_ensure_schema();
 
-    $changed = ['paid' => [], 'cancelled' => []];
+    $changed = ['paid' => [], 'cancelled' => [], 'expired' => []];
 
     if ($order_ids !== null) {
         $order_ids = array_values(array_filter(array_map('intval', (array) $order_ids)));
@@ -5651,22 +5676,47 @@ function fn_hypay_link_auto_check_all($order_ids = null)
     } else {
         $links = db_get_array("SELECT * FROM ?:hypay_payment_links WHERE status = 'active' ORDER BY link_id");
     }
+    if (empty($links)) {
+        return $changed;
+    }
 
-    // the links to ask about, by terminal: one LIST answers for all of them
-    $groups = [];
-    foreach ((array) $links as $link) {
-        $pp = fn_hypay_payment_processor_params($link['payment_id']);
+    $interval = $force ? 0 : fn_hypay_link_list_check_interval();
+    if (!$force && $interval <= 0) {
+        return $changed;
+    }
 
+    // still payable, and past their lifetime; only the first can set a lookup off
+    $live = $due = [];
+    $stale = $force;
+    foreach ($links as $link) {
+        $pp         = fn_hypay_payment_processor_params($link['payment_id']);
         $expires_at = fn_hypay_link_expires_at($link, $pp);
+
         if ($expires_at > 0 && $expires_at <= TIME) {
-            fn_hypay_link_expire_if_due($link['order_id']);
+            $due[] = $link;
             continue;
         }
 
-        if (($link['kind'] ?? 'request') === 'sign' || (int) $link['checked_at'] > TIME - HYPAY_LINK_AUTO_CHECK_INTERVAL) {
+        $live[] = $link;
+        if (($link['kind'] ?? 'request') !== 'sign'
+            && fn_hypay_link_credentials($pp)
+            && (int) $link['checked_at'] <= TIME - $interval
+        ) {
+            $stale = true;
+        }
+    }
+    if (!$stale) {
+        // nothing payable out, or Hyp was asked recently enough
+        return $changed;
+    }
+
+    // every link to ask about, by terminal: one LIST answers for all of them
+    $groups = [];
+    foreach (array_merge($live, $due) as $link) {
+        if (($link['kind'] ?? 'request') === 'sign') {
             continue;
         }
-
+        $pp          = fn_hypay_payment_processor_params($link['payment_id']);
         $credentials = fn_hypay_link_credentials($pp);
         if (!$credentials) {
             continue;
@@ -5679,6 +5729,9 @@ function fn_hypay_link_auto_check_all($order_ids = null)
         $groups[$terminal]['links'][] = $link;
     }
 
+    $due_ids = array_map(static function ($l) { return (int) $l['link_id']; }, $due);
+    $listed  = [];
+
     foreach ($groups as $group) {
         $pp = $group['pp'];
         $GLOBALS['HYPAY_DEBUG'] = (!empty($pp['debug_mode']) && $pp['debug_mode'] === 'Y');
@@ -5689,25 +5742,42 @@ function fn_hypay_link_auto_check_all($order_ids = null)
         $first = reset($group['links']);
         $rows  = fn_hypay_link_list($pp, (int) $first['order_id'], HYPAY_LINK_AUTO_CHECK_TIMEOUT);
         if ($rows === null) {
+            // a link past its lifetime waits for the next lookup: expiring it
+            // now could hide a payment LIST would have shown
             continue;
         }
 
         foreach ($group['links'] as $link) {
-            $item = $rows[(string) $link['pay_request_id']] ?? null;
-            if ($item === null) {
-                continue;
+            $listed[(int) $link['link_id']] = true;
+
+            $item  = $rows[(string) $link['pay_request_id']] ?? null;
+            $state = 'active';
+            if ($item !== null) {
+                // each link with the payment method it was made through
+                $link_pp = fn_hypay_payment_processor_params($link['payment_id']);
+                $state   = fn_hypay_link_apply_list_item((int) $link['order_id'], $link, $link_pp, $item);
             }
 
-            // each link with the payment method it was made through
-            $link_pp = fn_hypay_payment_processor_params($link['payment_id']);
-            $state   = fn_hypay_link_apply_list_item((int) $link['order_id'], $link, $link_pp, $item);
             if ($state === 'paid' && fn_hypay_link_is_j5($link)) {
                 // a hold LIST found is not recorded without the return - see
                 // fn_hypay_link_settle_from_list()
                 fn_set_notification('W', __('warning'), '#' . (int) $link['order_id'] . ': ' . __('hypay_link_j5_list_no_return'));
             } elseif (isset($changed[$state])) {
                 $changed[$state] = array_merge($changed[$state], fn_hypay_link_order_ids($link));
+            } elseif (in_array((int) $link['link_id'], $due_ids, true)
+                && fn_hypay_link_expire_if_due((int) $link['order_id'], true)
+            ) {
+                $changed['expired'] = array_merge($changed['expired'], fn_hypay_link_order_ids($link));
             }
+        }
+    }
+
+    // signed pages past their lifetime: nothing to ask Hyp, only to mark
+    foreach ($due as $link) {
+        if (($link['kind'] ?? 'request') === 'sign' && empty($listed[(int) $link['link_id']])
+            && fn_hypay_link_expire_if_due((int) $link['order_id'], true)
+        ) {
+            $changed['expired'] = array_merge($changed['expired'], fn_hypay_link_order_ids($link));
         }
     }
 
@@ -5726,11 +5796,12 @@ function fn_hypay_link_auto_check_all($order_ids = null)
 }
 
 /**
- * The page-open lookup for one order - see fn_hypay_link_auto_check_all().
+ * The order page: its own order's link, asked about every time the page is
+ * opened - see fn_hypay_link_auto_check_all().
  */
 function fn_hypay_link_auto_check($order_id)
 {
-    fn_hypay_link_auto_check_all([(int) $order_id]);
+    fn_hypay_link_auto_check_all([(int) $order_id], true);
 }
 
 /**

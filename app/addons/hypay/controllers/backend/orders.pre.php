@@ -12,9 +12,10 @@ if (!defined('BOOTSTRAP')) { die('Access denied'); }
  * on the page the first time anyone looks, status and all. Here rather than in
  * orders.post.php: the orders are read after this, and read what was recorded.
  *
- * The order page asks about its own order's link, the order list about every
- * link still out: one LIST per terminal answers for all of them. Each link is
- * asked about at most once per HYPAY_LINK_AUTO_CHECK_INTERVAL, with a short
+ * The order page asks about its own order's link every time it is opened; the
+ * order list about every link still out, at most once per the interval the
+ * payment link settings give it (5 minutes by default) and only while one is
+ * still payable. One LIST per terminal answers for all of them, with a short
  * timeout: see fn_hypay_link_auto_check_all().
  */
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
