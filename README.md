@@ -567,7 +567,10 @@ the method's success additional status, as before).
 
 **Cancelling.** *Cancel* sends `iCommand=DELETE` with the link's
 `payRequestId`. If Hyp answers `CCode=250` (not found), it is asked again by
-the code the link's address ends in (`?pay=…`), which is not always the same.
+every other identifier the link has — the code its address ends in (`?pay=…`)
+and the `payRequestId` LIST reports for it — and with the parameter spelled
+`payRequestId` and `payRequest` as well; the first answer that is not 250
+counts. Every attempt, and the link's LIST row, is in the log.
 A 250 alone never marks the link cancelled: LIST decides. If LIST shows the
 link still payable, it stays **active** here with an error saying to cancel it
 in the Hyp Pay portal — otherwise the customer could pay a link the store

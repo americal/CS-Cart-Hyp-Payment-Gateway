@@ -5655,7 +5655,8 @@ function fn_hypay_link_cancel($order_id)
         return false;
     }
 
-    $result = fn_hypay_link_delete($order_id, $pp, $link, 'link.delete');
+    $tried  = [];
+    $result = fn_hypay_link_delete($order_id, $pp, $link, 'link.delete', 45, [], $tried);
     $ccode  = $result['ccode'];
 
     if ($ccode === '0') {
@@ -5700,9 +5701,52 @@ function fn_hypay_link_cancel($order_id)
         $item = ($rows === null) ? null : fn_hypay_link_find_list_item($rows, $link);
         hypay_log($order_id, 'link.delete: not found by id, LIST says', [
             'payRequestId' => $link['pay_request_id'],
+            'paymentURL'   => $link['payment_url'],
             'listed'       => $rows !== null,
-            'status'       => $item['status'] ?? null,
+            'list_row'     => $item,
         ]);
+
+        // still open at Hyp: DELETE once more by the identifier LIST knows it by
+        if ($item !== null && in_array((string) ($item['status'] ?? ''), ['1', '2'], true)) {
+            $retry = fn_hypay_link_delete($order_id, $pp, $link, 'link.delete', 45, [
+                (string) ($item['payRequestId'] ?? ''),
+                fn_hypay_link_url_code(['payment_url' => $item['paymentURL'] ?? '']),
+            ], $tried);
+            if ($retry['ccode'] !== '250') {
+                $result = $retry;
+                $ccode  = $retry['ccode'];
+                $item   = null;
+            }
+        }
+
+        if ($ccode === '0') {
+            db_query(
+                "UPDATE ?:hypay_payment_links SET status = 'cancelled', cancelled_at = ?i, last_error = '' WHERE link_id = ?i AND status = 'active'",
+                TIME,
+                $link['link_id']
+            );
+            hypay_log($order_id, 'link.delete SUCCESS', ['payRequestId' => $link['pay_request_id']]);
+            fn_hypay_link_set_orders_additional_status($link, $pp, 'link_cancelled_additional_status');
+            fn_set_notification('N', __('notice'), __('hypay_link_cancel_ok'));
+
+            return true;
+        }
+        if ($ccode === '995') {
+            $state = fn_hypay_link_check($order_id, true);
+            if ($state !== 'paid') {
+                fn_set_notification('W', __('warning'), __('hypay_link_already_paid'));
+            }
+
+            return true;
+        }
+        if ($ccode !== '250') {
+            $error = fn_hypay_format_error($ccode, $result['params']['errMsg'] ?? '', $result['raw']);
+            db_query("UPDATE ?:hypay_payment_links SET last_error = ?s WHERE link_id = ?i", 'cancel: ' . $error, $link['link_id']);
+            fn_set_notification('E', __('error'), __('hypay_link_cancel_failed') . ' ' . $error
+                . fn_hypay_link_permission_hint($ccode, $pp));
+
+            return false;
+        }
 
         if ($item !== null) {
             $state = fn_hypay_link_apply_list_item($order_id, $link, $pp, $item);
@@ -5775,31 +5819,48 @@ function fn_hypay_link_url_code(array $link)
 /**
  * iCommand=DELETE for a link.
  *
- * Asked by payRequestId, as documented. Should Hyp not find it by that
- * (CCode=250) and the link's address carry a different code (?pay=...), it is
- * asked once more by that code: the two are not always the same.
+ * Asked as documented first: PayRequest=<payRequestId>. Hyp has answered that
+ * with CCode=250 ("not found") for links LIST shows as open, so on 250 it is
+ * asked again by every other identifier the link has - the code its address
+ * ends in (?pay=...), the payRequestId LIST reports for it ($extra_ids) - and
+ * under the other spellings Hyp uses for the parameter elsewhere
+ * (payRequestId, payRequest). The first answer that is not 250 is the answer.
+ *
+ * @param string[] $extra_ids more identifiers to try, e.g. from LIST
+ * @param array    $tried     [id|param => true] already asked; filled in
  *
  * @return array ['ccode' => Hyp's CCode, 'params' => parsed answer, 'raw' => answer]
  */
-function fn_hypay_link_delete($order_id, array $pp, array $link, $label, $timeout = 45)
+function fn_hypay_link_delete($order_id, array $pp, array $link, $label, $timeout = 45, array $extra_ids = [], array &$tried = [])
 {
     $credentials = fn_hypay_link_credentials($pp);
-    $ids         = array_values(array_unique(array_filter([
-        trim((string) $link['pay_request_id']),
+    $ids         = array_values(array_unique(array_filter(array_map('trim', array_map('strval', array_merge([
+        (string) $link['pay_request_id'],
         fn_hypay_link_url_code($link),
-    ], 'strlen')));
+    ], $extra_ids))), 'strlen')));
 
     $result = ['params' => [], 'raw' => ''];
     $ccode  = '';
-    foreach ($ids as $i => $id) {
-        $result = fn_hypay_link_api_request($order_id, $credentials + [
-            'action'     => 'payRequest',
-            'iCommand'   => 'DELETE',
-            'PayRequest' => $id,
-        ], $label . ($i > 0 ? '.by_url_code' : ''), $timeout);
-        $ccode = trim((string) ($result['params']['CCode'] ?? ''));
-        if ($ccode !== '250') {
-            break;
+    foreach (['PayRequest', 'payRequestId', 'payRequest'] as $param) {
+        foreach ($ids as $id) {
+            if (isset($tried[$id . '|' . $param])) {
+                continue;
+            }
+            $tried[$id . '|' . $param] = true;
+
+            $result = fn_hypay_link_api_request($order_id, $credentials + [
+                'action'   => 'payRequest',
+                'iCommand' => 'DELETE',
+                $param     => $id,
+            ], $label . (count($tried) > 1 ? '.' . $param . '=' . $id : ''), $timeout);
+            $ccode = trim((string) ($result['params']['CCode'] ?? ''));
+            if ($ccode !== '250') {
+                if (count($tried) > 1) {
+                    hypay_log($order_id, $label . ': Hyp answered ' . $ccode . ' to ' . $param . '=' . $id);
+                }
+
+                return ['ccode' => $ccode, 'params' => (array) $result['params'], 'raw' => (string) $result['raw']];
+            }
         }
     }
 
