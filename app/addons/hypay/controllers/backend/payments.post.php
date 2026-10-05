@@ -11,7 +11,10 @@ if (!defined('BOOTSTRAP')) { die('Access denied'); }
 // payments.update / payments.add (whole method) and payments.processor
 // (the "Configure" tab alone), so the usergroup list is assigned for any of
 // them - without it the "J5 by usergroup" selector has nothing to show.
-if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+// The add-on's functions (func.php) are loaded only while it is active, and
+// CS-Cart can still run this file without them - around an install, an
+// uninstall or a status change of the add-on. Nothing to do then.
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && function_exists('fn_hypay_ensure_addon_settings')) {
     // the payment link settings moved to the add-on settings: the template
     // shows them here only while those are not installed
     fn_hypay_ensure_addon_settings();
