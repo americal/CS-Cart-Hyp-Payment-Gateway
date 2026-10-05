@@ -565,6 +565,13 @@ cancelled* when it is cancelled — from the window, or from the Hyp portal
 is paid* when the payment is recorded (left on *as the payment method sets*:
 the method's success additional status, as before).
 
+**Customer names Hyp refuses.** `payRequest` (a link Hyp sends by e-mail /
+SMS) can refuse a name the checkout payment page accepts — a Hebrew one, with
+`CCode=16 … Invalid characters in ClientName`. The link is then asked for
+again with the name in windows-1255, the terminal's own encoding, and if that
+is refused as well, with the name in Latin letters (מאיר בן יאיר → *Mayr Bn
+Yayr*; nothing usable → *Customer*). Every attempt is in the log.
+
 **Terminal permission.** The link API needs its own permission on the terminal:
 sending links by hand from the Hyp portal does not grant it. Hyp refuses the
 request with `CCode=901 … payRequest API is not enabled for this terminal`, and

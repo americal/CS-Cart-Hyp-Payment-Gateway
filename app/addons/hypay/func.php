@@ -5332,6 +5332,22 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
     } else {
         $result = fn_hypay_link_api_request($order_id, $params, 'link.create');
         $answer = $result['params'];
+
+        // Hyp refuses some names on payRequest - a Hebrew one among them, which
+        // the checkout payment page takes without a word ("Invalid characters
+        // in ClientName", CCode=16). The link is asked for again with the name
+        // in windows-1255, the terminal's own encoding, and failing that in
+        // Latin letters: a link with a transliterated name beats no link.
+        foreach (fn_hypay_link_name_fallbacks($params) as $attempt => $names) {
+            if (!fn_hypay_link_name_refused($answer)) {
+                break;
+            }
+            hypay_log($order_id, 'link.create: ClientName refused, trying again (' . $attempt . ')', [
+                'errMsg' => $answer['errMsg'] ?? '',
+            ]);
+            $result = fn_hypay_link_api_request($order_id, $names + $params, 'link.create.' . $attempt);
+            $answer = $result['params'];
+        }
     }
 
     $pay_request_id = trim((string) ($answer['payRequestId'] ?? ''));
@@ -5399,6 +5415,83 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
         : __('hypay_link_created_ok', ['[sent_to]' => $sent_to]));
 
     return true;
+}
+
+/** did Hyp refuse the payRequest because of the customer's name? */
+function fn_hypay_link_name_refused(array $answer)
+{
+    if (trim((string) ($answer['payRequestId'] ?? '')) !== '') {
+        return false;
+    }
+
+    return stripos((string) ($answer['errMsg'] ?? ''), 'ClientName') !== false
+        || stripos((string) ($answer['errMsg'] ?? ''), 'ClientLName') !== false;
+}
+
+/**
+ * Other ways to put the customer's name to payRequest, for when Hyp refuses
+ * the first: the name in windows-1255, then in Latin letters. Only the ones
+ * that differ from what was already sent.
+ *
+ * @return array [attempt label => ['ClientName' => ..., 'ClientLName' => ...]]
+ */
+function fn_hypay_link_name_fallbacks(array $params)
+{
+    $first = (string) ($params['ClientName'] ?? '');
+    $last  = (string) ($params['ClientLName'] ?? '');
+
+    $fallbacks = [];
+
+    if (function_exists('iconv') && preg_match('/[^\x00-\x7F]/', $first . $last)) {
+        $first_1255 = @iconv('UTF-8', 'windows-1255//TRANSLIT//IGNORE', $first);
+        $last_1255  = @iconv('UTF-8', 'windows-1255//TRANSLIT//IGNORE', $last);
+        // a letter windows-1255 does not have comes out as "?": not worth sending
+        if ($first_1255 !== false && $last_1255 !== false
+            && substr_count($first_1255 . $last_1255, '?') === substr_count($first . $last, '?')
+        ) {
+            $fallbacks['windows-1255'] = ['ClientName' => $first_1255, 'ClientLName' => $last_1255];
+        }
+    }
+
+    $first_latin = fn_hypay_latin_name($first);
+    $last_latin  = fn_hypay_latin_name($last);
+    if ($first_latin === '' && $last_latin === '') {
+        $first_latin = 'Customer';
+    }
+    if ($first_latin !== $first || $last_latin !== $last) {
+        $fallbacks['latin'] = ['ClientName' => $first_latin, 'ClientLName' => $last_latin];
+    }
+
+    return $fallbacks;
+}
+
+/**
+ * A name in Latin letters, digits, spaces, dots and hyphens only: Hebrew
+ * transliterated letter by letter, other alphabets as iconv can, the rest
+ * dropped.
+ */
+function fn_hypay_latin_name($name)
+{
+    static $hebrew = [
+        'א' => 'a', 'ב' => 'b', 'ג' => 'g', 'ד' => 'd', 'ה' => 'h', 'ו' => 'v', 'ז' => 'z',
+        'ח' => 'ch', 'ט' => 't', 'י' => 'y', 'ך' => 'ch', 'כ' => 'k', 'ל' => 'l', 'ם' => 'm',
+        'מ' => 'm', 'ן' => 'n', 'נ' => 'n', 'ס' => 's', 'ע' => 'a', 'ף' => 'f', 'פ' => 'p',
+        'ץ' => 'tz', 'צ' => 'tz', 'ק' => 'k', 'ר' => 'r', 'ש' => 'sh', 'ת' => 't',
+    ];
+
+    $name = strtr((string) $name, $hebrew);
+    if (function_exists('iconv') && preg_match('/[^\x00-\x7F]/', $name)) {
+        $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name);
+        if ($ascii !== false) {
+            $name = $ascii;
+        }
+    }
+
+    $name = preg_replace('/[^A-Za-z0-9 .\-]+/', ' ', $name);
+    $name = trim(preg_replace('/\s+/', ' ', (string) $name));
+
+    // each word with a capital, as a name is written
+    return ucwords($name);
 }
 
 /**
