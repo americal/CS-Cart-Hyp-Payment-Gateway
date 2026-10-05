@@ -1377,3 +1377,7 @@ msgstr "רשימת ההזמנות: בדיקת קישורים כל, דקות"
 msgctxt "SettingsTooltips::hypay::link_list_check_minutes"
 msgid "While at least one payment link is still payable, opening the order list asks Hyp about all of them at most this often - one request per terminal - and records the payments it finds on every order of the link. A link past its lifetime does not count; it is marked expired the next time a check runs. Opening an order with a link asks about that link straight away, every time. 0: the order list never asks. Empty: 5."
 msgstr "כל עוד יש לפחות קישור אחד בתוקף, פתיחת רשימת ההזמנות שואלת את Hyp על כולם לכל היותר בתדירות הזו - בקשה אחת לכל מסוף - ורושמת את התשלומים שנמצאו בכל הזמנות הקישור. קישור שתוקפו עבר לא נחשב; הוא מסומן כפג תוקף בבדיקה הבאה. פתיחת הזמנה עם קישור בודקת אותו מיד, בכל פעם. 0: רשימת ההזמנות לא בודקת. ריק: 5."
+
+msgctxt "Languages::hypay_link_cancel_still_active"
+msgid "Hyp did not cancel the link (CCode=250, not found by its id), yet it is still payable at Hyp. It stays active here so that a payment on it is recorded. Cancel it in the Hyp Pay portal (payment links), then press Check payment."
+msgstr "Hyp לא ביטלה את הקישור (CCode=250, לא נמצא לפי המזהה שלו), אך הוא עדיין פתוח לתשלום ב-Hyp. הוא נשאר פעיל כאן כדי שתשלום בו יירשם. בטלו אותו בפורטל Hyp Pay (קישורים לתשלום) ואז לחצו על Check payment."

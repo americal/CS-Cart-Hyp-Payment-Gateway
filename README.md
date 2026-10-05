@@ -565,6 +565,16 @@ cancelled* when it is cancelled — from the window, or from the Hyp portal
 is paid* when the payment is recorded (left on *as the payment method sets*:
 the method's success additional status, as before).
 
+**Cancelling.** *Cancel* sends `iCommand=DELETE` with the link's
+`payRequestId`. If Hyp answers `CCode=250` (not found), it is asked again by
+the code the link's address ends in (`?pay=…`), which is not always the same.
+A 250 alone never marks the link cancelled: LIST decides. If LIST shows the
+link still payable, it stays **active** here with an error saying to cancel it
+in the Hyp Pay portal — otherwise the customer could pay a link the store
+thinks is cancelled, and that payment would not be recorded. Paid or deleted
+in LIST is recorded as such; absent from LIST, the link is marked cancelled.
+LIST rows are matched by `payRequestId`, then by the link's address.
+
 **Customer names Hyp refuses.** `payRequest` (a link Hyp sends by e-mail /
 SMS) can refuse a name the checkout payment page accepts — a Hebrew one, with
 `CCode=16 … Invalid characters in ClientName`. The link is then asked for
