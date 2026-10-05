@@ -460,9 +460,9 @@ the same for every link. They are:
 | *Order list: check payment links every, minutes* | How often the order list asks Hyp about the links still out (default 5; 0: never). See **How the payment reaches the order** below. |
 | *Document after a payment link is paid* | 320, 400 or none for every link, or *as the payment method sets* (that method's own EzCount setting). |
 | *Customer's orders offered in the link* | See **Several orders, one link** below. |
-| *Order status after the link is paid* | The status every order of a paid link moves to; *as the payment method sets* = the method's success status. |
-| *Additional status after the link is paid* | The additional status every order of a paid link gets; *as the payment method sets* = the method's success additional status. |
-| *Order status / Additional status after a J5 link is held* | The same for a J5 (hold only) link; by default the method's J5 statuses. |
+| *Order status after the link is paid* | The status every order of a paid link moves to; *as the payment method sets* = the method's success status; *do not change* = the orders keep the status they have. |
+| *Additional status after the link is paid* | The additional status every order of a paid link gets; *as the payment method sets* = the method's success additional status; *do not change* = none is set. |
+| *Order status / Additional status after a J5 link is held* | The same for a J5 (hold only) link; by default the method's J5 statuses, or *do not change*. |
 | *Additional status after the link is created / cancelled* | See **Additional statuses** below. |
 
 The additional status settings need the eCom Labs *Additional Order Statuses*

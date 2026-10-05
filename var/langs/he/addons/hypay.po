@@ -1328,7 +1328,7 @@ msgstr "סטטוס הזמנה אחרי תשלום בקישור"
 
 msgctxt "SettingsTooltips::hypay::link_paid_status"
 msgid "Every order the paid link covers moves to this status once the payment is recorded - from the customer's return or from the automatic check. \"As the payment method sets\": the success status of the payment method the link went through."
-msgstr "כל הזמנה שהקישור שילם עליה עוברת לסטטוס הזה ברגע שהתשלום נרשם - מחזרת הלקוח או מהבדיקה האוטומטית. \"לפי הגדרות אמצעי התשלום\" - סטטוס ההצלחה של אמצעי התשלום שדרכו עבר הקישור."
+msgstr "כל הזמנה שהקישור שילם עליה עוברת לסטטוס הזה ברגע שהתשלום נרשם - מחזרת הלקוח או מהבדיקה האוטומטית. \"לפי הגדרות אמצעי התשלום\" - סטטוס ההצלחה של אמצעי התשלום שדרכו עבר הקישור. \"— ללא שינוי —\": ההזמנה נשארת בסטטוס הנוכחי."
 
 msgctxt "SettingsOptions::hypay::link_paid_additional_status"
 msgid "Additional status after the link is paid"
@@ -1336,7 +1336,7 @@ msgstr "סטטוס נוסף אחרי תשלום בקישור"
 
 msgctxt "SettingsTooltips::hypay::link_paid_additional_status"
 msgid "Every order the paid link covers gets this additional status once the payment is recorded. \"As the payment method sets\": the additional status that method gives a successful payment. Needs the Additional Order Statuses add-on (eCom Labs)."
-msgstr "כל הזמנה שהקישור שילם עליה מקבלת את הסטטוס הנוסף הזה ברגע שהתשלום נרשם. \"לפי הגדרות אמצעי התשלום\" - הסטטוס הנוסף שהאמצעי נותן לתשלום מוצלח. נדרש המודול Additional Order Statuses (eCom Labs)."
+msgstr "כל הזמנה שהקישור שילם עליה מקבלת את הסטטוס הנוסף הזה ברגע שהתשלום נרשם. \"לפי הגדרות אמצעי התשלום\" - הסטטוס הנוסף שהאמצעי נותן לתשלום מוצלח. נדרש המודול Additional Order Statuses (eCom Labs). \"— ללא שינוי —\": ההזמנה שומרת על הסטטוס הנוסף הנוכחי."
 
 msgctxt "SettingsOptions::hypay::link_j5_status"
 msgid "Order status after a J5 link is held"
@@ -1344,7 +1344,7 @@ msgstr "סטטוס הזמנה אחרי קישור J5 (תפיסת מסגרת)"
 
 msgctxt "SettingsTooltips::hypay::link_j5_status"
 msgid "The order of a J5 (hold only) link moves to this status once the hold comes back. \"As the payment method sets\": that method's J5 authorization status."
-msgstr "ההזמנה של קישור J5 (תפיסת מסגרת בלבד) עוברת לסטטוס הזה כשהתפיסה חוזרת. \"לפי הגדרות אמצעי התשלום\" - סטטוס הרשאת J5 של האמצעי."
+msgstr "ההזמנה של קישור J5 (תפיסת מסגרת בלבד) עוברת לסטטוס הזה כשהתפיסה חוזרת. \"לפי הגדרות אמצעי התשלום\" - סטטוס הרשאת J5 של האמצעי. \"— ללא שינוי —\": ההזמנה נשארת בסטטוס הנוכחי."
 
 msgctxt "SettingsOptions::hypay::link_j5_additional_status"
 msgid "Additional status after a J5 link is held"
@@ -1352,7 +1352,7 @@ msgstr "סטטוס נוסף אחרי קישור J5 (תפיסת מסגרת)"
 
 msgctxt "SettingsTooltips::hypay::link_j5_additional_status"
 msgid "The order of a J5 (hold only) link gets this additional status once the hold comes back. \"As the payment method sets\": that method's J5 additional status. Needs the Additional Order Statuses add-on (eCom Labs)."
-msgstr "ההזמנה של קישור J5 (תפיסת מסגרת בלבד) מקבלת את הסטטוס הנוסף הזה כשהתפיסה חוזרת. \"לפי הגדרות אמצעי התשלום\" - הסטטוס הנוסף של J5 באמצעי. נדרש המודול Additional Order Statuses (eCom Labs)."
+msgstr "ההזמנה של קישור J5 (תפיסת מסגרת בלבד) מקבלת את הסטטוס הנוסף הזה כשהתפיסה חוזרת. \"לפי הגדרות אמצעי התשלום\" - הסטטוס הנוסף של J5 באמצעי. נדרש המודול Additional Order Statuses (eCom Labs). \"— ללא שינוי —\": ההזמנה שומרת על הסטטוס הנוסף הנוכחי."
 
 msgctxt "SettingsOptions::hypay::link_created_additional_status"
 msgid "Additional status after the link is created"

@@ -4164,13 +4164,24 @@ function fn_hypay_setting_list($value)
 }
 
 /**
+ * The value of a payment link status setting that leaves the status alone -
+ * "do not change" - as opposed to '' ("as the payment method sets").
+ */
+if (!defined('HYPAY_LINK_STATUS_KEEP')) { define('HYPAY_LINK_STATUS_KEEP', 'keep'); }
+
+/**
  * The order status a paid link gives every order it pays for: the payment
  * link setting, or - left empty - the success status (J5: hold status) of the
  * payment method the link went through.
+ *
+ * @return string '' when the setting says "do not change"
  */
 function fn_hypay_link_paid_order_status(array $pp, $j5 = false)
 {
     $status = trim((string) fn_hypay_link_setting($j5 ? 'link_j5_status' : 'link_paid_status'));
+    if ($status === HYPAY_LINK_STATUS_KEEP) {
+        return '';
+    }
     if ($status === '') {
         $status = trim((string) ($pp[$j5 ? 'j5_auth_status' : 'success_status'] ?? ''));
     }
@@ -4181,11 +4192,15 @@ function fn_hypay_link_paid_order_status(array $pp, $j5 = false)
 /**
  * The additional status a paid link gives every order it pays for: the
  * payment link setting, or - left empty - the one the payment method gives a
- * payment taken at checkout. '' for none.
+ * payment taken at checkout. '' for none, and when the setting says "do not
+ * change".
  */
 function fn_hypay_link_paid_additional_status(array $pp, $j5 = false)
 {
     $status = trim((string) fn_hypay_link_setting($j5 ? 'link_j5_additional_status' : 'link_paid_additional_status'));
+    if ($status === HYPAY_LINK_STATUS_KEEP) {
+        return '';
+    }
     if ($status === '') {
         $status = trim((string) ($pp[$j5 ? 'j5_auth_additional_status' : 'success_additional_status'] ?? ''));
     }
@@ -4492,7 +4507,10 @@ function fn_settings_variants_addons_hypay_link_order_statuses()
 
 function fn_settings_variants_addons_hypay_link_paid_status()
 {
-    return ['' => __('hypay_link_setting_as_method')] + fn_hypay_target_order_statuses();
+    return [
+        ''                     => __('hypay_link_setting_as_method'),
+        HYPAY_LINK_STATUS_KEEP => __('hypay_additional_status_none'),
+    ] + fn_hypay_target_order_statuses();
 }
 
 function fn_settings_variants_addons_hypay_link_j5_status()
@@ -4518,12 +4536,17 @@ function fn_settings_variants_addons_hypay_link_cancelled_additional_status()
 
 function fn_settings_variants_addons_hypay_link_paid_additional_status()
 {
-    return fn_hypay_link_additional_status_variants('hypay_link_setting_as_method');
+    $variants = fn_hypay_link_additional_status_variants('hypay_link_setting_as_method');
+
+    // "as the payment method sets" first, "do not change" right after it
+    return array_slice($variants, 0, 1, true)
+        + [HYPAY_LINK_STATUS_KEEP => __('hypay_additional_status_none')]
+        + array_slice($variants, 1, null, true);
 }
 
 function fn_settings_variants_addons_hypay_link_j5_additional_status()
 {
-    return fn_hypay_link_additional_status_variants('hypay_link_setting_as_method');
+    return fn_settings_variants_addons_hypay_link_paid_additional_status();
 }
 
 /** a link row by its id */
