@@ -54,15 +54,33 @@ if (!isset($GLOBALS['HYPAY_DEBUG'])) { $GLOBALS['HYPAY_DEBUG'] = false; }
 
 function fn_hypay_install()
 {
-    db_query("INSERT INTO ?:payment_processors ?e", [
-        'processor'           => 'Hypay',
-        'processor_script'    => 'hypay.php',
-        'processor_template' => '',
-        'admin_template'      => 'hypay.tpl',
-        'callback'            => 'Y',
-        'type'                => 'P',
-        'addon'               => 'hypay'
-    ]);
+    $processor_id = (int) db_get_field("SELECT processor_id FROM ?:payment_processors WHERE processor_script = ?s", 'hypay.php');
+    if ($processor_id <= 0) {
+        db_query("INSERT INTO ?:payment_processors ?e", [
+            'processor'           => 'Hypay',
+            'processor_script'    => 'hypay.php',
+            'processor_template' => '',
+            'admin_template'      => 'hypay.tpl',
+            'callback'            => 'Y',
+            'type'                => 'P',
+            'addon'               => 'hypay'
+        ]);
+        $processor_id = (int) db_get_field("SELECT processor_id FROM ?:payment_processors WHERE processor_script = ?s", 'hypay.php');
+    }
+
+    // A reinstall registers the processor anew, under a new id, and the Hypay
+    // payment methods would be left pointing at the one uninstall removed. They
+    // are found by their settings - a Hyp terminal number - and pointed at it.
+    if ($processor_id > 0) {
+        db_query(
+            "UPDATE ?:payments AS p"
+            . " LEFT JOIN ?:payment_processors AS pp ON pp.processor_id = p.processor_id"
+            . " SET p.processor_id = ?i"
+            . " WHERE pp.processor_id IS NULL AND p.processor_params LIKE ?s",
+            $processor_id,
+            '%s:5:"masof";%'
+        );
+    }
     fn_hypay_ensure_schema();
     fn_set_notification('N', __('notice'), 'Hypay payment processor registered.');
 }
@@ -4058,6 +4076,296 @@ function fn_hypay_get_j5_panel_data($order_id)
  * first moves the order; the other one only fills in what it knows.
  * ==========================================================================*/
 
+/**
+ * How often, at most, the store asks Hyp on its own what became of the links
+ * still out - from the order page and the order list. LIST answers for every
+ * link of a terminal at once, so one call settles them all.
+ */
+if (!defined('HYPAY_LINK_AUTO_CHECK_INTERVAL')) { define('HYPAY_LINK_AUTO_CHECK_INTERVAL', 20); }
+
+/** seconds an automatic LIST lookup may take before the page goes on without it */
+if (!defined('HYPAY_LINK_AUTO_CHECK_TIMEOUT')) { define('HYPAY_LINK_AUTO_CHECK_TIMEOUT', 15); }
+
+/**
+ * The payment link settings, and where they used to be.
+ *
+ * A link is not tied to the order's payment method - it is sent for an order
+ * placed with anything at all - so its settings are the add-on's own (Add-ons
+ * -> Hypay -> Settings), not one Hypay payment method's: with several of them
+ * nobody could tell whose settings a link went by. The add-on settings also
+ * name the payment method (the terminal) every link goes through.
+ *
+ * Before the add-on settings exist - files updated over an installation made
+ * without them, until fn_hypay_ensure_addon_settings() has added them - the
+ * keys that were payment method settings are read from the method, as before.
+ */
+function fn_hypay_link_settings_installed()
+{
+    $settings = Registry::get('addons.hypay');
+
+    return is_array($settings) && array_key_exists('link_payment_id', $settings);
+}
+
+/**
+ * One payment link setting.
+ *
+ * @param string     $key setting id, the same in the add-on settings and, for
+ *                        the ones that were there, in processor_params
+ * @param array|null $pp  processor_params to fall back on while the add-on
+ *                        settings are not installed
+ *
+ * @return mixed the stored value; '' when there is none
+ */
+function fn_hypay_link_setting($key, $pp = [])
+{
+    if (fn_hypay_link_settings_installed()) {
+        $value = Registry::get('addons.hypay.' . $key);
+
+        return $value === null ? '' : $value;
+    }
+
+    $pp = (array) $pp;
+
+    return $pp[$key] ?? '';
+}
+
+/**
+ * A multiple-choice setting as a plain list of the chosen values, whichever
+ * shape it is stored in: a list (processor_params), CS-Cart's
+ * [value => 'Y'] or its raw "#M#A=Y&B=Y", or a comma-separated string.
+ *
+ * @return string[]
+ */
+function fn_hypay_setting_list($value)
+{
+    if (is_string($value) && strpos($value, '#M#') === 0) {
+        $parsed = [];
+        parse_str(substr($value, 3), $parsed);
+        $value = $parsed;
+    }
+
+    if (is_array($value)) {
+        $list = [];
+        foreach ($value as $k => $v) {
+            if (is_string($k) && !is_numeric($k)) {
+                // [value => 'Y' | 'N'], or [value => value]
+                if ($v === 'Y' || $v === true || $v === 1 || $v === '1' || (string) $v === $k) {
+                    $list[] = $k;
+                }
+            } else {
+                $list[] = $v;
+            }
+        }
+    } else {
+        $list = explode(',', (string) $value);
+    }
+
+    return array_values(array_unique(array_filter(array_map('trim', array_map('strval', $list)), 'strlen')));
+}
+
+/**
+ * The order status a paid link gives every order it pays for: the payment
+ * link setting, or - left empty - the success status (J5: hold status) of the
+ * payment method the link went through.
+ */
+function fn_hypay_link_paid_order_status(array $pp, $j5 = false)
+{
+    $status = trim((string) fn_hypay_link_setting($j5 ? 'link_j5_status' : 'link_paid_status'));
+    if ($status === '') {
+        $status = trim((string) ($pp[$j5 ? 'j5_auth_status' : 'success_status'] ?? ''));
+    }
+
+    return fn_hypay_allowed_status($status !== '' ? $status : 'O');
+}
+
+/**
+ * The additional status a paid link gives every order it pays for: the
+ * payment link setting, or - left empty - the one the payment method gives a
+ * payment taken at checkout. '' for none.
+ */
+function fn_hypay_link_paid_additional_status(array $pp, $j5 = false)
+{
+    $status = trim((string) fn_hypay_link_setting($j5 ? 'link_j5_additional_status' : 'link_paid_additional_status'));
+    if ($status === '') {
+        $status = trim((string) ($pp[$j5 ? 'j5_auth_additional_status' : 'success_additional_status'] ?? ''));
+    }
+
+    return $status;
+}
+
+/**
+ * The add-on settings added after the add-on was installed.
+ *
+ * CS-Cart reads addon.xml's settings when an add-on is installed, and only
+ * then; files updated over an existing installation bring the new settings
+ * with them but not into the database. A reinstall would, and would also drop
+ * the payment processor the Hypay payment methods point to. So they are added
+ * here, through CS-Cart's own fn_update_addon_settings(), once - and the
+ * payment link settings get the values the Hypay payment method had for them.
+ *
+ * Should that not be possible on this CS-Cart version, nothing breaks: the
+ * payment link settings stay on the payment method page and are read from
+ * there (fn_hypay_link_setting()).
+ */
+function fn_hypay_ensure_addon_settings()
+{
+    static $done = false;
+    if ($done || !defined('AREA') || AREA !== 'A') { return; }
+    $done = true;
+
+    if (fn_hypay_link_settings_installed()
+        || !function_exists('fn_update_addon_settings')
+        || !class_exists('\Tygh\Addons\SchemesManager')
+        || !class_exists('\Tygh\Settings')
+    ) {
+        return;
+    }
+
+    try {
+        // The add-on had no settings before these, so a settings section of
+        // its own in the database means they are there already - the registry
+        // has only not caught up. Never added twice: that would put the values
+        // chosen since back to their defaults.
+        $settings = \Tygh\Settings::instance();
+        if (!empty($settings->getSectionByName('hypay', \Tygh\Settings::ADDON_SECTION))) {
+            return;
+        }
+
+        $scheme = \Tygh\Addons\SchemesManager::getScheme('hypay');
+        if (empty($scheme)) {
+            return;
+        }
+
+        fn_update_addon_settings($scheme);
+
+        $section = $settings->getSectionByName('hypay', \Tygh\Settings::ADDON_SECTION);
+        if (empty($section)) {
+            hypay_log(0, 'add-on settings: could not be added, the payment link settings stay on the payment method');
+
+            return;
+        }
+
+        // what the payment method links have gone through so far had
+        $pp_id = fn_hypay_find_hypay_payment_id();
+        $data  = $pp_id > 0 ? fn_get_payment_method_data($pp_id) : [];
+        $pp    = (is_array($data) && !empty($data['processor_params'])) ? (array) $data['processor_params'] : [];
+
+        $moved = [];
+        foreach (['link_order_statuses', 'link_lifetime_days', 'link_created_additional_status', 'link_cancelled_additional_status'] as $key) {
+            if (!isset($pp[$key]) || $pp[$key] === '' || $pp[$key] === []) {
+                continue;
+            }
+            $value = ($key === 'link_order_statuses') ? fn_hypay_setting_list($pp[$key]) : (string) $pp[$key];
+            $settings->updateValue($key, $value, 'hypay');
+            $moved[$key] = $value;
+        }
+
+        // this request goes on with them, the next one reads them from the database
+        foreach ((array) $scheme->getSections() as $tab) {
+            foreach ((array) ($tab['items'] ?? []) as $item) {
+                if (!empty($item['id']) && Registry::get('addons.hypay.' . $item['id']) === null) {
+                    Registry::set('addons.hypay.' . $item['id'], $item['default_value'] ?? '');
+                }
+            }
+        }
+        foreach ($moved as $key => $value) {
+            Registry::set('addons.hypay.' . $key, ($key === 'link_order_statuses') ? array_fill_keys($value, 'Y') : $value);
+        }
+        if (Registry::get('addons.hypay.link_payment_id') === null) {
+            Registry::set('addons.hypay.link_payment_id', '0');
+        }
+
+        hypay_log(0, 'add-on settings added; payment link settings taken from payment method #' . $pp_id, $moved);
+    } catch (\Throwable $e) {
+        hypay_log(0, 'add-on settings: could not be added (' . $e->getMessage() . '), the payment link settings stay on the payment method');
+    }
+}
+
+/* -- variants of the add-on's payment link settings (Add-ons -> Hypay) -- */
+
+/** every Hypay payment method, active or not: "Name - terminal 1234" */
+function fn_hypay_get_hypay_payment_methods()
+{
+    $rows = db_get_array(
+        "SELECT p.payment_id, p.status, p.processor_params, pd.payment FROM ?:payments AS p"
+        . " INNER JOIN ?:payment_processors AS pp ON pp.processor_id = p.processor_id"
+        . " LEFT JOIN ?:payment_descriptions AS pd ON pd.payment_id = p.payment_id AND pd.lang_code = ?s"
+        . " WHERE pp.processor_script = ?s OR pp.addon = ?s"
+        . " ORDER BY p.position, p.payment_id",
+        defined('DESCR_SL') ? DESCR_SL : CART_LANGUAGE,
+        'hypay.php',
+        'hypay'
+    );
+
+    $methods = [];
+    foreach ((array) $rows as $row) {
+        $pp    = @unserialize((string) $row['processor_params']);
+        $masof = is_array($pp) ? trim((string) ($pp['masof'] ?? '')) : '';
+        $name  = trim((string) $row['payment']) !== '' ? (string) $row['payment'] : '#' . $row['payment_id'];
+
+        $methods[(int) $row['payment_id']] = [
+            'name'   => $name,
+            'masof'  => $masof,
+            'active' => $row['status'] === 'A',
+        ];
+    }
+
+    return $methods;
+}
+
+function fn_settings_variants_addons_hypay_link_payment_id()
+{
+    $variants = ['0' => __('hypay_link_setting_method_auto')];
+    foreach (fn_hypay_get_hypay_payment_methods() as $payment_id => $method) {
+        $variants[$payment_id] = $method['name']
+            . ($method['masof'] !== '' ? ' — ' . __('hypay_link_terminal', ['[masof]' => $method['masof']]) : '')
+            . ($method['active'] ? '' : ' (' . __('disabled') . ')');
+    }
+
+    return $variants;
+}
+
+function fn_settings_variants_addons_hypay_link_order_statuses()
+{
+    return (array) fn_get_simple_statuses(defined('STATUSES_ORDER') ? STATUSES_ORDER : 'O');
+}
+
+function fn_settings_variants_addons_hypay_link_paid_status()
+{
+    return ['' => __('hypay_link_setting_as_method')] + fn_hypay_target_order_statuses();
+}
+
+function fn_settings_variants_addons_hypay_link_j5_status()
+{
+    return fn_settings_variants_addons_hypay_link_paid_status();
+}
+
+/** an additional status select: none, or the eCom Labs add-on's statuses */
+function fn_hypay_link_additional_status_variants($none_label)
+{
+    return ['' => __($none_label)] + fn_hypay_get_additional_statuses(defined('DESCR_SL') ? DESCR_SL : CART_LANGUAGE);
+}
+
+function fn_settings_variants_addons_hypay_link_created_additional_status()
+{
+    return fn_hypay_link_additional_status_variants('hypay_additional_status_none');
+}
+
+function fn_settings_variants_addons_hypay_link_cancelled_additional_status()
+{
+    return fn_hypay_link_additional_status_variants('hypay_additional_status_none');
+}
+
+function fn_settings_variants_addons_hypay_link_paid_additional_status()
+{
+    return fn_hypay_link_additional_status_variants('hypay_link_setting_as_method');
+}
+
+function fn_settings_variants_addons_hypay_link_j5_additional_status()
+{
+    return fn_hypay_link_additional_status_variants('hypay_link_setting_as_method');
+}
+
 /** a link row by its id */
 function fn_hypay_link_get($link_id)
 {
@@ -4148,21 +4456,17 @@ function fn_hypay_link_paid_label(array $link)
 
 /**
  * The order statuses whose orders the payment link panel offers to include,
- * per the payment method settings.
+ * per the payment link settings.
+ *
+ * @param array|null $pp processor_params, read while the add-on settings are
+ *                       not installed - untyped: the settings template hands
+ *                       this those of a method that has none saved yet
  *
  * @return string[] status codes, empty when the setting is empty
  */
-function fn_hypay_link_order_statuses($pp)
+function fn_hypay_link_order_statuses($pp = [])
 {
-    // untyped: the settings template hands this processor_params of a method
-    // that has none saved yet
-    $pp       = (array) $pp;
-    $statuses = $pp['link_order_statuses'] ?? [];
-    if (!is_array($statuses)) {
-        $statuses = explode(',', (string) $statuses);
-    }
-
-    return array_values(array_unique(array_filter(array_map('trim', array_map('strval', $statuses)), 'strlen')));
+    return fn_hypay_setting_list(fn_hypay_link_setting('link_order_statuses', (array) $pp));
 }
 
 /** does the link hold the money (J5) rather than charge it? */
@@ -4172,9 +4476,9 @@ function fn_hypay_link_is_j5(array $link)
 }
 
 /** how many days a link stays payable, per the settings; 0 for no limit */
-function fn_hypay_link_lifetime_days($pp)
+function fn_hypay_link_lifetime_days($pp = [])
 {
-    return max(0, (int) (((array) $pp)['link_lifetime_days'] ?? 0));
+    return max(0, (int) fn_hypay_link_setting('link_lifetime_days', (array) $pp));
 }
 
 /** when the link runs out, 0 when it never does */
@@ -4195,7 +4499,7 @@ function fn_hypay_link_expires_at(array $link, $pp)
  */
 function fn_hypay_link_set_orders_additional_status(array $link, array $pp, $setting)
 {
-    $status = trim((string) ($pp[$setting] ?? ''));
+    $status = trim((string) fn_hypay_link_setting($setting, $pp));
     if ($status === '') {
         return;
     }
@@ -4472,18 +4776,42 @@ function fn_hypay_find_hypay_payment_id()
 }
 
 /**
+ * The Hypay payment method the payment link settings name for every link,
+ * 0 when they leave it to the order (or name one that is no longer there).
+ * A disabled method still counts: a terminal kept for links alone need not be
+ * offered at checkout.
+ */
+function fn_hypay_link_configured_payment_id()
+{
+    $payment_id = (int) fn_hypay_link_setting('link_payment_id');
+    if ($payment_id <= 0) {
+        return 0;
+    }
+
+    $methods = fn_hypay_get_hypay_payment_methods();
+
+    return isset($methods[$payment_id]) ? $payment_id : 0;
+}
+
+/**
  * The Hypay payment method a payment link goes through - its terminal, its
  * statuses, its EzCount settings.
  *
- * The one the link was created with, once there is a link; before that the
- * order's own method when it is a Hypay one, and the shop's Hypay method when
- * it is not - an order taken by phone, or placed with bank transfer, can be
- * paid by link as well.
+ * The one the link was created with, once there is a link. Before that, the
+ * one the payment link settings name; when they leave it open, the order's
+ * own method when it is a Hypay one, and the shop's Hypay method when it is
+ * not - an order taken by phone, or placed with bank transfer, can be paid by
+ * link as well.
  */
 function fn_hypay_link_payment_id(array $order_info, array $link = [])
 {
     if (!empty($link['payment_id'])) {
         return (int) $link['payment_id'];
+    }
+
+    $configured = fn_hypay_link_configured_payment_id();
+    if ($configured > 0) {
+        return $configured;
     }
 
     $order_id = (int) ($order_info['order_id'] ?? 0);
@@ -5111,6 +5439,82 @@ function fn_hypay_link_cancel($order_id)
 }
 
 /**
+ * LIST: the most recent links of the terminal, by payRequestId.
+ *
+ * @param string $error what went wrong, when null is returned
+ * @param string $ccode Hyp's CCode, when it answered with one
+ *
+ * @return array|null [payRequestId => row], null when Hyp gave no list
+ */
+function fn_hypay_link_list(array $pp, $order_id, $timeout, &$error = '', &$ccode = '')
+{
+    $credentials = fn_hypay_link_credentials($pp);
+    if (!$credentials) {
+        $error = __('hypay_link_error_no_credentials');
+
+        return null;
+    }
+
+    $result = fn_hypay_link_api_request($order_id, $credentials + [
+        'action'   => 'payRequest',
+        'iCommand' => 'LIST',
+    ], 'link.list', $timeout);
+
+    if ($result['json'] === null) {
+        $ccode = (string) ($result['params']['CCode'] ?? '');
+        $error = fn_hypay_format_error($ccode, $result['params']['errMsg'] ?? '', $result['raw']);
+        hypay_log($order_id, 'link.list FAILED', $error);
+
+        return null;
+    }
+
+    $rows = [];
+    foreach ($result['json'] as $row) {
+        if (is_array($row) && (string) ($row['payRequestId'] ?? '') !== '') {
+            $rows[(string) $row['payRequestId']] = $row;
+        }
+    }
+
+    return $rows;
+}
+
+/**
+ * Record what LIST says about an active link: paid (status 3) settles every
+ * order it pays for, cancelled from the Hyp portal (status 0) cancels it here
+ * too. No notification - the caller says what it has to say.
+ *
+ * @return string paid | cancelled | active
+ */
+function fn_hypay_link_apply_list_item($order_id, array $link, array $pp, array $item)
+{
+    $status = (string) ($item['status'] ?? '');
+    hypay_log($order_id, 'link.list: status', ['payRequestId' => $link['pay_request_id'], 'status' => $status, 'transId' => $item['transId'] ?? null]);
+
+    if ($status === '3') {
+        fn_hypay_link_settle_from_list($order_id, $link, (string) ($item['transId'] ?? ''));
+
+        return 'paid';
+    }
+
+    if ($status === '0') {
+        // cancelled from the Hyp portal rather than from here
+        $cancelled = db_query(
+            "UPDATE ?:hypay_payment_links SET status = 'cancelled', cancelled_at = ?i, last_error = ?s WHERE link_id = ?i AND status = 'active'",
+            TIME,
+            __('hypay_link_check_cancelled_remote'),
+            $link['link_id']
+        );
+        if ($cancelled) {
+            fn_hypay_link_set_orders_additional_status($link, $pp, 'link_cancelled_additional_status');
+        }
+
+        return 'cancelled';
+    }
+
+    return 'active';
+}
+
+/**
  * Ask Hyp what became of the order's active link (iCommand=LIST).
  *
  * @param bool $quiet   no notification unless something actually changed -
@@ -5144,11 +5548,10 @@ function fn_hypay_link_check($order_id, $quiet = false, $timeout = 45)
     }
 
     $order_info = fn_get_order_info($order_id);
-    $pp         = fn_hypay_link_processor_params($order_info, $link);
+    $pp         = fn_hypay_link_processor_params((array) $order_info, $link);
     $GLOBALS['HYPAY_DEBUG'] = (!empty($pp['debug_mode']) && $pp['debug_mode'] === 'Y');
 
-    $credentials = fn_hypay_link_credentials($pp);
-    if (!$credentials) {
+    if (!fn_hypay_link_credentials($pp)) {
         if (!$quiet) {
             fn_set_notification('E', __('error'), __('hypay_link_error_no_credentials'));
         }
@@ -5158,30 +5561,18 @@ function fn_hypay_link_check($order_id, $quiet = false, $timeout = 45)
 
     db_query("UPDATE ?:hypay_payment_links SET checked_at = ?i WHERE link_id = ?i", TIME, $link['link_id']);
 
-    $result = fn_hypay_link_api_request($order_id, $credentials + [
-        'action'   => 'payRequest',
-        'iCommand' => 'LIST',
-    ], 'link.list', $timeout);
-
-    if ($result['json'] === null) {
-        $error = fn_hypay_format_error($result['params']['CCode'] ?? '', $result['params']['errMsg'] ?? '', $result['raw']);
-        hypay_log($order_id, 'link.list FAILED', $error);
+    $error = $ccode = '';
+    $rows  = fn_hypay_link_list($pp, $order_id, $timeout, $error, $ccode);
+    if ($rows === null) {
         if (!$quiet) {
             fn_set_notification('E', __('error'), __('hypay_link_check_failed') . ' ' . $error
-                . fn_hypay_link_permission_hint($result['params']['CCode'] ?? '', $pp));
+                . fn_hypay_link_permission_hint($ccode, $pp));
         }
 
         return 'unknown';
     }
 
-    $item = null;
-    foreach ($result['json'] as $row) {
-        if (is_array($row) && (string) ($row['payRequestId'] ?? '') === (string) $link['pay_request_id']) {
-            $item = $row;
-            break;
-        }
-    }
-
+    $item = $rows[(string) $link['pay_request_id']] ?? null;
     if ($item === null) {
         hypay_log($order_id, 'link.list: link not among the recent ones', ['payRequestId' => $link['pay_request_id']]);
         if (!$quiet) {
@@ -5191,58 +5582,155 @@ function fn_hypay_link_check($order_id, $quiet = false, $timeout = 45)
         return 'unknown';
     }
 
-    $status = (string) ($item['status'] ?? '');
-    hypay_log($order_id, 'link.list: status', ['payRequestId' => $link['pay_request_id'], 'status' => $status, 'transId' => $item['transId'] ?? null]);
+    $state = fn_hypay_link_apply_list_item($order_id, $link, $pp, $item);
 
-    if ($status === '3') {
-        fn_hypay_link_settle_from_list($order_id, $link, (string) ($item['transId'] ?? ''));
+    if ($state === 'paid') {
         fn_set_notification(
             fn_hypay_link_is_j5($link) ? 'W' : 'N',
             fn_hypay_link_is_j5($link) ? __('warning') : __('notice'),
             fn_hypay_link_is_j5($link) ? __('hypay_link_j5_list_no_return') : __('hypay_link_check_paid')
         );
-
-        return 'paid';
-    }
-
-    if ($status === '0') {
-        // cancelled from the Hyp portal rather than from here
-        db_query(
-            "UPDATE ?:hypay_payment_links SET status = 'cancelled', cancelled_at = ?i, last_error = ?s WHERE link_id = ?i AND status = 'active'",
-            TIME,
-            __('hypay_link_check_cancelled_remote'),
-            $link['link_id']
-        );
-        fn_hypay_link_set_orders_additional_status($link, $pp, 'link_cancelled_additional_status');
+    } elseif ($state === 'cancelled') {
         fn_set_notification('W', __('warning'), __('hypay_link_check_cancelled_remote'));
-
-        return 'cancelled';
-    }
-
-    if (!$quiet) {
+    } elseif (!$quiet) {
         fn_set_notification('N', __('notice'), __('hypay_link_check_unpaid'));
     }
 
-    return 'active';
+    return $state;
+}
+
+/** processor_params of a payment method, read once per request */
+function fn_hypay_payment_processor_params($payment_id)
+{
+    static $cache = [];
+
+    $payment_id = (int) $payment_id;
+    if (!isset($cache[$payment_id])) {
+        $data = $payment_id > 0 ? fn_get_payment_method_data($payment_id) : [];
+        $cache[$payment_id] = (is_array($data) && !empty($data['processor_params'])) ? (array) $data['processor_params'] : [];
+    }
+
+    return $cache[$payment_id];
 }
 
 /**
- * The page-open lookup: at most once a minute per link, and with a short
- * timeout, so an order page is never held up for long by a slow gateway.
- * A link past its lifetime is expired first - see fn_hypay_link_expire_if_due().
+ * The lookup the admin panel makes on its own: what became of the payment
+ * links still out, so a payment whose return never reached the store is on the
+ * order list and the order page the first time anyone looks - status,
+ * additional status, document and all - without anybody pressing Check payment.
+ *
+ * LIST answers for every recent link of a terminal at once, so it is one call
+ * per terminal, however many links are out. Each link is asked about at most
+ * once per HYPAY_LINK_AUTO_CHECK_INTERVAL, with a short timeout, so the page
+ * is never held up for long by a slow gateway. A link past its lifetime is
+ * expired instead - see fn_hypay_link_expire_if_due(). Signed payment pages
+ * are not payRequests: LIST does not know them, their payment comes with the
+ * customer's return.
+ *
+ * @param int[]|null $order_ids only the links of these orders; null for all
+ *
+ * @return array [paid|cancelled => order ids] what the lookup changed
+ */
+function fn_hypay_link_auto_check_all($order_ids = null)
+{
+    fn_hypay_ensure_schema();
+
+    $changed = ['paid' => [], 'cancelled' => []];
+
+    if ($order_ids !== null) {
+        $order_ids = array_values(array_filter(array_map('intval', (array) $order_ids)));
+        if (empty($order_ids)) {
+            return $changed;
+        }
+        $links = db_get_array(
+            "SELECT DISTINCT l.* FROM ?:hypay_payment_links AS l"
+            . " INNER JOIN ?:hypay_payment_link_orders AS lo ON lo.link_id = l.link_id"
+            . " WHERE l.status = 'active' AND lo.order_id IN (?n) ORDER BY l.link_id",
+            $order_ids
+        );
+    } else {
+        $links = db_get_array("SELECT * FROM ?:hypay_payment_links WHERE status = 'active' ORDER BY link_id");
+    }
+
+    // the links to ask about, by terminal: one LIST answers for all of them
+    $groups = [];
+    foreach ((array) $links as $link) {
+        $pp = fn_hypay_payment_processor_params($link['payment_id']);
+
+        $expires_at = fn_hypay_link_expires_at($link, $pp);
+        if ($expires_at > 0 && $expires_at <= TIME) {
+            fn_hypay_link_expire_if_due($link['order_id']);
+            continue;
+        }
+
+        if (($link['kind'] ?? 'request') === 'sign' || (int) $link['checked_at'] > TIME - HYPAY_LINK_AUTO_CHECK_INTERVAL) {
+            continue;
+        }
+
+        $credentials = fn_hypay_link_credentials($pp);
+        if (!$credentials) {
+            continue;
+        }
+
+        $terminal = $credentials['Masof'];
+        if (!isset($groups[$terminal])) {
+            $groups[$terminal] = ['pp' => $pp, 'links' => []];
+        }
+        $groups[$terminal]['links'][] = $link;
+    }
+
+    foreach ($groups as $group) {
+        $pp = $group['pp'];
+        $GLOBALS['HYPAY_DEBUG'] = (!empty($pp['debug_mode']) && $pp['debug_mode'] === 'Y');
+
+        $link_ids = array_map(static function ($l) { return (int) $l['link_id']; }, $group['links']);
+        db_query("UPDATE ?:hypay_payment_links SET checked_at = ?i WHERE link_id IN (?n)", TIME, $link_ids);
+
+        $first = reset($group['links']);
+        $rows  = fn_hypay_link_list($pp, (int) $first['order_id'], HYPAY_LINK_AUTO_CHECK_TIMEOUT);
+        if ($rows === null) {
+            continue;
+        }
+
+        foreach ($group['links'] as $link) {
+            $item = $rows[(string) $link['pay_request_id']] ?? null;
+            if ($item === null) {
+                continue;
+            }
+
+            // each link with the payment method it was made through
+            $link_pp = fn_hypay_payment_processor_params($link['payment_id']);
+            $state   = fn_hypay_link_apply_list_item((int) $link['order_id'], $link, $link_pp, $item);
+            if ($state === 'paid' && fn_hypay_link_is_j5($link)) {
+                // a hold LIST found is not recorded without the return - see
+                // fn_hypay_link_settle_from_list()
+                fn_set_notification('W', __('warning'), '#' . (int) $link['order_id'] . ': ' . __('hypay_link_j5_list_no_return'));
+            } elseif (isset($changed[$state])) {
+                $changed[$state] = array_merge($changed[$state], fn_hypay_link_order_ids($link));
+            }
+        }
+    }
+
+    if (!empty($changed['paid'])) {
+        fn_set_notification('N', __('notice'), __('hypay_link_auto_paid', [
+            '[orders]' => '#' . implode(', #', array_unique($changed['paid'])),
+        ]));
+    }
+    if (!empty($changed['cancelled'])) {
+        fn_set_notification('W', __('warning'), __('hypay_link_auto_cancelled', [
+            '[orders]' => '#' . implode(', #', array_unique($changed['cancelled'])),
+        ]));
+    }
+
+    return $changed;
+}
+
+/**
+ * The page-open lookup for one order - see fn_hypay_link_auto_check_all().
  */
 function fn_hypay_link_auto_check($order_id)
 {
-    if (fn_hypay_link_expire_if_due($order_id)) {
-        return;
-    }
-
-    $link = fn_hypay_link_get_active($order_id);
-    if (empty($link) || (int) $link['checked_at'] > TIME - 60 || ($link['kind'] ?? 'request') === 'sign') {
-        return;
-    }
-
-    fn_hypay_link_check($order_id, true, 10);
+    fn_hypay_link_auto_check_all([(int) $order_id]);
 }
 
 /**
@@ -5271,13 +5759,16 @@ function fn_hypay_link_claim_paid($link_id, $via, $trans_id = '')
 
 /**
  * Record a link payment on the order: payment information, status, and the
- * additional status an ordinary charge gets.
+ * additional status the payment link settings give a paid (J5: held) link -
+ * see fn_hypay_link_paid_additional_status().
  *
  * Not fn_finish_payment(): that only acts on an order a checkout payment was
  * started for, and a link is paid without one - an order placed from the admin
  * panel, or one whose checkout payment has already come back declined.
+ *
+ * @param bool $j5 the link held the money (J5) rather than charging it
  */
-function fn_hypay_link_finish_order($order_id, array $pp_response, array $pp, $additional_setting = 'success_additional_status')
+function fn_hypay_link_finish_order($order_id, array $pp_response, array $pp, $j5 = false)
 {
     $status = (string) ($pp_response['order_status'] ?? '');
     unset($pp_response['order_status']);
@@ -5291,13 +5782,12 @@ function fn_hypay_link_finish_order($order_id, array $pp_response, array $pp, $a
     }
 
     // a J5 hold gets the additional status of a hold, a charge that of a charge
-    if (!empty($pp[$additional_setting])) {
-        fn_hypay_set_additional_status($order_id, $pp[$additional_setting]);
+    $additional = fn_hypay_link_paid_additional_status($pp, $j5);
+    if ($additional !== '') {
+        fn_hypay_set_additional_status($order_id, $additional);
     }
 
-    fn_hypay_order_note($order_id, $additional_setting === 'success_additional_status'
-        ? 'paid by payment link'
-        : 'held (J5) by payment link');
+    fn_hypay_order_note($order_id, $j5 ? 'held (J5) by payment link' : 'paid by payment link');
 }
 
 /**
@@ -5366,7 +5856,7 @@ function fn_hypay_link_settle_from_list($order_id, array $link, $trans_id)
     $pp_response = [
         'reason_text'  => '🟢 Success',
         'hypay_link'   => fn_hypay_link_paid_label($link),
-        'order_status' => fn_hypay_allowed_status(!empty($pp['success_status']) ? $pp['success_status'] : 'O'),
+        'order_status' => fn_hypay_link_paid_order_status($pp),
     ];
     if ($trans_id !== '') {
         $pp_response['transaction_id'] = $trans_id;
@@ -5393,9 +5883,11 @@ function fn_hypay_link_settle_from_list($order_id, array $link, $trans_id)
 /**
  * Which document a paid payment link gets, per the settings.
  *
- * Direct API and Integrated are set separately ("ez_link_doc_type" and
- * "ez_int_link_doc_type"), each one of: 320 tax invoice receipt, 400 receipt,
- * none. Unset means 320 - a link is a sale like any other.
+ * The payment link settings choose it for every link ("link_doc_type"); left
+ * to the payment method ("method"), the EzCount settings of the payment method the link goes through do -
+ * Direct API and Integrated set separately ("ez_link_doc_type" and
+ * "ez_int_link_doc_type"). Each is one of: 320 tax invoice receipt, 400
+ * receipt, none. Unset means 320 - a link is a sale like any other.
  *
  * @param string $mode direct | integrated
  *
@@ -5403,8 +5895,11 @@ function fn_hypay_link_settle_from_list($order_id, array $link, $trans_id)
  */
 function fn_hypay_link_doc_type(array $pp, $mode)
 {
-    $key   = ($mode === 'integrated') ? 'ez_int_link_doc_type' : 'ez_link_doc_type';
-    $value = trim((string) ($pp[$key] ?? ''));
+    $value = trim((string) fn_hypay_link_setting('link_doc_type'));
+    if ($value === '' || $value === 'method') {
+        $key   = ($mode === 'integrated') ? 'ez_int_link_doc_type' : 'ez_link_doc_type';
+        $value = trim((string) ($pp[$key] ?? ''));
+    }
 
     if ($value === 'none') {
         return 'none';
@@ -5703,9 +6198,16 @@ function fn_hypay_get_link_panel_data($order_id)
         }
     }
 
+    // which Hypay payment method - which terminal - the link goes through, so
+    // nobody has to guess with several of them set up
+    $link_methods = fn_hypay_get_hypay_payment_methods();
+    $link_method  = $link_methods[fn_hypay_link_payment_id($order_info, $link)] ?? [];
+
     return [
         'order_id'      => $order_id,
         'state'         => $state,
+        'method_name'   => (string) ($link_method['name'] ?? ''),
+        'method_masof'  => (string) ($link_method['masof'] ?? ''),
         'payment_url'   => (string) ($link['payment_url'] ?? ''),
         'sent_to'       => (string) ($link['sent_to'] ?? ''),
         'amount'        => $amount,

@@ -108,6 +108,19 @@
  {* --- Payment links --- *}
  <h3>{__("hypay_link_section")}</h3>
 
+ {* A link is not tied to the order's payment method, so its settings are the
+    add-on's (Add-ons -> Hypay -> Settings), the same for every link whichever
+    method the order was placed with. They are shown here only on an
+    installation the add-on settings could not be added to - see
+    fn_hypay_ensure_addon_settings() - and are then read from here. *}
+ {if ""|fn_hypay_link_settings_installed}
+ <div class="control-group">
+     <div class="controls">
+         <p>{__("hypay_link_settings_moved", ["[url]" => "addons.update?addon=hypay&selected_section=settings"|fn_url])}</p>
+     </div>
+ </div>
+ {else}
+
  {* The customer's other orders the payment link panel offers to pay for with
     the same link. Only these statuses are listed; none selected lists none,
     and the link then pays for the order it is created from alone. *}
@@ -178,6 +191,7 @@
          <input type="hidden" name="payment_data[processor_params][{$hypay_link_add_key}]" value="{$hypay_link_add_value|escape}" />
      {/if}
  {/foreach}
+ {/if}
 
  <hr>
 

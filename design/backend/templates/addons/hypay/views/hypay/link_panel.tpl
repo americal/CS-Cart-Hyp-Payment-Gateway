@@ -56,6 +56,15 @@
             <span class="hypay-lp-summary__label">{__("phone")}</span>
             <span class="hypay-lp-summary__value"><bdi>{$hypay_link.cell|default:"—"}</bdi></span>
         </div>
+        {if $hypay_link.method_name}
+            <div class="hypay-lp-summary__item">
+                <span class="hypay-lp-summary__label">{__("hypay_link_method")}</span>
+                <span class="hypay-lp-summary__value">
+                    {$hypay_link.method_name}
+                    {if $hypay_link.method_masof}<small class="muted">({__("hypay_link_terminal", ["[masof]" => $hypay_link.method_masof])})</small>{/if}
+                </span>
+            </div>
+        {/if}
         {if $hypay_link.doc_type}
             <div class="hypay-lp-summary__item">
                 <span class="hypay-lp-summary__label">{__("hypay_link_document_after")}</span>

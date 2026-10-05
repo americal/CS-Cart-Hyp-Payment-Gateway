@@ -22,6 +22,8 @@ if (function_exists('fn_check_permissions') && !fn_check_permissions('orders', '
     return [CONTROLLER_STATUS_DENIED];
 }
 
+fn_hypay_ensure_addon_settings();
+
 // The payment link window, opened from the order's tools menu and loaded into
 // a dialog (cm-dialog-opener + cm-ajax). The only GET here: it reads, and the
 // buttons inside it post to the modes below.
