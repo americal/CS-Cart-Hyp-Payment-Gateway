@@ -249,8 +249,9 @@ if (defined('PAYMENT_NOTIFICATION')) {
 
             if ($claimed) {
                 // every order the link pays for gets the same payment
-                // information and moves to the success status
-                $pp_response['order_status'] = $success_status;
+                // information and moves to the status the payment link
+                // settings give a paid link
+                $pp_response['order_status'] = fn_hypay_link_paid_order_status($pp);
                 hypay_log($order_id, 'payment link paid', $pp_response + ['orders' => fn_hypay_link_order_ids($hypay_link)]);
                 fn_hypay_link_finish_orders($hypay_link, $pp_response, $pp);
 
@@ -415,9 +416,10 @@ if (defined('PAYMENT_NOTIFICATION')) {
                 db_query("UPDATE ?:hypay_payment_links SET last_error = '' WHERE link_id = ?i", $hypay_link['link_id']);
                 $hypay_link = fn_hypay_link_get($hypay_link['link_id']);
 
-                $pp_response['hypay_link'] = fn_hypay_link_paid_label($hypay_link);
+                $pp_response['hypay_link']   = fn_hypay_link_paid_label($hypay_link);
+                $pp_response['order_status'] = fn_hypay_link_paid_order_status($pp, true);
                 hypay_log($order_id, 'payment link held (J5)', $pp_response);
-                fn_hypay_link_finish_order($order_id, $pp_response, $pp, 'j5_auth_additional_status');
+                fn_hypay_link_finish_order($order_id, $pp_response, $pp, true);
 
                 fn_set_notification('N', __('notice'), __('hypay_link_customer_authorized', ['[order_id]' => $order_id]));
             } else {

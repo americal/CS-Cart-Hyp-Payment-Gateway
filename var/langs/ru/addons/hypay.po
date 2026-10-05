@@ -1109,11 +1109,11 @@ msgstr "Не создавать документ"
 
 msgctxt "Languages::hypay_ez_link_doc_type_desc"
 msgid "The EzCount document issued through the Direct API when a customer pays with a payment link sent from the order page. It is recorded on the order the same way as after a payment on the site."
-msgstr "Документ EzCount, который создаётся через Direct API, когда покупатель оплачивает ссылку, отправленную со страницы заказа. Он записывается в заказ так же, как после оплаты на сайте."
+msgstr "Документ EzCount, который создаётся через Direct API, когда покупатель оплачивает ссылку, отправленную со страницы заказа. Он записывается в заказ так же, как после оплаты на сайте. Настройки модуля (Ссылки на оплату → Документ после оплаты по ссылке) могут задать его для всех ссылок вместо этого."
 
 msgctxt "Languages::hypay_ez_int_link_doc_type_desc"
 msgid "The document Hyp issues itself when a customer pays with a payment link. \"No document\" stops the add-on from asking Hyp for one; if the terminal's invoice module is set to issue a document on every payment, Hyp may still do so."
-msgstr "Документ, который Hyp создаёт сам, когда покупатель оплачивает ссылку. «Не создавать документ» — аддон не просит Hyp о документе; если модуль счетов терминала настроен выпускать документ на каждую оплату, Hyp может всё равно его создать."
+msgstr "Документ, который Hyp создаёт сам, когда покупатель оплачивает ссылку. «Не создавать документ» — аддон не просит Hyp о документе; если модуль счетов терминала настроен выпускать документ на каждую оплату, Hyp может всё равно его создать. Настройки модуля (Ссылки на оплату → Документ после оплаты по ссылке) могут задать его для всех ссылок вместо этого."
 
 msgctxt "Languages::hypay_link_document"
 msgid "Document"
@@ -1430,3 +1430,153 @@ msgstr "Перейти к оплате"
 msgctxt "Languages::hypay_unpaid_basket_changed"
 msgid "The cart was changed after order #[order_id] was created, so that order cannot be paid. Check the cart and press \"Place order\" again - a new order will be created and the payment form will open."
 msgstr "Корзина изменилась после создания заказа #[order_id], поэтому оплатить его нельзя. Проверьте корзину и нажмите «Разместить заказ» ещё раз — будет создан новый заказ и откроется форма оплаты."
+
+# Payment link settings (Add-ons -> Hypay -> Settings), automatic payment check
+
+msgctxt "Languages::hypay_link_setting_method_auto"
+msgid "— the order's own Hypay method, otherwise the first active one —"
+msgstr "— Hypay-метод самого заказа, иначе первый активный —"
+
+msgctxt "Languages::hypay_link_setting_as_method"
+msgid "— as the payment method sets —"
+msgstr "— как в настройках метода оплаты —"
+
+msgctxt "Languages::hypay_link_terminal"
+msgid "terminal [masof]"
+msgstr "терминал [masof]"
+
+msgctxt "Languages::hypay_link_method"
+msgid "Goes through"
+msgstr "Через метод оплаты"
+
+msgctxt "Languages::hypay_link_settings_moved"
+msgid "Payment link settings are the same for every link, whatever payment method the order was placed with: they are set in <a href=\"[url]\">Add-ons → Hypay → Settings</a>, which also names the payment method (terminal) every link goes through."
+msgstr "Настройки ссылок на оплату общие для всех ссылок, каким бы методом ни был оформлен заказ: они задаются в <a href=\"[url]\">Модули → Hypay → Настройки</a>, там же выбирается метод оплаты (терминал), через который идут все ссылки."
+
+msgctxt "Languages::hypay_link_auto_paid"
+msgid "Paid by payment link, the payment has been recorded: order [orders]."
+msgstr "Оплачено по ссылке, оплата записана в заказ: [orders]."
+
+msgctxt "Languages::hypay_link_auto_cancelled"
+msgid "The payment link was cancelled in the Hyp portal: order [orders]."
+msgstr "Ссылка на оплату отменена в портале Hyp: заказ [orders]."
+
+msgctxt "SettingsSections::hypay::payment_links"
+msgid "Payment links"
+msgstr "Ссылки на оплату"
+
+msgctxt "SettingsOptions::hypay::link_terminal_header"
+msgid "Terminal and document"
+msgstr "Терминал и документ"
+
+msgctxt "SettingsOptions::hypay::link_payment_id"
+msgid "Payment method (terminal) for payment links"
+msgstr "Метод оплаты (терминал) для ссылок"
+
+msgctxt "SettingsTooltips::hypay::link_payment_id"
+msgid "Every new payment link goes through this Hypay payment method - its terminal and PassP, its EzCount settings, its payment page settings - whatever method the order itself was placed with. A disabled method can be chosen too: a terminal kept for links alone need not be offered at checkout. A link already created keeps the method it was created with. The payment link window says which method a link goes through."
+msgstr "Каждая новая ссылка на оплату идёт через этот Hypay-метод оплаты - его терминал и PassP, его настройки EzCount и страницы оплаты - каким бы методом ни был оформлен сам заказ. Можно выбрать и выключенный метод: терминал только для ссылок не обязательно показывать при оформлении заказа. Уже созданная ссылка остаётся с методом, через который была создана. Окно ссылки показывает, через какой метод она идёт."
+
+msgctxt "SettingsOptions::hypay::link_lifetime_days"
+msgid "Link lifetime, days"
+msgstr "Срок действия ссылки, дней"
+
+msgctxt "SettingsTooltips::hypay::link_lifetime_days"
+msgid "After this many days an unpaid link is withdrawn at Hyp and shown as expired in the payment link window, which offers to create a new one. Empty or 0: no limit."
+msgstr "Через столько дней неоплаченная ссылка отзывается в Hyp и показывается в окне ссылки как истёкшая, с предложением создать новую. Пусто или 0: без ограничения."
+
+msgctxt "SettingsOptions::hypay::link_doc_type"
+msgid "Document after a payment link is paid"
+msgstr "Документ после оплаты по ссылке"
+
+msgctxt "SettingsTooltips::hypay::link_doc_type"
+msgid "The EzCount document a paid link produces, in the EzCount mode of the payment method the link goes through: Direct API - the add-on issues it; Integrated - Hyp issues it. \"As the payment method sets\" keeps that method's own setting."
+msgstr "Документ EzCount после оплаты по ссылке, в режиме EzCount метода оплаты, через который идёт ссылка: Direct API - его создаёт модуль; Integrated - его создаёт Hyp. «Как в настройках метода оплаты» - берётся настройка самого метода."
+
+msgctxt "SettingsVariants::hypay::link_doc_type::method"
+msgid "— as the payment method sets —"
+msgstr "— как в настройках метода оплаты —"
+
+msgctxt "SettingsVariants::hypay::link_doc_type::320"
+msgid "Tax Invoice Receipt (320)"
+msgstr "Налоговая счёт-квитанция (320)"
+
+msgctxt "SettingsVariants::hypay::link_doc_type::400"
+msgid "Receipt (400)"
+msgstr "Квитанция (400)"
+
+msgctxt "SettingsVariants::hypay::link_doc_type::none"
+msgid "No document"
+msgstr "Без документа"
+
+msgctxt "SettingsOptions::hypay::link_orders_header"
+msgid "Several orders in one link"
+msgstr "Несколько заказов в одной ссылке"
+
+msgctxt "SettingsOptions::hypay::link_order_statuses"
+msgid "Customer's orders offered in the link"
+msgstr "Заказы покупателя, предлагаемые в ссылке"
+
+msgctxt "SettingsTooltips::hypay::link_order_statuses"
+msgid "When a payment link is created from an order, the window lists the customer's other orders with these statuses, so several orders can be paid with one link. Orders that already have a document attached or a link of their own cannot be ticked. Select none to always pay for the one order only."
+msgstr "Когда ссылка создаётся из заказа, окно показывает другие заказы этого покупателя с этими статусами, чтобы оплатить несколько заказов одной ссылкой. Заказы, у которых уже есть документ или своя ссылка, отметить нельзя. Ничего не выбрано - ссылка всегда оплачивает только один заказ."
+
+msgctxt "SettingsOptions::hypay::link_statuses_header"
+msgid "Order statuses"
+msgstr "Статусы заказов"
+
+msgctxt "SettingsOptions::hypay::link_paid_status"
+msgid "Order status after the link is paid"
+msgstr "Статус заказа после оплаты по ссылке"
+
+msgctxt "SettingsTooltips::hypay::link_paid_status"
+msgid "Every order the paid link covers moves to this status once the payment is recorded - from the customer's return or from the automatic check. \"As the payment method sets\": the success status of the payment method the link went through."
+msgstr "Каждый заказ, оплаченный ссылкой, переходит в этот статус, как только оплата записана - по возврату покупателя или при автоматической проверке. «Как в настройках метода оплаты» - статус успешной оплаты метода, через который шла ссылка."
+
+msgctxt "SettingsOptions::hypay::link_paid_additional_status"
+msgid "Additional status after the link is paid"
+msgstr "Доп. статус после оплаты по ссылке"
+
+msgctxt "SettingsTooltips::hypay::link_paid_additional_status"
+msgid "Every order the paid link covers gets this additional status once the payment is recorded. \"As the payment method sets\": the additional status that method gives a successful payment. Needs the Additional Order Statuses add-on (eCom Labs)."
+msgstr "Каждый заказ, оплаченный ссылкой, получает этот доп. статус, как только оплата записана. «Как в настройках метода оплаты» - доп. статус, который метод даёт успешной оплате. Нужен модуль Additional Order Statuses (eCom Labs)."
+
+msgctxt "SettingsOptions::hypay::link_j5_status"
+msgid "Order status after a J5 link is held"
+msgstr "Статус заказа после J5-ссылки (холд)"
+
+msgctxt "SettingsTooltips::hypay::link_j5_status"
+msgid "The order of a J5 (hold only) link moves to this status once the hold comes back. \"As the payment method sets\": that method's J5 authorization status."
+msgstr "Заказ J5-ссылки (только холд) переходит в этот статус, когда приходит холд. «Как в настройках метода оплаты» - статус J5-авторизации этого метода."
+
+msgctxt "SettingsOptions::hypay::link_j5_additional_status"
+msgid "Additional status after a J5 link is held"
+msgstr "Доп. статус после J5-ссылки (холд)"
+
+msgctxt "SettingsTooltips::hypay::link_j5_additional_status"
+msgid "The order of a J5 (hold only) link gets this additional status once the hold comes back. \"As the payment method sets\": that method's J5 additional status. Needs the Additional Order Statuses add-on (eCom Labs)."
+msgstr "Заказ J5-ссылки (только холд) получает этот доп. статус, когда приходит холд. «Как в настройках метода оплаты» - доп. статус J5 этого метода. Нужен модуль Additional Order Statuses (eCom Labs)."
+
+msgctxt "SettingsOptions::hypay::link_created_additional_status"
+msgid "Additional status after the link is created"
+msgstr "Доп. статус после создания ссылки"
+
+msgctxt "SettingsTooltips::hypay::link_created_additional_status"
+msgid "Every order the payment link pays for gets this additional status once the link is created. Needs the Additional Order Statuses add-on (eCom Labs)."
+msgstr "Каждый заказ, который оплачивает ссылка, получает этот доп. статус, как только ссылка создана. Нужен модуль Additional Order Statuses (eCom Labs)."
+
+msgctxt "SettingsOptions::hypay::link_cancelled_additional_status"
+msgid "Additional status after the link is cancelled"
+msgstr "Доп. статус после отмены ссылки"
+
+msgctxt "SettingsTooltips::hypay::link_cancelled_additional_status"
+msgid "Every order the payment link paid for gets this additional status once the link is cancelled - from the order page or from the Hyp portal - or expires. Needs the Additional Order Statuses add-on (eCom Labs)."
+msgstr "Каждый заказ ссылки получает этот доп. статус, когда ссылка отменена - со страницы заказа или в портале Hyp - или истекла. Нужен модуль Additional Order Statuses (eCom Labs)."
+
+msgctxt "SettingsOptions::hypay::link_list_check_minutes"
+msgid "Order list: check payment links every, minutes"
+msgstr "Список заказов: проверять ссылки каждые, минут"
+
+msgctxt "SettingsTooltips::hypay::link_list_check_minutes"
+msgid "While at least one payment link is still payable, opening the order list asks Hyp about all of them at most this often - one request per terminal - and records the payments it finds on every order of the link. A link past its lifetime does not count; it is marked expired the next time a check runs. Opening an order with a link asks about that link straight away, every time. 0: the order list never asks. Empty: 5."
+msgstr "Пока есть хотя бы одна действующая ссылка, при открытии списка заказов Hyp опрашивается обо всех ссылках не чаще этого интервала - один запрос на терминал - и найденные оплаты записываются во все заказы ссылки. Ссылка с истёкшим сроком действия не считается; при следующей проверке она помечается как истёкшая. При открытии самого заказа со ссылкой она проверяется сразу, каждый раз. 0: список заказов не проверяет. Пусто: 5."

@@ -448,6 +448,38 @@ Authorizations and captures are stored in `?:hypay_transactions` (kept on uninst
 
 ## 🔗 Payment links (pay by SMS / e-mail)
 
+**Settings.** A link is not tied to the order's payment method — it can be
+sent for an order placed with bank transfer, by phone, with anything — so its
+settings are the add-on's own: **Add-ons → Hypay → Settings → Payment links**,
+the same for every link. They are:
+
+| Setting | What it does |
+|---|---|
+| *Payment method (terminal) for payment links* | The Hypay payment method every new link goes through: its terminal and `PassP`, its EzCount and payment page settings. A disabled method can be chosen too — a terminal kept for links alone. Left on *the order's own Hypay method, otherwise the first active one*, it works as before. A link already created keeps the method it was made with; the link window names it (*Goes through: … (terminal …)*). |
+| *Link lifetime, days* | See **Link lifetime** below. |
+| *Order list: check payment links every, minutes* | How often the order list asks Hyp about the links still out (default 5; 0: never). See **How the payment reaches the order** below. |
+| *Document after a payment link is paid* | 320, 400 or none for every link, or *as the payment method sets* (that method's own EzCount setting). |
+| *Customer's orders offered in the link* | See **Several orders, one link** below. |
+| *Order status after the link is paid* | The status every order of a paid link moves to; *as the payment method sets* = the method's success status. |
+| *Additional status after the link is paid* | The additional status every order of a paid link gets; *as the payment method sets* = the method's success additional status. |
+| *Order status / Additional status after a J5 link is held* | The same for a J5 (hold only) link; by default the method's J5 statuses. |
+| *Additional status after the link is created / cancelled* | See **Additional statuses** below. |
+
+The additional status settings need the eCom Labs *Additional Order Statuses*
+add-on; without it they offer nothing to choose.
+
+These used to be settings of each Hypay payment method, which left it unclear
+whose settings a link went by when there were several. CS-Cart reads an
+add-on's settings from `addon.xml` only when it is installed, so on an
+installation updated from an earlier version they are added the first time an
+admin page (the order list, an order, the add-on manager, a payment method) is
+opened — through CS-Cart's own `fn_update_addon_settings()`, without a
+reinstall — and take the values the shop's Hypay payment method had. Should that
+not be possible on the CS-Cart version, the payment method page keeps its
+*Payment links* block and the links keep reading it there; reinstalling the
+add-on then adds them (a reinstall now points the Hypay payment methods at the
+newly registered processor again, instead of leaving them without one).
+
 An order with no document attached gets a **Payment Link 💳** item in the
 order's tools menu — the gear next to **Save**, beside the other order actions.
 It opens a window (a dialog, not part of the order form) where the merchant can:
@@ -516,7 +548,7 @@ recorded on an order no checkout was placed for, and `checkout.complete` with
 the link's: a different amount, a link already paid, or a J5 hold the link did
 not ask for.
 
-**Link lifetime.** *Payment links → Link lifetime, days* sets how long a link
+**Link lifetime.** *Link lifetime, days* sets how long a link
 stays payable (empty or 0: no limit). An active link shows *valid until …*.
 Once the time is up, the next time the order page or the window is opened the
 link is looked up at Hyp once more (a payment made just before is recorded as
@@ -526,18 +558,18 @@ signed page cannot be withdrawn at Hyp; like a cancelled one, a payment made on
 an expired link anyway is still recorded.
 
 **Additional statuses.** With the eCom Labs *Additional Order Statuses* add-on
-active, *Payment links* has two more settings: *Additional status after the
-link is created* and *Additional status after the link is cancelled*. Every
-order the link pays for gets the first when the link is created, and the second
-when it is cancelled — from the window, or from the Hyp portal (found by the
-LIST lookup) — or expires. A paid link gives its orders the success additional
-status as before.
+active, every order the link pays for gets *Additional status after the link is
+created* when the link is created, *Additional status after the link is
+cancelled* when it is cancelled — from the window, or from the Hyp portal
+(found by the LIST lookup) — or expires, and *Additional status after the link
+is paid* when the payment is recorded (left on *as the payment method sets*:
+the method's success additional status, as before).
 
 **Terminal permission.** The link API needs its own permission on the terminal:
 sending links by hand from the Hyp portal does not grant it. Hyp refuses the
 request with `CCode=901 … payRequest API is not enabled for this terminal`, and
 the order page then names the terminal the request went through — the one of
-the Hypay payment method used for the order — so it can be enabled for that one
+the Hypay payment method the link goes through — so it can be enabled for that one
 in Hyp Market or by Hyp support. The request is authenticated with the same
 terminal number and `PassP` as the J5 captures.
 
@@ -545,8 +577,8 @@ terminal number and `PassP` as the J5 captures.
 
 The panel does not create the link straight away. It first lists the orders the
 link will pay for: the order it was opened on — always included — and the same
-customer's other orders whose status is one of those chosen under **Payment
-links → Customer's orders offered in the link** in the payment method settings.
+customer's other orders whose status is one of those chosen under **Customer's
+orders offered in the link** in the add-on settings.
 Orders that already have a document attached, or a link of their own, are not
 listed. Tick the ones to include; the table shows the total the customer will
 be asked to pay, and the link is created for that sum.
@@ -579,11 +611,30 @@ The link is paid on Hyp's own payment page, and the result comes back two ways:
    to the checkout "thank you" page — they did not come from a checkout.
    A declined card on the link page does not change the order: the link stays
    open for another attempt, and the refusal is shown in the panel.
-2. **The LIST lookup.** When the return never arrives, the order page asks Hyp
-   about the link by itself when it is opened (at most once a minute, with a
-   short timeout), and on **Check payment**. `status=3` settles the order with
-   what LIST knows — its transaction Id, but no card details; if the return
-   turns up afterwards, it fills them in.
+2. **The LIST lookup.** When the return never arrives, the admin panel asks Hyp
+   by itself, before the page is built — so it already shows the payment, the
+   status, the additional status and the document:
+   - an **order page** with a link asks about that link straight away, every
+     time it is opened;
+   - the **order list** asks about every link still out, at most once per
+     *Order list: check payment links every, minutes* (5 by default; 0 turns
+     it off), and only while at least one link is still payable. A link past
+     its *Link lifetime* does not count and never sets a lookup off; when one
+     runs anyway, it is marked expired (and withdrawn at Hyp) unless LIST says
+     it was paid or cancelled in time;
+   - **Check payment** in the link window, on demand.
+
+   LIST answers for every recent link of a terminal at once, so a lookup is
+   one request per terminal however many links are out, with a 15-second
+   timeout (`HYPAY_LINK_AUTO_CHECK_TIMEOUT`). The page says which orders it
+   found paid. `status=3` settles the order with what LIST knows —
+   its transaction Id, but no card details; if the return turns up afterwards,
+   it fills them in.
+
+   Earlier versions looked only from the order page, and only once a minute
+   counting from the moment the link was made — an order opened within that
+   minute after a quick payment showed nothing until *Check payment* was
+   pressed.
 
 Whichever arrives first moves the order; the other one never moves it again.
 

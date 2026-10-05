@@ -12,6 +12,10 @@ if (!defined('BOOTSTRAP')) { die('Access denied'); }
 // (the "Configure" tab alone), so the usergroup list is assigned for any of
 // them - without it the "J5 by usergroup" selector has nothing to show.
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    // the payment link settings moved to the add-on settings: the template
+    // shows them here only while those are not installed
+    fn_hypay_ensure_addon_settings();
+
     $lang_code = defined('DESCR_SL') ? DESCR_SL : CART_LANGUAGE;
 
     Tygh::$app['view']->assign('hypay_usergroups', fn_get_usergroups(['type' => 'C'], $lang_code));
