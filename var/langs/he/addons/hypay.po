@@ -1230,7 +1230,6 @@ msgid "The cart was changed after order #[order_id] was created, so that order c
 msgstr "העגלה שונתה לאחר יצירת הזמנה #[order_id], ולכן לא ניתן לשלם עליה. יש לבדוק את העגלה וללחוץ שוב על \"ביצוע הזמנה\" - תיווצר הזמנה חדשה ויפתח טופס התשלום."
 
 # Payment link settings (Add-ons -> Hypay -> Settings), automatic payment check
-
 msgctxt "Languages::hypay_link_setting_method_auto"
 msgid "— the order's own Hypay method, otherwise the first active one —"
 msgstr "— אמצעי ה-Hypay של ההזמנה, אחרת הראשון הפעיל —"
