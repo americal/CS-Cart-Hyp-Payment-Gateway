@@ -661,8 +661,8 @@ msgid "Sends the VAT ID from the profile \"URL\" field as customer_crn, so the d
 msgstr "שולח את המספר משדה ה\"URL\" בפרופיל כ-customer_crn, כך שהמסמך יוצא על שם החברה ולא על שם לקוח פרטי."
 
 msgctxt "Languages::hypay_ez_int_customer_vat_desc"
-msgid "Sends the VAT ID from the profile \"URL\" field to Hyp as UserId, which is the number the document it issues is filed under. A J5 hold never sends it as UserId - there UserId is the cardholder ID Shva checks the capture against, and a company number is not that - so the capture, which is where its document comes from, hands it to EzCount as EZ.customer_crn instead. The EzCount name goes with the capture too."
-msgstr "שולח את המספר משדה ה\"URL\" בפרופיל ל-Hyp כ-UserId - המספר שתחתיו נרשם המסמך ש-Hyp מפיקה. בעסקת J5 הוא לעולם לא נשלח כ-UserId - שם UserId הוא תעודת הזהות של בעל הכרטיס ש-Shva בודקת מולה את הגבייה, ומספר חברה אינו זה - ולכן הגבייה, שממנה מופק המסמך, מעבירה אותו ל-EzCount כ-EZ.customer_crn. גם השם ב-EzCount נשלח עם הגבייה."
+msgid "Sends the VAT ID from the profile \"URL\" field to Hyp as UserId, which is the number the document it issues is filed under. It is never sent with a J5 authorization: UserId there is the cardholder ID Shva checks the later capture against, and a company number is not that."
+msgstr "שולח את המספר משדה ה\"URL\" בפרופיל ל-Hyp כ-UserId - המספר שתחתיו נרשם המסמך ש-Hyp מפיקה. לעולם לא נשלח עם אישור J5: שם UserId הוא תעודת הזהות של בעל הכרטיס ש-Shva בודקת מולה את הגבייה שלאחר מכן, ומספר חברה אינו זה."
 
 msgctxt "Languages::hypay_ez_int_customer_limits"
 msgid "Only these two travel with a payment request. The EzCount CC e-mail and filing the document under an existing customer card are set on the document itself, which Hyp - not this add-on - issues in integrated mode; the direct API settings below cover both."

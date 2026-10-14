@@ -3549,30 +3549,6 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
         return false;
     }
 
-    // The document Hyp issues itself for this charge (integrated EzCount) names
-    // the customer from the request, exactly as at checkout - and a capture, or
-    // the ordinary charge that replaces a refused one, is the first request of
-    // this order that a document comes out of. The authorization carried no
-    // EzCount details on purpose (see payments/hypay.php), so they are added
-    // here: without them the document was made out to the profile name and to
-    // no VAT ID at all.
-    //
-    // The EzCount name takes the place of both halves of the name, as it does
-    // at checkout. The VAT ID cannot go as UserId the way it does there - UserId
-    // here is the cardholder ID Shva checks the charge against - so it is handed
-    // to EzCount directly, as an EZ.* parameter Hyp passes on.
-    $ez_customer = (($pp['ez_mode'] ?? 'none') === 'integrated')
-        ? hypay_ez_customer($pp, $order_info, 'ez_int')
-        : [];
-    $ez_name = (string) ($ez_customer['ezcount_name'] ?? '');
-    $ez_vat  = (string) ($ez_customer['vat'] ?? '');
-    if ($ez_customer) {
-        hypay_log($order_id, 'ezcount.integrated customer (j5.capture)', [
-            'ClientName'      => $ez_name !== '' ? $ez_name : '(profile name)',
-            'EZ.customer_crn' => $ez_vat !== '' ? $ez_vat : '(not sent)',
-        ]);
-    }
-
     // The capture is a transaction of its own (Hyp has no "commit the held one"
     // call): action=soft charges the card token and points Shva back at the
     // authorization through AuthNum + inputObj.originalUid + originalAmount.
@@ -3590,14 +3566,9 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
         'UserId'                          => $user_id,
         // both halves of the name, exactly as the authorization was made: with
         // ClientName alone the acquirer shows the charge under the first name
-        // only, which does not match the CCode=700 row next to it. An EzCount
-        // name the settings ask for wins: it is what the document is made out to.
-        'ClientName'                      => $ez_name !== ''
-            ? hypay_sanitize_url_echo($ez_name)
-            : (string) ($tx['client_name'] ?: ($order_info['firstname'] ?? '')),
-        'ClientLName'                     => $ez_name !== ''
-            ? ''
-            : ((string) ($tx['client_lname'] ?? '') ?: (string) ($order_info['lastname'] ?? '')),
+        // only, which does not match the CCode=700 row next to it
+        'ClientName'                      => (string) ($tx['client_name']  ?: ($order_info['firstname'] ?? '')),
+        'ClientLName'                     => (string) ($tx['client_lname'] ?? '') ?: (string) ($order_info['lastname'] ?? ''),
         'Token'                           => 'True',
         'CC'                              => $token,
         'Tmonth'                          => $expiry['month'],
@@ -3618,9 +3589,6 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
             $params['tashType'] = (int) $pp['tashtype'];
         }
     }
-
-    // in $params rather than the linkage, so the fallback charge carries it too
-    hypay_put($params, 'EZ.customer_crn', $ez_vat);
 
     // what makes it a capture rather than a fresh charge
     $linkage = [
