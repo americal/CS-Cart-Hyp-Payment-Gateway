@@ -625,8 +625,9 @@ $info_val = hypay_build_info($order_id, $pp);
 
 // EzCount details for the document Hyp issues itself. Only an ordinary charge
 // in integrated mode produces one - "direct" issues the document from here
-// after the return instead, and a J5 hold issues none at all - so nothing else
-// has its request touched by these settings.
+// after the return instead, and a J5 hold issues none at all: its document
+// comes with the capture, which sends these details itself (see
+// fn_hypay_capture_j5).
 $ez_customer = (($pp['ez_mode'] ?? 'none') === 'integrated' && !$is_j5)
     ? hypay_ez_customer($pp, $order_info, 'ez_int')
     : [];
