@@ -92,6 +92,12 @@ before these settings existed keeps issuing exactly the same ones. The name
 falls back to the profile name: a customer who never filled the EzCount name
 field in is still named on the document rather than not at all.
 
+**Profile EzCount details** (direct API) overrides the EzCount name and VAT ID
+switches for a customer who has them filled in: such a customer always gets
+both on the document — at checkout, after a J5 capture and for a payment link —
+so a company is never invoiced as a private buyer because a switch was left
+off. A customer without them is named by the profile name, as before.
+
 A fourth setting, **Customer card**, sends `customerAction=ASSOC_ONLY` — EzCount
 then files the document under a customer card that already matches instead of
 creating a new one.

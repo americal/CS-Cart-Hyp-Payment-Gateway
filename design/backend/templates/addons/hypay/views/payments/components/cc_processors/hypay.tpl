@@ -820,6 +820,24 @@
         </div>
     </div>
 
+    {* Overrides the two above for a customer who filled them in: a company is
+       never invoiced as a private buyer because a switch was left off. *}
+    <div class="control-group">
+        <label class="control-label" for="ez_customer_force">{__("hypay_ez_customer_force")}</label>
+        <div class="controls">
+            <input type="hidden" name="payment_data[processor_params][ez_customer_force]" value="N" />
+            <label class="checkbox">
+                <input type="checkbox"
+                       id="ez_customer_force"
+                       name="payment_data[processor_params][ez_customer_force]"
+                       value="Y"
+                       {if $processor_params.ez_customer_force == "Y"}checked{/if} />
+                {__("hypay_ez_customer_force_label")}
+            </label>
+            <p class="muted description">{__("hypay_ez_customer_force_desc")}</p>
+        </div>
+    </div>
+
     <div class="control-group">
         <label class="control-label" for="ez_customer_assoc">{__("hypay_ez_customer_assoc")}</label>
         <div class="controls">

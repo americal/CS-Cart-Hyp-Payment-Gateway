@@ -870,6 +870,18 @@ msgctxt "Languages::hypay_ez_int_customer_limits"
 msgid "Only these two travel with a payment request. The EzCount CC e-mail and filing the document under an existing customer card are set on the document itself, which Hyp - not this add-on - issues in integrated mode; the direct API settings below cover both."
 msgstr "С запросом на оплату уходят только эти два параметра. CC-адрес EzCount и привязка документа к карточке клиента задаются на самом документе, а в режиме integrated его выписывает Hyp, а не этот модуль; в настройках прямого API ниже есть и то, и другое."
 
+msgctxt "Languages::hypay_ez_customer_force"
+msgid "Profile EzCount details"
+msgstr "Данные EzCount из профиля"
+
+msgctxt "Languages::hypay_ez_customer_force_label"
+msgid "Always use the EzCount name and VAT ID filled in the profile"
+msgstr "Всегда использовать EzCount name и VAT ID из профиля"
+
+msgctxt "Languages::hypay_ez_customer_force_desc"
+msgid "A customer whose profile has an EzCount name (\"Fax\" field) or a VAT ID (\"URL\" field) always gets them on the document - whatever the two switches above say, and on every document this add-on issues: checkout, J5 capture and payment link. A customer without them is named by the profile name, as before."
+msgstr "Если в профиле клиента заполнены EzCount name (поле \"Fax\") или VAT ID (поле \"URL\"), они всегда попадают в документ - что бы ни стояло в двух переключателях выше, и в каждом документе этого модуля: оплата при оформлении, списание холда J5 и платёжная ссылка. Клиент без них, как и раньше, называется по имени из профиля."
+
 msgctxt "Languages::hypay_ez_customer_assoc"
 msgid "Customer card"
 msgstr "Карточка клиента"
