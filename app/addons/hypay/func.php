@@ -2011,17 +2011,25 @@ function hypay_ez_cc_email_field_id(array $pp)
  * The name falls back to the profile name: a customer who never filled the
  * EzCount name field is still named on the document, rather than not at all.
  *
- * @return array{name: string, ezcount_name: string, vat: string, cc_emails: array, assoc: bool}
+ * "Always use the profile EzCount details" (ez_customer_force, direct API only)
+ * overrides the two switches above for a customer who has the details filled
+ * in: a company that gave its EzCount name and VAT ID is never invoiced as a
+ * private buyer because a switch was left off. A customer without them is
+ * still named by the profile name, as before.
+ *
+ * @return array{name: string, ezcount_name: string, vat: string, cc_emails: array, assoc: bool, forced: bool}
  */
 function hypay_ez_customer(array $pp, $order_info, $prefix = 'ez')
 {
+    $forced = ($prefix === 'ez' && ($pp['ez_customer_force'] ?? 'N') === 'Y');
+
     $ezcount_name = '';
-    if (($pp[$prefix . '_customer_name'] ?? 'N') === 'Y') {
+    if ($forced || ($pp[$prefix . '_customer_name'] ?? 'N') === 'Y') {
         $ezcount_name = hypay_ez_profile_value($order_info, 'fax');
     }
 
     $vat = '';
-    if (($pp[$prefix . '_customer_vat'] ?? 'N') === 'Y') {
+    if ($forced || ($pp[$prefix . '_customer_vat'] ?? 'N') === 'Y') {
         $vat = hypay_ez_profile_value($order_info, 'url');
     }
 
@@ -2039,6 +2047,7 @@ function hypay_ez_customer(array $pp, $order_info, $prefix = 'ez')
         'vat'          => $vat,
         'cc_emails'    => $cc_emails,
         'assoc'        => ($pp[$prefix . '_customer_assoc'] ?? 'N') === 'Y',
+        'forced'       => $forced,
     ];
 }
 
@@ -2196,6 +2205,7 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
         'customer_name'  => $customer['name'],
         'name_from'      => $customer['ezcount_name'] !== '' ? 'ezcount name' : 'profile name',
         'customer_crn'   => $customer['vat'],
+        'profile_forced' => $customer['forced'],
         'customerAction' => $customer['assoc'] ? 'ASSOC_ONLY' : '(none)',
         'cc_emails'      => $customer['cc_emails'],
     ]);
@@ -4346,7 +4356,7 @@ function fn_hypay_repair_addon_texts()
         //    it on whenever one is added
         $canary = db_get_field(
             "SELECT COUNT(*) FROM ?:language_values WHERE name = ?s AND lang_code = ?s",
-            'hypay_link_cancel_still_active',
+            'hypay_ez_customer_force_desc',
             CART_LANGUAGE
         );
         if (!$canary) {
