@@ -739,12 +739,12 @@ if (!empty($log_params['KEY']))   { $log_params['KEY']   = substr($log_params['K
 if (!empty($log_params['PassP'])) { $log_params['PassP'] = substr($log_params['PassP'], 0, 2) . '***'; }
 hypay_log($order_id, 'SIGN request params', $log_params);
 
-// call SIGN
-$sign_url = $base . http_build_query($params_sign);
-$response = Http::get($sign_url, ['timeout' => 30]);
-hypay_log($order_id, 'SIGN response raw', $response);
+// call SIGN - asked again with fewer details when Hyp does not sign it, see
+// fn_hypay_sign_request()
+$signed   = fn_hypay_sign_request($order_id, $params_sign, 'SIGN');
+$response = $signed['response'];
 
-if (!$response || strpos($response, 'signature=') === false) {
+if (!$signed['ok']) {
     hypay_log($order_id, 'SIGN failed');
     $pp_response = [
         'order_status' => fn_hypay_allowed_status($pp['fail_status'] ?? 'D'),

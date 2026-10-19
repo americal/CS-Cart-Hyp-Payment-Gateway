@@ -5503,6 +5503,79 @@ function fn_hypay_latin_name($name)
 }
 
 /**
+ * APISign / SIGN, asked again with less when Hyp does not sign the first one.
+ *
+ * Everything goes to Hyp in the query string, and the payment page the
+ * customer is sent to is that same query string signed. A big order - forty
+ * lines of Hebrew product names, each letter six bytes once percent-encoded -
+ * makes it over 10 KB, and Hyp drops a request that long without a word: the
+ * answer is empty and the customer never sees the payment page.
+ *
+ * So when the request is not signed it is made again, each time with less:
+ *   1. the items as a single line "Info ~ 1 ~ amount" - the amount, and Hyp's
+ *      check of the lines against it, stay the same;
+ *   2. that, with the name, street and city in Latin letters as well, for a
+ *      character Hyp refuses in them.
+ * The payment page opens with less detail, rather than not at all.
+ *
+ * @return array ['response' => the signed query string or what Hyp answered,
+ *                'ok' => signed or not, 'params' => the request that was sent]
+ */
+function fn_hypay_sign_request($order_id, array $params, $label)
+{
+    $attempts = ['' => $params];
+
+    $hesh_desc = (string) ($params['heshDesc'] ?? '');
+    if (substr_count($hesh_desc, '[') > 1) {
+        $title = hypay_sanitize_name(trim((string) ($params['Info'] ?? '')));
+        if ($title === '') {
+            $title = 'Order ' . (int) $order_id;
+        }
+        $params['heshDesc'] = '[0~' . $title . '~1~' . number_format((float) ($params['Amount'] ?? 0), 2, '.', '') . ']';
+        $attempts['single line'] = $params;
+    }
+
+    $latin = $params;
+    foreach (['ClientName', 'ClientLName', 'street', 'city'] as $field) {
+        if (isset($latin[$field]) && preg_match('/[^\x00-\x7F]/', (string) $latin[$field])) {
+            $latin[$field] = fn_hypay_latin_name($latin[$field]);
+        }
+    }
+    if ($latin !== $params) {
+        $attempts[isset($attempts['single line']) ? 'single line, latin' : 'latin'] = $latin;
+    }
+
+    $response = '';
+    foreach ($attempts as $attempt => $request) {
+        $suffix = $attempt === '' ? '' : ' (' . $attempt . ')';
+        $query  = http_build_query($request);
+
+        if ($attempt !== '') {
+            hypay_log($order_id, $label . ': not signed, trying again' . $suffix, hypay_mask_params(
+                array_intersect_key($request, array_flip(['heshDesc', 'ClientName', 'ClientLName', 'street', 'city']))
+            ));
+        }
+
+        $response = trim((string) Http::get(HYPAY_API_URL . '?' . $query, ['timeout' => 30]));
+
+        // what is needed to tell a refusal from a request that never got there
+        $http = ['length' => strlen($query)];
+        if (method_exists('\Tygh\Http', 'getStatus')) { $http['status'] = Http::getStatus(); }
+        if (method_exists('\Tygh\Http', 'getError'))  { $http['error']  = Http::getError(); }
+        hypay_log($order_id, $label . ' response' . $suffix, [
+            'raw'  => strlen($response) > 2000 ? substr($response, 0, 2000) . '…' : $response,
+            'http' => $http,
+        ]);
+
+        if ($response !== '' && strpos($response, 'signature=') !== false) {
+            return ['response' => $response, 'ok' => true, 'params' => $request];
+        }
+    }
+
+    return ['response' => $response, 'ok' => false, 'params' => $params];
+}
+
+/**
  * A payment link nobody sends: the signed payment page URL.
  *
  * payRequest makes a link only together with an e-mail or a mobile number to
@@ -5588,13 +5661,12 @@ function fn_hypay_link_sign($order_id, array $order_info, array $orders, $amount
         $params['SendHesh'] = 'False';
     }
 
-    $url = HYPAY_API_URL . '?' . http_build_query($params);
     hypay_log($order_id, 'link.sign request', hypay_mask_params($params));
 
-    $response = trim((string) Http::get($url, ['timeout' => 30]));
-    hypay_log($order_id, 'link.sign response', $response);
+    $signed   = fn_hypay_sign_request($order_id, $params, 'link.sign');
+    $response = $signed['response'];
 
-    if ($response === '' || strpos($response, 'signature=') === false) {
+    if (!$signed['ok']) {
         $parsed = [];
         parse_str($response, $parsed);
 
