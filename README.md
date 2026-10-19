@@ -748,6 +748,31 @@ confirmed through LIST and are not affected.
 
 ---
 
+## 📏 Large orders — when Hyp does not sign the payment page
+
+The payment page is requested from Hyp (`APISign` / `What=SIGN`) with every
+detail in the query string, line items (`heshDesc`) included, and the page the
+customer opens is that same query string signed. A big order with Hebrew
+product names — forty lines, each letter six bytes once percent-encoded — makes
+it over 10 KB, and Hyp drops a request that long with an empty answer: the log
+showed `SIGN response raw |` (nothing) and `SIGN failed`, and the customer never
+saw the payment page.
+
+When a request is not signed it is now made again, each time with less:
+
+1. the line items as **a single line** (`Info`, quantity 1, the order total) —
+   the amount, and Hyp's check of the lines against it, stay the same;
+2. that, with the customer's **name, street and city in Latin letters** too,
+   for a character Hyp refuses in them.
+
+The payment page opens with less detail rather than not at all. In EzCount
+*integrated* mode the document Hyp issues for such an order has the one line;
+*direct* mode builds its own document and is not affected. The same applies to
+payment links made without e-mail / SMS. Each attempt is logged with the
+length of the request and the HTTP status Hyp answered with.
+
+---
+
 ## 🔒 3-D Secure (3DS)
 
 **There is no 3DS setting in this add-on, for J5 or for anything else — by design.**
