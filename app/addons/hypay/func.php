@@ -1618,6 +1618,12 @@ function hypay_personal_id_label($value)
  * An order placed with another method (bank transfer, phone) and held through
  * a J5 payment link has its hold on the terminal of the Hypay method the link
  * was made with, so that method's settings are the ones returned.
+ *
+ * An order paid by Hypay and then switched to another method in the order
+ * editor still has its hold on a Hypay terminal, but no link to say which:
+ * the shop's Hypay method is the one used. The other method has no processor
+ * settings at all - CS-Cart leaves them as an empty string - and those are
+ * never returned, so the result is always an array.
  */
 function fn_hypay_get_processor_params($order_info)
 {
@@ -1627,12 +1633,22 @@ function fn_hypay_get_processor_params($order_info)
         if (!empty($link)) {
             return fn_hypay_link_processor_params((array) $order_info, $link);
         }
+
+        $payment_id = fn_hypay_find_hypay_payment_id();
+        if ($payment_id <= 0) { return []; }
+        $processor_data = fn_get_payment_method_data($payment_id);
+
+        return (is_array($processor_data) && is_array($processor_data['processor_params'] ?? null))
+            ? $processor_data['processor_params']
+            : [];
     }
 
     if (empty($order_info['payment_id'])) { return []; }
     $processor_data = fn_get_payment_method_data($order_info['payment_id']);
 
-    return $processor_data['processor_params'] ?? [];
+    return (is_array($processor_data) && is_array($processor_data['processor_params'] ?? null))
+        ? $processor_data['processor_params']
+        : [];
 }
 
 /* ============================================================================
