@@ -21,7 +21,10 @@ if (!defined('BOOTSTRAP')) { die('Access denied'); }
  * hook fires. Here the controller has the finished array the templates are about
  * to render, which is the one place it is certain to be there.
  */
-if ($mode === 'details') {
+// The add-on's functions (func.php) are loaded only while it is active, and
+// CS-Cart can still run this file without them - around an install, an
+// uninstall or a status change of the add-on. Nothing to do then.
+if ($mode === 'details' && function_exists('fn_hypay_localize_payment_info')) {
     $view = Registry::get('view');
 
     if (is_object($view) && method_exists($view, 'getTemplateVars')) {

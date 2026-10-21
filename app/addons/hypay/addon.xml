@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <addon scheme="3.0">
     <id>hypay</id>
-    <version>1.2</version>
+    <version>1.3</version>
     <default_language>en</default_language>
     <priority>9999</priority>
     <has_icon>Y</has_icon>
@@ -17,6 +17,82 @@
 
     <supplier>Michael Shapar</supplier>
     <supplier_link>https://clockwork.co.il</supplier_link>
+
+    <!--
+        Payment link settings. A link is not tied to the order's payment method,
+        so they are the add-on's, not one Hypay payment method's. Values left
+        "as the payment method sets" are taken from the method the link goes
+        through (link_payment_id). An installation updated from a version
+        without them gets them on the next admin page - see
+        fn_hypay_ensure_addon_settings().
+    -->
+    <settings>
+        <sections>
+            <section id="payment_links">
+                <items>
+                    <item id="link_terminal_header">
+                        <type>header</type>
+                    </item>
+                    <item id="link_payment_id">
+                        <type>selectbox</type>
+                        <default_value>0</default_value>
+                    </item>
+                    <item id="link_lifetime_days">
+                        <type>input</type>
+                        <default_value>0</default_value>
+                    </item>
+                    <item id="link_list_check_minutes">
+                        <type>input</type>
+                        <default_value>5</default_value>
+                    </item>
+                    <item id="link_doc_type">
+                        <type>selectbox</type>
+                        <default_value>method</default_value>
+                        <variants>
+                            <item id="method"></item>
+                            <item id="320"></item>
+                            <item id="400"></item>
+                            <item id="none"></item>
+                        </variants>
+                    </item>
+                    <item id="link_orders_header">
+                        <type>header</type>
+                    </item>
+                    <item id="link_order_statuses">
+                        <type>multiple select</type>
+                        <default_value></default_value>
+                    </item>
+                    <item id="link_statuses_header">
+                        <type>header</type>
+                    </item>
+                    <item id="link_paid_status">
+                        <type>selectbox</type>
+                        <default_value></default_value>
+                    </item>
+                    <item id="link_paid_additional_status">
+                        <type>selectbox</type>
+                        <default_value></default_value>
+                    </item>
+                    <item id="link_j5_status">
+                        <type>selectbox</type>
+                        <default_value></default_value>
+                    </item>
+                    <item id="link_j5_additional_status">
+                        <type>selectbox</type>
+                        <default_value></default_value>
+                    </item>
+                    <item id="link_created_additional_status">
+                        <type>selectbox</type>
+                        <default_value></default_value>
+                    </item>
+                    <item id="link_cancelled_additional_status">
+                        <type>selectbox</type>
+                        <default_value></default_value>
+                    </item>
+                </items>
+            </section>
+        </sections>
+    </settings>
 
     <functions>
         <item for="install">fn_hypay_install</item>

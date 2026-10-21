@@ -870,6 +870,18 @@ msgctxt "Languages::hypay_ez_int_customer_limits"
 msgid "Only these two travel with a payment request. The EzCount CC e-mail and filing the document under an existing customer card are set on the document itself, which Hyp - not this add-on - issues in integrated mode; the direct API settings below cover both."
 msgstr "Only these two travel with a payment request. The EzCount CC e-mail and filing the document under an existing customer card are set on the document itself, which Hyp - not this add-on - issues in integrated mode; the direct API settings below cover both."
 
+msgctxt "Languages::hypay_ez_customer_force"
+msgid "Profile EzCount details"
+msgstr "Profile EzCount details"
+
+msgctxt "Languages::hypay_ez_customer_force_label"
+msgid "Always use the EzCount name and VAT ID filled in the profile"
+msgstr "Always use the EzCount name and VAT ID filled in the profile"
+
+msgctxt "Languages::hypay_ez_customer_force_desc"
+msgid "A customer whose profile has an EzCount name (\"Fax\" field) or a VAT ID (\"URL\" field) always gets them on the document - whatever the two switches above say, and on every document this add-on issues: checkout, J5 capture and payment link. A customer without them is named by the profile name, as before."
+msgstr "A customer whose profile has an EzCount name (\"Fax\" field) or a VAT ID (\"URL\" field) always gets them on the document - whatever the two switches above say, and on every document this add-on issues: checkout, J5 capture and payment link. A customer without them is named by the profile name, as before."
+
 msgctxt "Languages::hypay_ez_customer_assoc"
 msgid "Customer card"
 msgstr "Customer card"
@@ -901,3 +913,685 @@ msgstr "CC e-mail profile field ID"
 msgctxt "Languages::hypay_ez_cc_email_field_id_desc"
 msgid "The ID of the profile field holding the EzCount CC e-mail. Leave it empty to use the field named ezcount_additional_email, which is the one the EzCount Invoice Generator add-on reads."
 msgstr "The ID of the profile field holding the EzCount CC e-mail. Leave it empty to use the field named ezcount_additional_email, which is the one the EzCount Invoice Generator add-on reads."
+
+# Payment links (payRequest)
+msgctxt "Languages::hypay_link_title"
+msgid "Payment link"
+msgstr "Payment link"
+
+msgctxt "Languages::hypay_link"
+msgid "Payment link"
+msgstr "Payment link"
+
+msgctxt "Languages::hypay_link_btn"
+msgid "Payment Link"
+msgstr "Payment Link"
+
+msgctxt "Languages::hypay_link_panel_title"
+msgid "Payment link for order #[order_id]"
+msgstr "Payment link for order #[order_id]"
+
+msgctxt "Languages::hypay_link_url"
+msgid "Link"
+msgstr "Link"
+
+msgctxt "Languages::hypay_link_copy"
+msgid "Copy"
+msgstr "Copy"
+
+msgctxt "Languages::hypay_link_copied"
+msgid "Copied"
+msgstr "Copied"
+
+msgctxt "Languages::hypay_link_cancel"
+msgid "Cancel link"
+msgstr "Cancel link"
+
+msgctxt "Languages::hypay_link_check"
+msgid "Check payment"
+msgstr "Check payment"
+
+msgctxt "Languages::hypay_link_close"
+msgid "Close"
+msgstr "Close"
+
+msgctxt "Languages::hypay_link_create"
+msgid "Create and send link"
+msgstr "Create and send link"
+
+msgctxt "Languages::hypay_link_send_email"
+msgid "Send by e-mail"
+msgstr "Send by e-mail"
+
+msgctxt "Languages::hypay_link_send_sms"
+msgid "Send by SMS"
+msgstr "Send by SMS"
+
+msgctxt "Languages::hypay_link_amount"
+msgid "Amount"
+msgstr "Amount"
+
+msgctxt "Languages::hypay_link_sent_to"
+msgid "Sent to"
+msgstr "Sent to"
+
+msgctxt "Languages::hypay_link_transaction"
+msgid "Transaction"
+msgstr "Transaction"
+
+msgctxt "Languages::hypay_link_state_active"
+msgid "Link created on [date]"
+msgstr "Link created on [date]"
+
+msgctxt "Languages::hypay_link_state_cancelled"
+msgid "Link cancelled on [date]"
+msgstr "Link cancelled on [date]"
+
+msgctxt "Languages::hypay_link_paid_on"
+msgid "Paid by payment link on [date]"
+msgstr "Paid by payment link on [date]"
+
+msgctxt "Languages::hypay_link_pi_paid"
+msgid "Paid by payment link on [date]"
+msgstr "Paid by payment link on [date]"
+
+msgctxt "Languages::hypay_link_confirm_create"
+msgid "Create the payment link for the selected orders?"
+msgstr "Create the payment link for the selected orders?"
+
+msgctxt "Languages::hypay_link_confirm_cancel"
+msgid "Cancel this payment link? The customer will no longer be able to pay with it."
+msgstr "Cancel this payment link? The customer will no longer be able to pay with it."
+
+msgctxt "Languages::hypay_link_hint_short"
+msgid "Hyp sends the link to the customer by e-mail and/or SMS."
+msgstr "Hyp sends the link to the customer by e-mail and/or SMS."
+
+msgctxt "Languages::hypay_link_hint"
+msgid "The link is for the current order total. When the customer pays, the payment details appear in Payment information and the order gets the success status, as after a payment on the site. Requires the payment links feature to be enabled for the terminal in Hyp Market."
+msgstr "The link is for the current order total. When the customer pays, the payment details appear in Payment information and the order gets the success status, as after a payment on the site. Requires the payment links feature to be enabled for the terminal in Hyp Market."
+
+msgctxt "Languages::hypay_link_created_ok"
+msgid "Payment link created and sent to [sent_to]."
+msgstr "Payment link created and sent to [sent_to]."
+
+msgctxt "Languages::hypay_link_create_failed"
+msgid "Hyp did not create the payment link:"
+msgstr "Hyp did not create the payment link:"
+
+msgctxt "Languages::hypay_link_cancel_ok"
+msgid "Payment link cancelled."
+msgstr "Payment link cancelled."
+
+msgctxt "Languages::hypay_link_cancel_failed"
+msgid "Hyp did not cancel the payment link:"
+msgstr "Hyp did not cancel the payment link:"
+
+msgctxt "Languages::hypay_link_cancel_not_found"
+msgid "Hyp does not know this payment link any more, so it has been marked as cancelled."
+msgstr "Hyp does not know this payment link any more, so it has been marked as cancelled."
+
+msgctxt "Languages::hypay_link_already_paid"
+msgid "Hyp says the link has already been paid, but the payment could not be looked up yet. Use \"Check payment\" in a minute."
+msgstr "Hyp says the link has already been paid, but the payment could not be looked up yet. Use \"Check payment\" in a minute."
+
+msgctxt "Languages::hypay_link_check_paid"
+msgid "The payment link has been paid. The payment has been recorded on the order."
+msgstr "The payment link has been paid. The payment has been recorded on the order."
+
+msgctxt "Languages::hypay_link_check_unpaid"
+msgid "The payment link has not been paid yet."
+msgstr "The payment link has not been paid yet."
+
+msgctxt "Languages::hypay_link_check_not_found"
+msgid "This link is not among the recent payment links Hyp returned."
+msgstr "This link is not among the recent payment links Hyp returned."
+
+msgctxt "Languages::hypay_link_check_failed"
+msgid "Could not get the list of payment links from Hyp:"
+msgstr "Could not get the list of payment links from Hyp:"
+
+msgctxt "Languages::hypay_link_check_cancelled_remote"
+msgid "The payment link was cancelled in the Hyp portal."
+msgstr "The payment link was cancelled in the Hyp portal."
+
+msgctxt "Languages::hypay_link_retired"
+msgid "Cancelled automatically: the order was paid at checkout."
+msgstr "Cancelled automatically: the order was paid at checkout."
+
+msgctxt "Languages::hypay_link_double_payment"
+msgid "The order was paid at checkout AND through this payment link. Check both transactions in the Hyp portal and refund one of them."
+msgstr "The order was paid at checkout AND through this payment link. Check both transactions in the Hyp portal and refund one of them."
+
+msgctxt "Languages::hypay_link_warning_total_changed"
+msgid "The order total has changed since the link was created. Cancel the link and create a new one, or the customer will pay the old amount."
+msgstr "The order total has changed since the link was created. Cancel the link and create a new one, or the customer will pay the old amount."
+
+msgctxt "Languages::hypay_link_error_no_contact"
+msgid "Choose at least one way to send the link: e-mail or SMS."
+msgstr "Choose at least one way to send the link: e-mail or SMS."
+
+msgctxt "Languages::hypay_link_error_bad_email"
+msgid "The e-mail address is not valid."
+msgstr "The e-mail address is not valid."
+
+msgctxt "Languages::hypay_link_error_bad_cell"
+msgid "The mobile number is not valid (for example: 0501234567)."
+msgstr "The mobile number is not valid (for example: 0501234567)."
+
+msgctxt "Languages::hypay_link_error_has_document"
+msgid "This order already has a document attached (tax invoice, proforma or tax invoice receipt)."
+msgstr "This order already has a document attached (tax invoice, proforma or tax invoice receipt)."
+
+msgctxt "Languages::hypay_link_error_active_exists"
+msgid "This order already has an active payment link. Cancel it first."
+msgstr "This order already has an active payment link. Cancel it first."
+
+msgctxt "Languages::hypay_link_error_no_active"
+msgid "This order has no active payment link."
+msgstr "This order has no active payment link."
+
+msgctxt "Languages::hypay_link_error_zero_amount"
+msgid "The order total must be greater than zero."
+msgstr "The order total must be greater than zero."
+
+msgctxt "Languages::hypay_link_error_no_credentials"
+msgid "The terminal number or the API password (PassP) is not set in the payment method settings."
+msgstr "The terminal number or the API password (PassP) is not set in the payment method settings."
+
+msgctxt "Languages::hypay_link_error_not_hypay"
+msgid "The shop has no active Hypay payment method to create the link through."
+msgstr "The shop has no active Hypay payment method to create the link through."
+
+msgctxt "Languages::hypay_link_customer_paid"
+msgid "Thank you! The payment for order #[order_id] has been received."
+msgstr "Thank you! The payment for order #[order_id] has been received."
+
+msgctxt "Languages::hypay_link_customer_failed"
+msgid "The payment was not completed. You can try again using the same link."
+msgstr "The payment was not completed. You can try again using the same link."
+
+msgctxt "Languages::hypay_ez_link_doc_type"
+msgid "Document after a payment link is paid"
+msgstr "Document after a payment link is paid"
+
+msgctxt "Languages::hypay_ez_link_doc_type_none"
+msgid "No document"
+msgstr "No document"
+
+msgctxt "Languages::hypay_ez_link_doc_type_desc"
+msgid "The EzCount document issued through the Direct API when a customer pays with a payment link sent from the order page. It is recorded on the order the same way as after a payment on the site."
+msgstr "The EzCount document issued through the Direct API when a customer pays with a payment link sent from the order page. It is recorded on the order the same way as after a payment on the site. The add-on settings (Payment links → Document after a payment link is paid) can set it for every link instead."
+
+msgctxt "Languages::hypay_ez_int_link_doc_type_desc"
+msgid "The document Hyp issues itself when a customer pays with a payment link. \"No document\" stops the add-on from asking Hyp for one; if the terminal's invoice module is set to issue a document on every payment, Hyp may still do so."
+msgstr "The document Hyp issues itself when a customer pays with a payment link. \"No document\" stops the add-on from asking Hyp for one; if the terminal's invoice module is set to issue a document on every payment, Hyp may still do so. The add-on settings (Payment links → Document after a payment link is paid) can set it for every link instead."
+
+msgctxt "Languages::hypay_link_document"
+msgid "Document"
+msgstr "Document"
+
+msgctxt "Languages::hypay_link_document_by_hyp"
+msgid "issued by Hyp"
+msgstr "issued by Hyp"
+
+msgctxt "Languages::hypay_link_document_after"
+msgid "Document after payment"
+msgstr "Document after payment"
+
+msgctxt "Languages::hypay_link_section"
+msgid "Payment links"
+msgstr "Payment links"
+
+msgctxt "Languages::hypay_link_order_statuses"
+msgid "Customer's orders offered in the link"
+msgstr "Customer's orders offered in the link"
+
+msgctxt "Languages::hypay_link_order_statuses_desc"
+msgid "When a payment link is created from an order, the panel lists the customer's other orders with these statuses, so several orders can be paid with one link. Orders that already have a document attached or a link of their own are not listed. Select none to always pay for the one order only. Hold Ctrl (Cmd) to select several."
+msgstr "When a payment link is created from an order, the panel lists the customer's other orders with these statuses, so several orders can be paid with one link. Orders that already have a document attached or a link of their own are not listed. Select none to always pay for the one order only. Hold Ctrl (Cmd) to select several."
+
+msgctxt "Languages::hypay_link_orders_title"
+msgid "Orders to pay with this link"
+msgstr "Orders to pay with this link"
+
+msgctxt "Languages::hypay_link_col_order"
+msgid "Order"
+msgstr "Order"
+
+msgctxt "Languages::hypay_link_col_date"
+msgid "Date"
+msgstr "Date"
+
+msgctxt "Languages::hypay_link_col_status"
+msgid "Status"
+msgstr "Status"
+
+msgctxt "Languages::hypay_link_col_total"
+msgid "Total"
+msgstr "Total"
+
+msgctxt "Languages::hypay_link_current_order"
+msgid "this order"
+msgstr "this order"
+
+msgctxt "Languages::hypay_link_total_selected"
+msgid "Total to pay"
+msgstr "Total to pay"
+
+msgctxt "Languages::hypay_link_no_other_orders"
+msgid "The customer has no other orders with the statuses chosen in the payment method settings."
+msgstr "The customer has no other orders with the statuses chosen in the payment method settings."
+
+msgctxt "Languages::hypay_link_no_statuses_set"
+msgid "To add the customer's other orders to the link, choose their statuses in the Hypay payment method settings (Payment links)."
+msgstr "To add the customer's other orders to the link, choose their statuses in the Hypay payment method settings (Payment links)."
+
+msgctxt "Languages::hypay_link_orders_in_link"
+msgid "Orders in this link"
+msgstr "Orders in this link"
+
+msgctxt "Languages::hypay_link_pi_orders"
+msgid "orders [orders]"
+msgstr "orders [orders]"
+
+msgctxt "Languages::hypay_link_error_bad_order"
+msgid "Order #[order_id] cannot be added to the payment link: it belongs to another customer, has a status not chosen in the settings, a document attached, or a link of its own."
+msgstr "Order #[order_id] cannot be added to the payment link: it belongs to another customer, has a status not chosen in the settings, a document attached, or a link of its own."
+
+msgctxt "Languages::hypay_link_order_statuses_reset"
+msgid "Reset selected"
+msgstr "Reset selected"
+
+msgctxt "Languages::hypay_link_unavailable"
+msgid "A payment link cannot be created for this order."
+msgstr "A payment link cannot be created for this order."
+
+msgctxt "Languages::hypay_link_hint_901"
+msgid "Hyp has not enabled the payment links API (payRequest) for terminal [masof]. Sending links by hand from the Hyp portal is a separate permission: ask Hyp support, or enable \"Payment links\" in Hyp Market, for API use on terminal [masof]. The request itself is authenticated with the same terminal number and PassP as the J5 captures."
+msgstr "Hyp has not enabled the payment links API (payRequest) for terminal [masof]. Sending links by hand from the Hyp portal is a separate permission: ask Hyp support, or enable \"Payment links\" in Hyp Market, for API use on terminal [masof]. The request itself is authenticated with the same terminal number and PassP as the J5 captures."
+
+msgctxt "Languages::hypay_link_hint_902"
+msgid "Hyp did not accept the terminal number or the API password (PassP) of terminal [masof]. Check them in the Hypay payment method settings."
+msgstr "Hyp did not accept the terminal number or the API password (PassP) of terminal [masof]. Check them in the Hypay payment method settings."
+
+msgctxt "Languages::hypay_link_create_only"
+msgid "Create link"
+msgstr "Create link"
+
+msgctxt "Languages::hypay_link_error_network"
+msgid "Hyp could not be reached from the store. Try again in a moment."
+msgstr "Hyp could not be reached from the store. Try again in a moment."
+
+msgctxt "Languages::hypay_link_customer"
+msgid "Customer"
+msgstr "Customer"
+
+msgctxt "Languages::hypay_link_open"
+msgid "Open"
+msgstr "Open"
+
+msgctxt "Languages::hypay_link_not_sent"
+msgid "Not sent: copy the link and send it to the customer yourself"
+msgstr "Not sent: copy the link and send it to the customer yourself"
+
+msgctxt "Languages::hypay_link_total_orders"
+msgid "Total orders"
+msgstr "Total orders"
+
+msgctxt "Languages::hypay_link_status_filter"
+msgid "Status filter"
+msgstr "Status filter"
+
+msgctxt "Languages::hypay_link_col_document"
+msgid "Document"
+msgstr "Document"
+
+msgctxt "Languages::hypay_link_col_doc_type"
+msgid "Document type"
+msgstr "Document type"
+
+msgctxt "Languages::hypay_link_col_doc_number"
+msgid "Document #"
+msgstr "Document #"
+
+msgctxt "Languages::hypay_link_in_other_link"
+msgid "in another link"
+msgstr "in another link"
+
+msgctxt "Languages::hypay_link_paid_by_link"
+msgid "paid by link"
+msgstr "paid by link"
+
+msgctxt "Languages::hypay_link_delivery"
+msgid "Send the link"
+msgstr "Send the link"
+
+msgctxt "Languages::hypay_link_copy_only_hint"
+msgid "Untick both to only create the link: it is shown here to copy and send the customer your own way."
+msgstr "Untick both to only create the link: it is shown here to copy and send the customer your own way."
+
+msgctxt "Languages::hypay_doc_type_300"
+msgid "Proforma Invoice"
+msgstr "Proforma Invoice"
+
+msgctxt "Languages::hypay_doc_type_305"
+msgid "Tax Invoice"
+msgstr "Tax Invoice"
+
+msgctxt "Languages::hypay_link_created_ok_copy"
+msgid "Payment link created. Copy it and send it to the customer."
+msgstr "Payment link created. Copy it and send it to the customer."
+
+msgctxt "Languages::hypay_link_cancel_sign"
+msgid "The link is marked as cancelled here. It was not sent through Hyp, so Hyp cannot withdraw it: if the customer still pays with it, the payment is recorded on the orders."
+msgstr "The link is marked as cancelled here. It was not sent through Hyp, so Hyp cannot withdraw it: if the customer still pays with it, the payment is recorded on the orders."
+
+msgctxt "Languages::hypay_link_check_sign"
+msgid "This link was created without sending it through Hyp, so Hyp cannot be asked about it: its payment is recorded when the customer finishes paying."
+msgstr "This link was created without sending it through Hyp, so Hyp cannot be asked about it: its payment is recorded when the customer finishes paying."
+
+msgctxt "Languages::hypay_link_error_truncated"
+msgid "This link was saved cut short and could not be paid (Hyp answered \"Action is not good\"). Create a new one."
+msgstr "This link was saved cut short and could not be paid (Hyp answered \"Action is not good\"). Create a new one."
+
+msgctxt "Languages::hypay_link_state_expired"
+msgid "Link expired on [date]"
+msgstr "Link expired on [date]"
+
+msgctxt "Languages::hypay_link_expired_recreate"
+msgid "The customer can no longer pay with this link. Create a new one below."
+msgstr "The customer can no longer pay with this link. Create a new one below."
+
+msgctxt "Languages::hypay_link_expires_on"
+msgid "valid until [date]"
+msgstr "valid until [date]"
+
+msgctxt "Languages::hypay_link_expired_not_withdrawn"
+msgid "Hyp did not confirm the link was withdrawn: if the customer still pays with it, the payment is recorded on the orders."
+msgstr "Hyp did not confirm the link was withdrawn: if the customer still pays with it, the payment is recorded on the orders."
+
+msgctxt "Languages::hypay_link_lifetime_days"
+msgid "Link lifetime, days"
+msgstr "Link lifetime, days"
+
+msgctxt "Languages::hypay_link_lifetime_days_desc"
+msgid "After this many days an unpaid link is withdrawn at Hyp and shown as expired in the payment link window, which offers to create a new one. Empty or 0: no limit."
+msgstr "After this many days an unpaid link is withdrawn at Hyp and shown as expired in the payment link window, which offers to create a new one. Empty or 0: no limit."
+
+msgctxt "Languages::hypay_link_created_additional_status"
+msgid "Additional status after the link is created"
+msgstr "Additional status after the link is created"
+
+msgctxt "Languages::hypay_link_created_additional_status_desc"
+msgid "Every order the payment link pays for gets this additional status once the link is created."
+msgstr "Every order the payment link pays for gets this additional status once the link is created."
+
+msgctxt "Languages::hypay_link_cancelled_additional_status"
+msgid "Additional status after the link is cancelled"
+msgstr "Additional status after the link is cancelled"
+
+msgctxt "Languages::hypay_link_cancelled_additional_status_desc"
+msgid "Every order the payment link paid for gets this additional status once the link is cancelled - from here or from the Hyp portal - or expires."
+msgstr "Every order the payment link paid for gets this additional status once the link is cancelled - from here or from the Hyp portal - or expires."
+
+msgctxt "Languages::hypay_link_deal"
+msgid "Deal type"
+msgstr "Deal type"
+
+msgctxt "Languages::hypay_link_deal_j4"
+msgid "Charge now (J4)"
+msgstr "Charge now (J4)"
+
+msgctxt "Languages::hypay_link_deal_j4_desc"
+msgid "the money is taken when the customer pays"
+msgstr "the money is taken when the customer pays"
+
+msgctxt "Languages::hypay_link_deal_j5"
+msgid "Hold only (J5)"
+msgstr "Hold only (J5)"
+
+msgctxt "Languages::hypay_link_deal_j5_desc"
+msgid "the amount is held on the card and charged later from the order's J5 block; this order only"
+msgstr "the amount is held on the card and charged later from the order's J5 block; this order only"
+
+msgctxt "Languages::hypay_link_error_j5_single"
+msgid "A J5 (hold) link can pay for one order only: untick the other orders."
+msgstr "A J5 (hold) link can pay for one order only: untick the other orders."
+
+msgctxt "Languages::hypay_link_pi_authorized"
+msgid "Card authorized (J5) by payment link on [date]"
+msgstr "Card authorized (J5) by payment link on [date]"
+
+msgctxt "Languages::hypay_link_authorized_on"
+msgid "Card authorized (J5) by payment link on [date]"
+msgstr "Card authorized (J5) by payment link on [date]"
+
+msgctxt "Languages::hypay_link_authorized_capture_hint"
+msgid "The money is held, not charged: capture it from the J5 block on the order page."
+msgstr "The money is held, not charged: capture it from the J5 block on the order page."
+
+msgctxt "Languages::hypay_link_j5_list_no_return"
+msgid "Hyp reports that the card was authorized with this link, but the details needed to capture it arrive only with the customer's return to the store, which has not come yet. If it never does, capture the transaction in the Hyp portal."
+msgstr "Hyp reports that the card was authorized with this link, but the details needed to capture it arrive only with the customer's return to the store, which has not come yet. If it never does, capture the transaction in the Hyp portal."
+
+msgctxt "Languages::hypay_link_customer_authorized"
+msgid "Thank you! The amount for order #[order_id] is held on your card and will be charged when the order is confirmed."
+msgstr "Thank you! The amount for order #[order_id] is held on your card and will be charged when the order is confirmed."
+
+msgctxt "Languages::hypay_customer_payment_failed"
+msgid "The payment was not completed."
+msgstr "The payment was not completed."
+
+msgctxt "Languages::hypay_verify_return"
+msgid "Verify payments with Hyp"
+msgstr "Verify payments with Hyp"
+
+msgctxt "Languages::hypay_verify_return_desc"
+msgid "Before a payment is recorded on an order, the store checks with Hyp, server to server, that the customer's return really came from Hyp for this order and amount - so nobody can mark an order paid by opening the return address by hand. Payment pages are requested with Sign=True while this is on, whatever the Sign box says. Switch it off only to diagnose a problem."
+msgstr "Before a payment is recorded on an order, the store checks with Hyp, server to server, that the customer's return really came from Hyp for this order and amount - so nobody can mark an order paid by opening the return address by hand. Payment pages are requested with Sign=True while this is on, whatever the Sign box says. Switch it off only to diagnose a problem."
+
+msgctxt "Languages::hypay_unverified"
+msgid "Unverified return"
+msgstr "Unverified return"
+
+msgctxt "Languages::hypay_pi_unverified"
+msgid "[date]: a return claiming a payment could not be verified with Hyp - nothing was recorded. Check the transaction in the Hyp portal."
+msgstr "[date]: a return claiming a payment could not be verified with Hyp - nothing was recorded. Check the transaction in the Hyp portal."
+
+msgctxt "Languages::hypay_link_unverified"
+msgid "A return claiming this link was paid could not be verified with Hyp, so nothing was recorded. Check the transaction in the Hyp portal."
+msgstr "A return claiming this link was paid could not be verified with Hyp, so nothing was recorded. Check the transaction in the Hyp portal."
+
+msgctxt "Languages::hypay_customer_payment_unverified"
+msgid "We could not confirm your payment automatically. If you were charged, the store will confirm it shortly."
+msgstr "We could not confirm your payment automatically. If you were charged, the store will confirm it shortly."
+
+msgctxt "Languages::hypay_stock"
+msgid "Order status"
+msgstr "Order status"
+
+msgctxt "Languages::hypay_pi_status_fallback"
+msgid "[date]: CS-Cart wanted to put the order in status [forbidden] (Backordered - not enough stock for one of the products). The add-on never uses [forbidden], so the order was put in status [status] instead. The products were NOT taken off the stock - check the stock before shipping."
+msgstr "[date]: CS-Cart wanted to put the order in status [forbidden] (Backordered - not enough stock for one of the products). The add-on never uses [forbidden], so the order was put in status [status] instead. The products were NOT taken off the stock - check the stock before shipping."
+
+msgctxt "Languages::hypay_unpaid_title"
+msgid "Order NOT placed"
+msgstr "Order NOT placed"
+
+msgctxt "Languages::hypay_unpaid_text"
+msgid "The payment for order #[order_id] was not completed, so the order has NOT been placed."
+msgstr "The payment for order #[order_id] was not completed, so the order has NOT been placed."
+
+msgctxt "Languages::hypay_unpaid_retry"
+msgid "Please place the order again and complete the payment on the payment page. Do not leave the payment form until the payment is finished."
+msgstr "Please place the order again and complete the payment on the payment page. Do not leave the payment form until the payment is finished."
+
+msgctxt "Languages::hypay_unpaid_button"
+msgid "Place the order again"
+msgstr "Place the order again"
+
+msgctxt "Languages::hypay_unpaid_retry_pay"
+msgid "Press \"Go to payment\" and complete the payment. Do not leave the payment form until the payment is finished."
+msgstr "Press \"Go to payment\" and complete the payment. Do not leave the payment form until the payment is finished."
+
+msgctxt "Languages::hypay_unpaid_button_pay"
+msgid "Go to payment"
+msgstr "Go to payment"
+
+msgctxt "Languages::hypay_unpaid_basket_changed"
+msgid "The cart was changed after order #[order_id] was created, so that order cannot be paid. Check the cart and press \"Place order\" again - a new order will be created and the payment form will open."
+msgstr "The cart was changed after order #[order_id] was created, so that order cannot be paid. Check the cart and press \"Place order\" again - a new order will be created and the payment form will open."
+
+# Payment link settings (Add-ons -> Hypay -> Settings), automatic payment check
+msgctxt "Languages::hypay_link_setting_method_auto"
+msgid "— the order's own Hypay method, otherwise the first active one —"
+msgstr "— the order's own Hypay method, otherwise the first active one —"
+
+msgctxt "Languages::hypay_link_setting_as_method"
+msgid "— as the payment method sets —"
+msgstr "— as the payment method sets —"
+
+msgctxt "Languages::hypay_link_terminal"
+msgid "terminal [masof]"
+msgstr "terminal [masof]"
+
+msgctxt "Languages::hypay_link_method"
+msgid "Goes through"
+msgstr "Goes through"
+
+msgctxt "Languages::hypay_link_settings_moved"
+msgid "Payment link settings are the same for every link, whatever payment method the order was placed with: they are set in <a href=\"[url]\">Add-ons → Hypay → Settings</a>, which also names the payment method (terminal) every link goes through."
+msgstr "Payment link settings are the same for every link, whatever payment method the order was placed with: they are set in <a href=\"[url]\">Add-ons → Hypay → Settings</a>, which also names the payment method (terminal) every link goes through."
+
+msgctxt "Languages::hypay_link_auto_paid"
+msgid "Paid by payment link, the payment has been recorded: order [orders]."
+msgstr "Paid by payment link, the payment has been recorded: order [orders]."
+
+msgctxt "Languages::hypay_link_auto_cancelled"
+msgid "The payment link was cancelled in the Hyp portal: order [orders]."
+msgstr "The payment link was cancelled in the Hyp portal: order [orders]."
+
+msgctxt "SettingsSections::hypay::payment_links"
+msgid "Payment links"
+msgstr "Payment links"
+
+msgctxt "SettingsOptions::hypay::link_terminal_header"
+msgid "Terminal and document"
+msgstr "Terminal and document"
+
+msgctxt "SettingsOptions::hypay::link_payment_id"
+msgid "Payment method (terminal) for payment links"
+msgstr "Payment method (terminal) for payment links"
+
+msgctxt "SettingsTooltips::hypay::link_payment_id"
+msgid "Every new payment link goes through this Hypay payment method - its terminal and PassP, its EzCount settings, its payment page settings - whatever method the order itself was placed with. A disabled method can be chosen too: a terminal kept for links alone need not be offered at checkout. A link already created keeps the method it was created with. The payment link window says which method a link goes through."
+msgstr "Every new payment link goes through this Hypay payment method - its terminal and PassP, its EzCount settings, its payment page settings - whatever method the order itself was placed with. A disabled method can be chosen too: a terminal kept for links alone need not be offered at checkout. A link already created keeps the method it was created with. The payment link window says which method a link goes through."
+
+msgctxt "SettingsOptions::hypay::link_lifetime_days"
+msgid "Link lifetime, days"
+msgstr "Link lifetime, days"
+
+msgctxt "SettingsTooltips::hypay::link_lifetime_days"
+msgid "After this many days an unpaid link is withdrawn at Hyp and shown as expired in the payment link window, which offers to create a new one. Empty or 0: no limit."
+msgstr "After this many days an unpaid link is withdrawn at Hyp and shown as expired in the payment link window, which offers to create a new one. Empty or 0: no limit."
+
+msgctxt "SettingsOptions::hypay::link_doc_type"
+msgid "Document after a payment link is paid"
+msgstr "Document after a payment link is paid"
+
+msgctxt "SettingsTooltips::hypay::link_doc_type"
+msgid "The EzCount document a paid link produces, in the EzCount mode of the payment method the link goes through: Direct API - the add-on issues it; Integrated - Hyp issues it. \"As the payment method sets\" keeps that method's own setting."
+msgstr "The EzCount document a paid link produces, in the EzCount mode of the payment method the link goes through: Direct API - the add-on issues it; Integrated - Hyp issues it. \"As the payment method sets\" keeps that method's own setting."
+
+msgctxt "SettingsVariants::hypay::link_doc_type::method"
+msgid "— as the payment method sets —"
+msgstr "— as the payment method sets —"
+
+msgctxt "SettingsVariants::hypay::link_doc_type::320"
+msgid "Tax Invoice Receipt (320)"
+msgstr "Tax Invoice Receipt (320)"
+
+msgctxt "SettingsVariants::hypay::link_doc_type::400"
+msgid "Receipt (400)"
+msgstr "Receipt (400)"
+
+msgctxt "SettingsVariants::hypay::link_doc_type::none"
+msgid "No document"
+msgstr "No document"
+
+msgctxt "SettingsOptions::hypay::link_orders_header"
+msgid "Several orders in one link"
+msgstr "Several orders in one link"
+
+msgctxt "SettingsOptions::hypay::link_order_statuses"
+msgid "Customer's orders offered in the link"
+msgstr "Customer's orders offered in the link"
+
+msgctxt "SettingsTooltips::hypay::link_order_statuses"
+msgid "When a payment link is created from an order, the window lists the customer's other orders with these statuses, so several orders can be paid with one link. Orders that already have a document attached or a link of their own cannot be ticked. Select none to always pay for the one order only."
+msgstr "When a payment link is created from an order, the window lists the customer's other orders with these statuses, so several orders can be paid with one link. Orders that already have a document attached or a link of their own cannot be ticked. Select none to always pay for the one order only."
+
+msgctxt "SettingsOptions::hypay::link_statuses_header"
+msgid "Order statuses"
+msgstr "Order statuses"
+
+msgctxt "SettingsOptions::hypay::link_paid_status"
+msgid "Order status after the link is paid"
+msgstr "Order status after the link is paid"
+
+msgctxt "SettingsTooltips::hypay::link_paid_status"
+msgid "Every order the paid link covers moves to this status once the payment is recorded - from the customer's return or from the automatic check. \"As the payment method sets\": the success status of the payment method the link went through."
+msgstr "Every order the paid link covers moves to this status once the payment is recorded - from the customer's return or from the automatic check. \"As the payment method sets\": the success status of the payment method the link went through. \"— do not change —\": the orders keep the status they have."
+
+msgctxt "SettingsOptions::hypay::link_paid_additional_status"
+msgid "Additional status after the link is paid"
+msgstr "Additional status after the link is paid"
+
+msgctxt "SettingsTooltips::hypay::link_paid_additional_status"
+msgid "Every order the paid link covers gets this additional status once the payment is recorded. \"As the payment method sets\": the additional status that method gives a successful payment. Needs the Additional Order Statuses add-on (eCom Labs)."
+msgstr "Every order the paid link covers gets this additional status once the payment is recorded. \"As the payment method sets\": the additional status that method gives a successful payment. Needs the Additional Order Statuses add-on (eCom Labs). \"— do not change —\": the orders keep the additional status they have."
+
+msgctxt "SettingsOptions::hypay::link_j5_status"
+msgid "Order status after a J5 link is held"
+msgstr "Order status after a J5 link is held"
+
+msgctxt "SettingsTooltips::hypay::link_j5_status"
+msgid "The order of a J5 (hold only) link moves to this status once the hold comes back. \"As the payment method sets\": that method's J5 authorization status."
+msgstr "The order of a J5 (hold only) link moves to this status once the hold comes back. \"As the payment method sets\": that method's J5 authorization status. \"— do not change —\": the orders keep the status they have."
+
+msgctxt "SettingsOptions::hypay::link_j5_additional_status"
+msgid "Additional status after a J5 link is held"
+msgstr "Additional status after a J5 link is held"
+
+msgctxt "SettingsTooltips::hypay::link_j5_additional_status"
+msgid "The order of a J5 (hold only) link gets this additional status once the hold comes back. \"As the payment method sets\": that method's J5 additional status. Needs the Additional Order Statuses add-on (eCom Labs)."
+msgstr "The order of a J5 (hold only) link gets this additional status once the hold comes back. \"As the payment method sets\": that method's J5 additional status. Needs the Additional Order Statuses add-on (eCom Labs). \"— do not change —\": the orders keep the additional status they have."
+
+msgctxt "SettingsOptions::hypay::link_created_additional_status"
+msgid "Additional status after the link is created"
+msgstr "Additional status after the link is created"
+
+msgctxt "SettingsTooltips::hypay::link_created_additional_status"
+msgid "Every order the payment link pays for gets this additional status once the link is created. Needs the Additional Order Statuses add-on (eCom Labs)."
+msgstr "Every order the payment link pays for gets this additional status once the link is created. Needs the Additional Order Statuses add-on (eCom Labs)."
+
+msgctxt "SettingsOptions::hypay::link_cancelled_additional_status"
+msgid "Additional status after the link is cancelled"
+msgstr "Additional status after the link is cancelled"
+
+msgctxt "SettingsTooltips::hypay::link_cancelled_additional_status"
+msgid "Every order the payment link paid for gets this additional status once the link is cancelled - from the order page or from the Hyp portal - or expires. Needs the Additional Order Statuses add-on (eCom Labs)."
+msgstr "Every order the payment link paid for gets this additional status once the link is cancelled - from the order page or from the Hyp portal - or expires. Needs the Additional Order Statuses add-on (eCom Labs)."
+
+msgctxt "SettingsOptions::hypay::link_list_check_minutes"
+msgid "Order list: check payment links every, minutes"
+msgstr "Order list: check payment links every, minutes"
+
+msgctxt "SettingsTooltips::hypay::link_list_check_minutes"
+msgid "While at least one payment link is still payable, opening the order list asks Hyp about all of them at most this often - one request per terminal - and records the payments it finds on every order of the link. A link past its lifetime does not count; it is marked expired the next time a check runs. Opening an order with a link asks about that link straight away, every time. 0: the order list never asks. Empty: 5."
+msgstr "While at least one payment link is still payable, opening the order list asks Hyp about all of them at most this often - one request per terminal - and records the payments it finds on every order of the link. A link past its lifetime does not count; it is marked expired the next time a check runs. Opening an order with a link asks about that link straight away, every time. 0: the order list never asks. Empty: 5."
+
+msgctxt "Languages::hypay_link_cancel_still_active"
+msgid "Hyp did not cancel the link (CCode=250, not found by its id), yet it is still payable at Hyp. It stays active here so that a payment on it is recorded. Cancel it in the Hyp Pay portal (payment links), then press Check payment."
+msgstr "Hyp did not cancel the link (CCode=250, not found by its id), yet it is still payable at Hyp. It stays active here so that a payment on it is recorded. Cancel it in the Hyp Pay portal (payment links), then press Check payment."

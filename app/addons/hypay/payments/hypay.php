@@ -31,6 +31,22 @@ if (defined('PAYMENT_NOTIFICATION')) {
     $mode     = $_REQUEST['mode'] ?? '';
     $order_id = (int) ($_REQUEST['Order'] ?? $_REQUEST['order_id'] ?? 0);
 
+    // A paid payment link comes back on this same URL, and may bring no order
+    // number with it - the link is then found by what it was created with.
+    $hypay_link = fn_hypay_link_find_for_return($order_id);
+
+    // a J5 hold coming back is the link's only when the link asked for one
+    if (!empty($hypay_link)
+        && (string) ($_REQUEST['CCode'] ?? '') === HYPAY_CCODE_J5_AUTHORIZED
+        && !fn_hypay_link_is_j5($hypay_link)
+    ) {
+        $hypay_link = [];
+    }
+
+    if ($order_id <= 0 && !empty($hypay_link)) {
+        $order_id = (int) $hypay_link['order_id'];
+    }
+
     if (!hypay_allow_for_order($order_id)) {
         hypay_log($order_id, 'payment_notification not allowed (script/payment mismatch)');
         return;
@@ -40,14 +56,30 @@ if (defined('PAYMENT_NOTIFICATION')) {
     $payment_id     = $order_info['payment_id'];
     $processor_data = fn_get_payment_method_data($payment_id);
     $pp             = $processor_data['processor_params'] ?? [];
+
+    // a payment link goes through the Hypay method it was created with, which
+    // is not necessarily the one the order was placed with
+    if (!empty($hypay_link)) {
+        $pp = fn_hypay_link_processor_params($order_info, $hypay_link);
+    }
     $GLOBALS['HYPAY_DEBUG'] = (!empty($pp['debug_mode']) && $pp['debug_mode'] === 'Y');
 
     hypay_log($order_id, 'payment_notification enter', ['mode' => $mode, 'REQUEST' => $_REQUEST]);
+
+    // Hyp has answered for the checkout this session sent there: the page
+    // checks that look for a customer who left without paying stand down
+    fn_hypay_clear_pending_checkout($order_id);
 
     // what came back: CCode=0 charged, CCode=700 J5 authorization (funds held)
     $ccode       = isset($_REQUEST['CCode']) ? (string) $_REQUEST['CCode'] : '';
     $is_success  = ($ccode === '0');
     $is_j5_auth  = ($ccode === HYPAY_CCODE_J5_AUTHORIZED);
+
+    // a "not placed" popup queued earlier (the customer looked at the store in
+    // another tab while paying) must not greet a payment that went through
+    if ($is_success || $is_j5_auth) {
+        fn_hypay_drop_unpaid_notice();
+    }
 
     // what we asked for when the payment link was built
     $marker      = hypay_get_marker_data($order_id);
@@ -65,10 +97,48 @@ if (defined('PAYMENT_NOTIFICATION')) {
         hypay_log($order_id, 'WARNING: J5 was requested but the transaction was charged (CCode=0)');
     }
 
+    /* ----------------------------------------------------------------------
+     * Is it really Hyp saying so? A return that would record money - a charge
+     * or a hold - is checked with Hyp, server to server, before anything is
+     * written. One that does not check out changes nothing: no status, no
+     * document, no link marked paid. See fn_hypay_verify_return().
+     * --------------------------------------------------------------------*/
+    if ($is_success || $is_j5_auth) {
+        $verified = fn_hypay_verify_return($order_id, (array) $order_info, (array) $pp, (array) $hypay_link);
+        hypay_log($order_id, 'return verification', $verified);
+
+        if (!$verified['ok']) {
+            // Where the merchant will see it - and nothing the request itself
+            // said, which anyone could have typed
+            fn_hypay_update_payment_info($order_id, [
+                'hypay_unverified' => __('hypay_pi_unverified', ['[date]' => date('d.m.Y H:i', TIME)]),
+            ]);
+            if (!empty($hypay_link)) {
+                db_query(
+                    "UPDATE ?:hypay_payment_links SET last_error = ?s WHERE link_id = ?i",
+                    __('hypay_link_unverified'),
+                    $hypay_link['link_id']
+                );
+            }
+
+            fn_set_notification('W', __('warning'), __('hypay_customer_payment_unverified'));
+            $url = fn_hypay_link_customer_url((array) $order_info);
+            hypay_log($order_id, 'return NOT verified, nothing recorded; redirect', $url);
+            hypay_clean_redirect($url);
+
+            return;
+        }
+
+        // an unverified return seen earlier is answered by this one
+        if (!empty($order_info['payment_info']['hypay_unverified'])) {
+            fn_hypay_update_payment_info($order_id, ['hypay_unverified' => '']);
+        }
+    }
+
     // status mapping
-    $success_status = !empty($pp['success_status']) ? $pp['success_status'] : 'O';
-    $fail_status    = !empty($pp['fail_status'])    ? $pp['fail_status']    : 'D';
-    $j5_auth_status = !empty($pp['j5_auth_status']) ? $pp['j5_auth_status'] : 'O';
+    $success_status = fn_hypay_allowed_status(!empty($pp['success_status']) ? $pp['success_status'] : 'O');
+    $fail_status    = fn_hypay_allowed_status(!empty($pp['fail_status'])    ? $pp['fail_status']    : 'D');
+    $j5_auth_status = fn_hypay_allowed_status(!empty($pp['j5_auth_status']) ? $pp['j5_auth_status'] : 'O');
 
     // brand mapping (Hypay codes → human names)
     $brand_name = hypay_brand_name($_REQUEST['Brand'] ?? '');
@@ -127,6 +197,107 @@ if (defined('PAYMENT_NOTIFICATION')) {
             'spType'       => $card_facts['sp_type'],
             'is_immediate' => hypay_is_immediate_card($card_facts['sp_type']),
         ]);
+    }
+
+    /* ----------------------------------------------------------------------
+     * Payment link: the customer paid on the page a link sent them to
+     * --------------------------------------------------------------------*/
+    if (!empty($hypay_link) && !$is_j5_auth) {
+        hypay_log($order_id, 'return from a payment link', [
+            'link_id'      => $hypay_link['link_id'],
+            'payRequestId' => $hypay_link['pay_request_id'],
+            'link_status'  => $hypay_link['status'],
+        ]);
+
+        if ($is_success) {
+            $link_trans_id = $hyp_return_id !== '' ? $hyp_return_id : $hyp_return_acode;
+
+            // The first to notice the payment moves the order. A LIST lookup
+            // from the order page may have beaten the customer here; then this
+            // return only brings the card details LIST does not have.
+            $claimed = fn_hypay_link_claim_paid($hypay_link['link_id'], 'return', $link_trans_id);
+            if (!$claimed && $link_trans_id !== '') {
+                db_query(
+                    "UPDATE ?:hypay_payment_links SET trans_id = ?s WHERE link_id = ?i AND trans_id = ''",
+                    $link_trans_id,
+                    $hypay_link['link_id']
+                );
+            }
+            // In integrated mode Hyp has just issued the document itself and
+            // names it in Hesh - the one trace of it the order can keep
+            $link_hesh = hypay_utf8_text(hypay_request_value(['Hesh', 'hesh']));
+            if ($link_hesh !== '' && $link_hesh !== '0') {
+                db_query(
+                    "UPDATE ?:hypay_payment_links SET doc_number = ?s WHERE link_id = ?i",
+                    substr($link_hesh, 0, 64),
+                    $hypay_link['link_id']
+                );
+            }
+
+            $hypay_link = fn_hypay_link_get($hypay_link['link_id']);
+
+            // the same lines a checkout payment writes, plus when the link was paid
+            $pp_response = fn_hypay_clean_payment_info([
+                'transaction_id' => $link_trans_id,
+                'reason_text'    => '🟢 Success',
+                'hypay_link'     => fn_hypay_link_paid_label($hypay_link),
+                'brand'          => $brand_name,
+                'card_number'    => $last4,
+                'payments'       => $num_payments,
+                'personal_id'    => $hyp_user_digits !== '' ? $hyp_user_digits : HYPAY_PERSONAL_ID_UNKNOWN,
+            ]);
+
+            if ($claimed) {
+                // every order the link pays for gets the same payment
+                // information and moves to the status the payment link
+                // settings give a paid link
+                $pp_response['order_status'] = fn_hypay_link_paid_order_status($pp);
+                hypay_log($order_id, 'payment link paid', $pp_response + ['orders' => fn_hypay_link_order_ids($hypay_link)]);
+                fn_hypay_link_finish_orders($hypay_link, $pp_response, $pp);
+
+                // the document the payment link settings ask for (direct API);
+                // in integrated mode Hyp has issued it already
+                fn_hypay_link_issue_document($order_id, $pp, $hypay_link, [
+                    'transaction_id' => $hyp_return_id,
+                    'brand'          => $brand_name,
+                    'last4'          => $last4,
+                    'payments'       => $num_payments,
+                ]);
+            } else {
+                hypay_log($order_id, 'payment link already recorded, adding the card details', $pp_response);
+                fn_hypay_link_update_payment_info($hypay_link, $pp_response);
+            }
+
+            fn_set_notification('N', __('notice'), __('hypay_link_customer_paid', [
+                '[order_id]' => implode(', #', fn_hypay_link_order_ids($hypay_link) ?: [$order_id]),
+            ]));
+        } else {
+            // A declined card on the link page is one attempt, not the end of
+            // the order: the link stays open for another try, and the order
+            // keeps the status it had - it is not the checkout that failed.
+            $link_error = fn_hypay_format_error($ccode, hypay_text_is_lost($hyp_err_msg) ? '' : $hyp_err_msg);
+            db_query(
+                "UPDATE ?:hypay_payment_links SET last_error = ?s WHERE link_id = ?i AND status = 'active'",
+                $link_error,
+                $hypay_link['link_id']
+            );
+            hypay_log($order_id, 'payment link attempt failed', $link_error);
+
+            fn_set_notification('E', __('error'), __('hypay_link_customer_failed'));
+        }
+
+        // Not the checkout "thank you" page: the customer did not come from a
+        // checkout, and is often not signed in on this device at all - or is
+        // signed in as somebody else - and checkout.complete would answer 403.
+        // The order page when the storefront will show it to them, the home
+        // page otherwise; both carry the notification just set. The checkout
+        // marker and the cart are left alone - they belong to a checkout, if
+        // there is one.
+        $url = fn_hypay_link_customer_url($order_info);
+        hypay_log($order_id, 'redirect customer (payment link)', $url);
+        hypay_clean_redirect($url);
+
+        return;
     }
 
     // Did this return place the order for good - charged, or held on the card?
@@ -235,16 +406,41 @@ if (defined('PAYMENT_NOTIFICATION')) {
                 'order_status'   => $j5_auth_status,
             ];
             $pp_response = fn_hypay_clean_payment_info($pp_response);
-            hypay_log($order_id, 'fn_finish_payment payload (J5)', $pp_response);
-            fn_finish_payment($order_id, $pp_response);
+
+            if (!empty($hypay_link)) {
+                // A J5 payment link. There is no checkout behind the order for
+                // fn_finish_payment to finish, so the hold is recorded the way
+                // a paid link is. A LIST lookup may have marked the link used
+                // already, without the UID; this return brings it.
+                fn_hypay_link_claim_paid($hypay_link['link_id'], 'return', $hyp_id);
+                db_query("UPDATE ?:hypay_payment_links SET last_error = '' WHERE link_id = ?i", $hypay_link['link_id']);
+                $hypay_link = fn_hypay_link_get($hypay_link['link_id']);
+
+                $pp_response['hypay_link']   = fn_hypay_link_paid_label($hypay_link);
+                $pp_response['order_status'] = fn_hypay_link_paid_order_status($pp, true);
+                hypay_log($order_id, 'payment link held (J5)', $pp_response);
+                fn_hypay_link_finish_order($order_id, $pp_response, $pp, true);
+
+                fn_set_notification('N', __('notice'), __('hypay_link_customer_authorized', ['[order_id]' => $order_id]));
+            } else {
+                hypay_log($order_id, 'fn_finish_payment payload (J5)', $pp_response);
+                fn_hypay_guarded_status_change($order_id, function () use ($order_id, $pp_response) {
+                    fn_finish_payment($order_id, $pp_response);
+                });
+            }
 
             // the hold went through, so the order stands: the money is only
             // waiting to be captured from the order page
             $order_completed = true;
 
+            // a payment link still out for this order must not take the money
+            // a second time
+            fn_hypay_link_retire($order_id, $pp);
+
             // inside this branch on purpose: a replayed return takes the other
-            // one and leaves the order alone, additional status included
-            if (!empty($pp['j5_auth_additional_status'])) {
+            // one and leaves the order alone, additional status included (a
+            // link has had its own already)
+            if (empty($hypay_link) && !empty($pp['j5_auth_additional_status'])) {
                 fn_hypay_set_additional_status($order_id, $pp['j5_auth_additional_status']);
             }
 
@@ -285,10 +481,18 @@ if (defined('PAYMENT_NOTIFICATION')) {
         ];
         $pp_response = fn_hypay_clean_payment_info($pp_response);
         hypay_log($order_id, 'fn_finish_payment payload', $pp_response);
-        fn_finish_payment($order_id, $pp_response);
+        fn_hypay_guarded_status_change($order_id, function () use ($order_id, $pp_response) {
+            fn_finish_payment($order_id, $pp_response);
+        });
         hypay_log($order_id, 'fn_finish_payment done');
 
         $order_completed = $is_success;
+
+        // paid at checkout while a payment link was still out: withdraw it, so
+        // the customer is not left holding a second way to pay the same order
+        if ($is_success) {
+            fn_hypay_link_retire($order_id, $pp);
+        }
 
         // the J4 counterpart of the J5 pair: the additional status follows the
         // main one, and only a charge that actually went through gets it
@@ -314,6 +518,15 @@ if (defined('PAYMENT_NOTIFICATION')) {
         }
     }
 
+    // a J5 payment link: back where a paid link sends the customer
+    if (!empty($hypay_link)) {
+        $url = fn_hypay_link_customer_url($order_info);
+        hypay_log($order_id, 'redirect customer (J5 payment link)', $url);
+        hypay_clean_redirect($url);
+
+        return;
+    }
+
     // where to bounce back (admin or storefront)?
     $back = hypay_get_back_marker($order_id);
     hypay_clear_back_marker($order_id);
@@ -336,9 +549,34 @@ if (defined('PAYMENT_NOTIFICATION')) {
         $url = "{$admin_index}?dispatch=orders.details&order_id={$order_id}";
         hypay_log($order_id, 'redirect admin', $url);
         hypay_clean_redirect($url);
-    } else {
+    } elseif (!$is_success && !$is_j5_auth && fn_hypay_customer_can_view_order($order_info)) {
+        // Declined, or cancelled on the Hyp page: the order was NOT placed.
+        // Not the "thank you" page - it reads as if the order went through.
+        // Back to the checkout instead, with the cart still full, and a popup
+        // that says plainly the order has to be placed and paid again.
+        fn_hypay_notify_payment_not_completed($order_id);
+        $url = fn_url('checkout.checkout', 'C', 'current');
+        hypay_log($order_id, 'redirect customer (payment not completed, back to checkout)', $url);
+        hypay_clean_redirect($url);
+    } elseif (fn_hypay_customer_can_view_order($order_info)) {
         $url = fn_url("index.php?dispatch=checkout.complete&order_id={$order_id}", 'C', 'current');
         hypay_log($order_id, 'redirect customer', $url);
+        hypay_clean_redirect($url);
+    } else {
+        // No checkout of this session's came back here - an order paid on a
+        // page opened some other way (a link from an older version, a page
+        // forwarded to someone else) - and checkout.complete would answer this
+        // visitor with 403. Where the customer lands changes nothing about
+        // what was recorded above; the home page says how it went.
+        if ($is_j5_auth) {
+            fn_set_notification('N', __('notice'), __('hypay_link_customer_authorized', ['[order_id]' => $order_id]));
+        } elseif ($is_success) {
+            fn_set_notification('N', __('notice'), __('hypay_link_customer_paid', ['[order_id]' => $order_id]));
+        } else {
+            fn_set_notification('E', __('error'), __('hypay_customer_payment_failed'));
+        }
+        $url = fn_url('index.php', 'C', 'current');
+        hypay_log($order_id, 'redirect customer (order not visible to this session)', $url);
         hypay_clean_redirect($url);
     }
     return;
@@ -445,7 +683,8 @@ $params_sign = [
     'Amount'      => round((float) $order_info['total'], 2),
     'UTF8'        => hypay_bool($pp['utf8']    ?? 'Y'),
     'UTF8out'     => hypay_bool($pp['utf8out'] ?? 'Y'),
-    'Sign'        => hypay_bool($pp['sign']    ?? 'N'),
+    // always True while returns are verified - see fn_hypay_verify_return()
+    'Sign'        => hypay_sign_flag($pp),
     'PageLang'    => $page_lang,
 
     // customer meta. Hyp echoes ClientName/ClientLName (as Fild1), street and
@@ -567,16 +806,26 @@ hypay_log($order_id, 'SIGN response raw', $response);
 if (!$have_link) {
     hypay_log($order_id, 'SIGN failed - no payment link after ' . $max_attempts . ' attempt(s)');
     $pp_response = [
-        'order_status' => $pp['fail_status'] ?? 'D',
+        'order_status' => fn_hypay_allowed_status($pp['fail_status'] ?? 'D'),
         'reason_text'  => '🔴 Hypay SIGN failed',
     ];
-    fn_finish_payment($order_id, $pp_response);
+    fn_hypay_guarded_status_change($order_id, function () use ($order_id, $pp_response) {
+        fn_finish_payment($order_id, $pp_response);
+    });
     fn_order_placement_routines('checkout_redirect', $order_id);
     return;
 }
 
 // ready: off you go
 $payment_link = $base . $response;
+
+// the customer is on their way to Hyp; should they come back to the store
+// without Hyp sending them, they are told the order was not placed
+if ($back === 'front') {
+    fn_hypay_set_pending_checkout($order_id);
+    fn_hypay_snapshot_cart($order_id);
+}
+
 hypay_log($order_id, 'redirect to payment', $payment_link);
 
 // Hand the customer to Hyp. fn_create_payment_form() renders the redirect page

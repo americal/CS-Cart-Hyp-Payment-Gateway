@@ -24,6 +24,13 @@ https://hypay.docs.apiary.io/
 - Sandbox (test) and production modes
 - Configurable merchant credentials
 - Support for authorization and capture flows
+- Payment links sent to the customer by SMS / e-mail from the order page
+- A customer who leaves the payment page without paying (back button, cancel,
+  declined card) is shown a popup that the order was **not** placed and must be
+  placed and paid again, instead of the "thank you" page. Pressing "Place
+  order" again for an order still left unpaid opens the payment form for it
+  rather than the "thank you" page, and the cart keeps its products until the
+  payment actually goes through
 - Compatible with CS-Cart payment processor architecture
 
 ---
@@ -84,6 +91,12 @@ Each is off until it is switched on, so an installation that issued documents
 before these settings existed keeps issuing exactly the same ones. The name
 falls back to the profile name: a customer who never filled the EzCount name
 field in is still named on the document rather than not at all.
+
+**Profile EzCount details** (direct API) overrides the EzCount name and VAT ID
+switches for a customer who has them filled in: such a customer always gets
+both on the document — at checkout, after a J5 capture and for a payment link —
+so a company is never invoiced as a private buyer because a switch was left
+off. A customer without them is named by the profile name, as before.
 
 A fourth setting, **Customer card**, sends `customerAction=ASSOC_ONLY` — EzCount
 then files the document under a customer card that already matches instead of
@@ -436,6 +449,327 @@ row of its own.
 
 Authorizations and captures are stored in `?:hypay_transactions` (kept on uninstall).
 
+
+---
+
+## 🔗 Payment links (pay by SMS / e-mail)
+
+**Settings.** A link is not tied to the order's payment method — it can be
+sent for an order placed with bank transfer, by phone, with anything — so its
+settings are the add-on's own: **Add-ons → Hypay → Settings → Payment links**,
+the same for every link. They are:
+
+| Setting | What it does |
+|---|---|
+| *Payment method (terminal) for payment links* | The Hypay payment method every new link goes through: its terminal and `PassP`, its EzCount and payment page settings. A disabled method can be chosen too — a terminal kept for links alone. Left on *the order's own Hypay method, otherwise the first active one*, it works as before. A link already created keeps the method it was made with; the link window names it (*Goes through: … (terminal …)*). |
+| *Link lifetime, days* | See **Link lifetime** below. |
+| *Order list: check payment links every, minutes* | How often the order list asks Hyp about the links still out (default 5; 0: never). See **How the payment reaches the order** below. |
+| *Document after a payment link is paid* | 320, 400 or none for every link, or *as the payment method sets* (that method's own EzCount setting). |
+| *Customer's orders offered in the link* | See **Several orders, one link** below. |
+| *Order status after the link is paid* | The status every order of a paid link moves to; *as the payment method sets* = the method's success status; *do not change* = the orders keep the status they have. |
+| *Additional status after the link is paid* | The additional status every order of a paid link gets; *as the payment method sets* = the method's success additional status; *do not change* = none is set. |
+| *Order status / Additional status after a J5 link is held* | The same for a J5 (hold only) link; by default the method's J5 statuses, or *do not change*. |
+| *Additional status after the link is created / cancelled* | See **Additional statuses** below. |
+
+The additional status settings need the eCom Labs *Additional Order Statuses*
+add-on; without it they offer nothing to choose.
+
+These used to be settings of each Hypay payment method, which left it unclear
+whose settings a link went by when there were several. CS-Cart reads an
+add-on's settings from `addon.xml` only when it is installed, so on an
+installation updated from an earlier version they are added the first time an
+admin page (the order list, an order, the add-on manager, a payment method) is
+opened — through CS-Cart's own `fn_update_addon_settings()`, without a
+reinstall — and take the values the shop's Hypay payment method had. Should that
+not be possible on the CS-Cart version, the payment method page keeps its
+*Payment links* block and the links keep reading it there; reinstalling the
+add-on then adds them (a reinstall now points the Hypay payment methods at the
+newly registered processor again, instead of leaving them without one).
+
+An order with no document attached gets a **Payment Link 💳** item in the
+order's tools menu — the gear next to **Save**, beside the other order actions.
+It opens a window (a dialog, not part of the order form) where the merchant can:
+
+- **choose the orders** the link pays for (see below) and **create and send**
+  the link for their total — Hyp sends it to the customer by e-mail, by SMS, or
+  both (`action=payRequest&iCommand=CREATE`);
+- **copy** the link, to send it any other way;
+- **cancel** the link (`iCommand=DELETE`) — the customer can no longer pay with it;
+- **check payment** (`iCommand=LIST`) — ask Hyp whether the link has been paid;
+- **close** the window.
+
+Under the menu item the order page says what became of the last link — *created
+on …*, *cancelled on …*, *expired on …*, or, once it is paid, **Paid by payment link on *date,
+time*** (which the Payment information block also shows, as a line of the
+payment). The window's buttons work in place: Create, Cancel and Check payment
+redraw the window with the outcome, without reloading the page. When a payment
+is found, the order page reloads as the window closes, so it shows the payment.
+
+The window lists the orders the way the EzCount Doc Generator does: order,
+date, total, status, whether it has a document, and that document's type and
+number, with a status filter and the sum of what is ticked. Orders that already
+have a document or a link of their own are listed but cannot be ticked.
+
+**Send it, or just make it.** Neither *Send by e-mail* nor *Send by SMS* is
+ticked by default. Tick one or both to have Hyp send the link; leave both
+unticked to only create the link: it is shown in the window to copy
+and send the customer any way you like. `payRequest` does not make a link
+without somewhere to send it, so that link is the signed payment page the
+checkout uses (`APISign` / `SIGN`) — the payment comes back the same way and is
+recorded on every order of the link. Hyp keeps no record of it as a payment
+link: *Check payment* is not offered, and *Cancel* marks it cancelled in the
+store only (a payment made on it anyway is still recorded).
+
+The signed page URL is well over 255 characters. Versions that stored it in a
+`varchar(255)` cut it off before `action=pay` and the signature, and Hyp
+answered such a link with *"Action is not good"*. The column is now `text`;
+links already cut off are cancelled automatically with that reason, so a new
+one can be made for their orders.
+
+**J4 or J5.** The window asks for the deal type: *Charge now (J4)*, the
+default, or *Hold only (J5)*. A J5 link is made with `J5=True` and
+`MoreData=True`, like a J5 checkout, and pays for the order it is opened on
+only (a hold is captured and voided order by order). When the customer comes
+back, the hold is stored exactly as a J5 checkout stores it — authorization,
+UID, card token — the order gets the J5 authorization status and additional
+status, and the money is captured or released from the order's J5 block. No
+document is issued for the hold; the capture issues it. An order placed with
+another method is captured through the Hypay method the link was made with.
+If only the LIST lookup sees the link used (the customer's return never came),
+the order is not moved: the details a capture needs come only with the return,
+and the window says to capture it in the Hyp portal if it never arrives.
+
+**Where the customer lands.** After paying on a link the customer is sent to
+the order's page when the storefront will show it to them (their own order, or
+a guest order placed in this browser), and to the home page with a "payment
+received" message otherwise — never to a 403. A checkout return whose order the
+visitor cannot see is sent to the home page the same way instead of
+`checkout.complete`.
+
+A checkout payment page opened for the order after the link was made leaves a
+marker on the order. Earlier versions let that marker alone decide the return
+was the checkout's, so a paid link was sent down the checkout path — nothing
+recorded on an order no checkout was placed for, and `checkout.complete` with
+403 for the customer. Now the return is the checkout's only when it cannot be
+the link's: a different amount, a link already paid, or a J5 hold the link did
+not ask for.
+
+**Link lifetime.** *Link lifetime, days* sets how long a link
+stays payable (empty or 0: no limit). An active link shows *valid until …*.
+Once the time is up, the next time the order page or the window is opened the
+link is looked up at Hyp once more (a payment made just before is recorded as
+paid, not expired), withdrawn (`iCommand=DELETE`) and marked **expired**: the
+window says *Link expired on …* and offers the form to create a new one. A
+signed page cannot be withdrawn at Hyp; like a cancelled one, a payment made on
+an expired link anyway is still recorded.
+
+**Additional statuses.** With the eCom Labs *Additional Order Statuses* add-on
+active, every order the link pays for gets *Additional status after the link is
+created* when the link is created, *Additional status after the link is
+cancelled* when it is cancelled — from the window, or from the Hyp portal
+(found by the LIST lookup) — or expires, and *Additional status after the link
+is paid* when the payment is recorded (left on *as the payment method sets*:
+the method's success additional status, as before).
+
+**Cancelling.** *Cancel* sends `iCommand=DELETE` with the link's
+`payRequestId`. If Hyp answers `CCode=250` (not found), it is asked again by
+every other identifier the link has — the code its address ends in (`?pay=…`)
+and the `payRequestId` LIST reports for it — and with the parameter spelled
+`payRequestId` and `payRequest` as well; the first answer that is not 250
+counts. Every attempt, and the link's LIST row, is in the log.
+A 250 alone never marks the link cancelled: LIST decides. If LIST shows the
+link still payable, it stays **active** here with an error saying to cancel it
+in the Hyp Pay portal — otherwise the customer could pay a link the store
+thinks is cancelled, and that payment would not be recorded. Paid or deleted
+in LIST is recorded as such; absent from LIST, the link is marked cancelled.
+LIST rows are matched by `payRequestId`, then by the link's address.
+
+**Customer names Hyp refuses.** `payRequest` (a link Hyp sends by e-mail /
+SMS) can refuse a name the checkout payment page accepts — a Hebrew one, with
+`CCode=16 … Invalid characters in ClientName`. The link is then asked for
+again with the name in windows-1255, the terminal's own encoding, and if that
+is refused as well, with the name in Latin letters (מאיר בן יאיר → *Mayr Bn
+Yayr*; nothing usable → *Customer*). Every attempt is in the log.
+
+**Terminal permission.** The link API needs its own permission on the terminal:
+sending links by hand from the Hyp portal does not grant it. Hyp refuses the
+request with `CCode=901 … payRequest API is not enabled for this terminal`, and
+the order page then names the terminal the request went through — the one of
+the Hypay payment method the link goes through — so it can be enabled for that one
+in Hyp Market or by Hyp support. The request is authenticated with the same
+terminal number and `PassP` as the J5 captures.
+
+**Several orders, one link**
+
+The panel does not create the link straight away. It first lists the orders the
+link will pay for: the order it was opened on — always included — and the same
+customer's other orders whose status is one of those chosen under **Customer's
+orders offered in the link** in the add-on settings.
+Orders that already have a document attached, or a link of their own, are not
+listed. Tick the ones to include; the table shows the total the customer will
+be asked to pay, and the link is created for that sum.
+
+Everything that happens to the link happens to every order in it:
+
+- each of them shows the link, when it was created or cancelled, and the other
+  orders it covers — cancel or check it from any of them;
+- once paid, each of them gets the same payment information, the success status
+  and the additional status, and the "Paid by payment link on …" line;
+- the EzCount document (direct API) is one document for the whole payment,
+  with every order's lines, recorded on each order — the same way the EzCount
+  Doc Generator records a document it issues for several orders.
+
+With no statuses selected the list offers nothing else, and a link pays for the
+one order it was created from.
+
+**How the payment reaches the order**
+
+The link is paid on Hyp's own payment page, and the result comes back two ways:
+
+1. **The customer's return.** Hyp redirects the customer to the terminal's
+   success / failure URL — the same `payment_notification` the checkout payment
+   page returns to. The return is recognised as a link payment (by the order
+   number, or by the `Info` text and amount the link was created with) and is
+   recorded exactly like a checkout payment: transaction Id, card brand and last
+   four digits, number of payments, personal ID, the success status and the
+   additional status, and the EzCount document in direct mode. The customer is
+   sent to the storefront home page with a "payment received" message rather than
+   to the checkout "thank you" page — they did not come from a checkout.
+   A declined card on the link page does not change the order: the link stays
+   open for another attempt, and the refusal is shown in the panel.
+2. **The LIST lookup.** When the return never arrives, the admin panel asks Hyp
+   by itself, before the page is built — so it already shows the payment, the
+   status, the additional status and the document:
+   - an **order page** with a link asks about that link straight away, every
+     time it is opened;
+   - the **order list** asks about every link still out, at most once per
+     *Order list: check payment links every, minutes* (5 by default; 0 turns
+     it off), and only while at least one link is still payable. A link past
+     its *Link lifetime* does not count and never sets a lookup off; when one
+     runs anyway, it is marked expired (and withdrawn at Hyp) unless LIST says
+     it was paid or cancelled in time;
+   - **Check payment** in the link window, on demand.
+
+   LIST answers for every recent link of a terminal at once, so a lookup is
+   one request per terminal however many links are out, with a 15-second
+   timeout (`HYPAY_LINK_AUTO_CHECK_TIMEOUT`). The page says which orders it
+   found paid. `status=3` settles the order with what LIST knows —
+   its transaction Id, but no card details; if the return turns up afterwards,
+   it fills them in.
+
+   Earlier versions looked only from the order page, and only once a minute
+   counting from the moment the link was made — an order opened within that
+   minute after a quick payment showed nothing until *Check payment* was
+   pressed.
+
+Whichever arrives first moves the order; the other one never moves it again.
+
+**The document after a link is paid**
+
+Each EzCount mode has its own **Document after a payment link is paid** setting:
+*Tax Invoice Receipt* (320, the default), *Receipt* (400) or *No document*.
+
+- **Direct API** — the add-on issues the chosen document as soon as the payment
+  is recorded (from the return or from the LIST lookup) and stores it on the
+  order exactly as after a checkout payment. The payment link block shows its
+  type, number and PDF link.
+- **Integrated** — Hyp issues the document itself when the link is paid. The
+  link is created with `SendHesh` / `Pritim` / `heshDesc` as configured and the
+  document type in `EZ.type` (the constant `HYPAY_EZ_INT_DOC_TYPE_PARAM` in
+  `func.php`); the document number Hyp returns in `Hesh` is shown in the block.
+  *No document* sends `SendHesh=False` and no invoice data — but a terminal whose
+  invoice module issues a document on every payment may still issue one.
+
+The panel says in advance which document the payment will produce.
+
+**Safeguards**
+
+- A link is offered for an order that has no document attached yet — a tax
+  invoice, proforma invoice or tax invoice receipt, issued by this add-on or by
+  the EzCount Doc Generator (`?:order_data` type `X` with a document number).
+  An order with a document has been billed, so it gets no button. The order
+  does not have to be placed with a Hypay method: the link then goes through
+  the shop's active Hypay payment method. Only one link can be active per order.
+- If the order total changes after the link was sent, the panel says so: the
+  customer would pay the old amount, so cancel the link and send a new one.
+- An order paid at checkout while a link is still out has its link cancelled
+  automatically; if Hyp answers that the link was paid too, the panel warns
+  about the double payment.
+
+**Before you start:** enable the *payment links* feature for your terminal in
+Hyp Market, and make sure the terminal's success / failure URL points at the
+store's `payment_notification` URL (the same one the checkout payment page
+uses). Links, their state and dates are kept in `?:hypay_payment_links`, which
+is created automatically.
+
+---
+
+## 🛡️ Verifying the return from Hyp
+
+Hyp reports the outcome of a payment by sending the customer's browser back to
+the store's `payment_notification` URL, with the result in the query string
+(`CCode=0`, `Amount`, `Order`, …). That is an ordinary address anyone can open
+and edit, so on its own it proves nothing: before this check, opening it with
+`CCode=0` and an order number was enough to mark that order paid.
+
+Now every return that would record money — a charge (`CCode=0`) or a J5 hold
+(`CCode=700`) — is checked with Hyp, **server to server**, before anything is
+written. The customer's session plays no part in it, so it works the same for a
+guest, a customer signed in as somebody else, or nobody at all.
+
+- **Signed return.** While verification is on, every payment page — checkout
+  and payment links made without e-mail / SMS — is requested with `Sign=True`
+  (whatever the *Sign* checkbox says), and Hyp adds a `Sign` value to the return.
+  The store passes the parameters it received back to
+  `APISign` / `What=VERIFY` with the terminal's `KEY` and `PassP`; `CCode=0`
+  means Hyp signed exactly these values. The signed `Order` has to be the order
+  the return is recorded on, no parameter may appear twice (Hyp would check the
+  first one, PHP reads the last), and the `Amount` has to match the order total
+  (or the link's amount).
+- **A link Hyp sent by e-mail / SMS** whose return carries no signature is
+  confirmed with `payRequest` / `LIST`: the link has to be paid (`status=3`),
+  with the same transaction Id when Hyp gives one.
+
+A return that does not check out changes nothing — no status, no document, no
+link marked paid. The order's payment information gets an *Unverified return*
+line (it never repeats anything the request said), the link window says so, and
+the customer is told the store will confirm the payment. A verified return that
+arrives later clears the line. A link Hyp sent is still settled by the LIST
+lookup from the order page if its return was refused.
+
+**Setting:** *Verify payments with Hyp* (on by default). Switch it off only to
+diagnose a problem.
+
+**When updating:** payment pages opened before the update were requested
+without `Sign=True` (unless the *Sign* box was ticked), so their returns carry
+no signature and are not recorded automatically. Re-create payment links made
+without e-mail / SMS that are still unpaid; links sent by e-mail / SMS are
+confirmed through LIST and are not affected.
+
+---
+
+## 📏 Large orders — when Hyp does not sign the payment page
+
+The payment page is requested from Hyp (`APISign` / `What=SIGN`) with every
+detail in the query string, line items (`heshDesc`) included, and the page the
+customer opens is that same query string signed. A big order with Hebrew
+product names — forty lines, each letter six bytes once percent-encoded — makes
+it over 10 KB, and Hyp drops a request that long with an empty answer: the log
+showed `SIGN response raw |` (nothing) and `SIGN failed`, and the customer never
+saw the payment page.
+
+When a request is not signed it is now made again, each time with less:
+
+1. the line items as **a single line** (`Info`, quantity 1, the order total) —
+   the amount, and Hyp's check of the lines against it, stay the same;
+2. that, with the customer's **name, street and city in Latin letters** too,
+   for a character Hyp refuses in them.
+
+The payment page opens with less detail rather than not at all. In EzCount
+*integrated* mode the document Hyp issues for such an order has the one line;
+*direct* mode builds its own document and is not affected. The same applies to
+payment links made without e-mail / SMS. Each attempt is logged with the
+length of the request and the HTTP status Hyp answered with.
 
 ---
 

@@ -50,13 +50,16 @@
 
  {* --- Order statuses mapping --- *}
  {$statuses = $smarty.const.STATUSES_ORDER|fn_get_simple_statuses}
+ {* Statuses an order may be moved to: all but the forbidden one (HYPAY_STATUS_FORBIDDEN),
+    which the add-on never sets - see fn_hypay_guarded_status_change() *}
+ {$hypay_target_statuses = ""|fn_hypay_target_order_statuses}
 
  {assign var="succ_status" value=$processor_params.success_status|default:"O"}
  <div class="control-group">
      <label class="control-label" for="elm_hypay_success_status">{__("hypay_success_status")}:</label>
      <div class="controls">
          <select name="payment_data[processor_params][success_status]" id="elm_hypay_success_status">
-             {foreach from=$statuses item="status" key="s_key"}
+             {foreach from=$hypay_target_statuses item="status" key="s_key"}
                  <option value="{$s_key}" {if $s_key == $succ_status}selected="selected"{/if}>{$status}</option>
              {/foreach}
          </select>
@@ -92,13 +95,103 @@
      <label class="control-label" for="elm_hypay_fail_status">{__("hypay_fail_status")}:</label>
      <div class="controls">
          <select name="payment_data[processor_params][fail_status]" id="elm_hypay_fail_status">
-             {foreach from=$statuses item="status" key="s_key"}
+             {foreach from=$hypay_target_statuses item="status" key="s_key"}
                  <option value="{$s_key}" {if $s_key == $fail_status}selected="selected"{/if}>{$status}</option>
              {/foreach}
          </select>
          <p class="muted description">{__("hypay_fail_status_desc")}</p>
      </div>
  </div>
+
+ <hr>
+
+ {* --- Payment links --- *}
+ <h3>{__("hypay_link_section")}</h3>
+
+ {* A link is not tied to the order's payment method, so its settings are the
+    add-on's (Add-ons -> Hypay -> Settings), the same for every link whichever
+    method the order was placed with. They are shown here only on an
+    installation the add-on settings could not be added to - see
+    fn_hypay_ensure_addon_settings() - and are then read from here. *}
+ {if ""|fn_hypay_link_settings_installed}
+ <div class="control-group">
+     <div class="controls">
+         <p>{__("hypay_link_settings_moved", ["[url]" => "addons.update?addon=hypay&selected_section=settings"|fn_url])}</p>
+     </div>
+ </div>
+ {else}
+
+ {* The customer's other orders the payment link panel offers to pay for with
+    the same link. Only these statuses are listed; none selected lists none,
+    and the link then pays for the order it is created from alone. *}
+ {assign var="hypay_link_statuses" value=$processor_params|fn_hypay_link_order_statuses}
+ <div class="control-group">
+     <label class="control-label" for="hypay_link_order_statuses">{__("hypay_link_order_statuses")}</label>
+     <div class="controls">
+         <select name="payment_data[processor_params][link_order_statuses][]" id="hypay_link_order_statuses"
+                 multiple="multiple" size="8" class="input-large">
+             {foreach from=$statuses item="status" key="s_key"}
+                 <option value="{$s_key}" {if $s_key|in_array:$hypay_link_statuses}selected="selected"{/if}>{$status}</option>
+             {/foreach}
+         </select>
+         <p><button type="button" class="btn" id="hypay_link_order_statuses_reset">{__("hypay_link_order_statuses_reset")}</button></p>
+         {literal}
+         <script type="text/javascript">
+         (function () {
+             var list  = document.getElementById('hypay_link_order_statuses');
+             var reset = document.getElementById('hypay_link_order_statuses_reset');
+             if (!list || !reset) { return; }
+
+             // as with the usergroups above: only the selection is cleared
+             // here, the method still has to be saved for it to take effect
+             reset.addEventListener('click', function () {
+                 for (var i = 0; i < list.options.length; i++) {
+                     list.options[i].selected = false;
+                 }
+             });
+         })();
+         </script>
+         {/literal}
+         <p class="muted description">{__("hypay_link_order_statuses_desc")}</p>
+     </div>
+ </div>
+
+ {* How long a link stays payable. Past it the link is withdrawn at Hyp and
+    shown as expired, with a new one on offer. Empty or 0: no limit. *}
+ <div class="control-group">
+     <label class="control-label" for="elm_hypay_link_lifetime_days">{__("hypay_link_lifetime_days")}</label>
+     <div class="controls">
+         <input type="number" min="0" step="1" class="input-mini" id="elm_hypay_link_lifetime_days"
+                name="payment_data[processor_params][link_lifetime_days]"
+                value="{$processor_params.link_lifetime_days|default:""}" />
+         <p class="muted description">{__("hypay_link_lifetime_days_desc")}</p>
+     </div>
+ </div>
+
+ {* Additional statuses the orders of a link get when it is created, and when
+    it is cancelled or expires. Same rule as the other additional statuses:
+    shown only while the add-on that owns them is active, otherwise the stored
+    value rides through in a hidden field. *}
+ {foreach ["link_created_additional_status", "link_cancelled_additional_status"] as $hypay_link_add_key}
+     {$hypay_link_add_value = $processor_params.$hypay_link_add_key|default:""}
+     {if $hypay_additional_statuses}
+         <div class="control-group">
+             <label class="control-label" for="elm_hypay_{$hypay_link_add_key}">{__("hypay_`$hypay_link_add_key`")}</label>
+             <div class="controls">
+                 <select name="payment_data[processor_params][{$hypay_link_add_key}]" id="elm_hypay_{$hypay_link_add_key}">
+                     <option value="">{__("hypay_additional_status_none")}</option>
+                     {foreach from=$hypay_additional_statuses item="status" key="s_key"}
+                         <option value="{$s_key}" {if $s_key == $hypay_link_add_value}selected="selected"{/if}>{$status}</option>
+                     {/foreach}
+                 </select>
+                 <p class="muted description">{__("hypay_`$hypay_link_add_key`_desc")}</p>
+             </div>
+         </div>
+     {elseif $hypay_link_add_value}
+         <input type="hidden" name="payment_data[processor_params][{$hypay_link_add_key}]" value="{$hypay_link_add_value|escape}" />
+     {/if}
+ {/foreach}
+ {/if}
 
  <hr>
 
@@ -163,7 +256,7 @@
      <label class="control-label" for="elm_hypay_j5_auth_status">{__("hypay_j5_auth_status")}</label>
      <div class="controls">
          <select name="payment_data[processor_params][j5_auth_status]" id="elm_hypay_j5_auth_status">
-             {foreach from=$statuses item="status" key="s_key"}
+             {foreach from=$hypay_target_statuses item="status" key="s_key"}
                  <option value="{$s_key}" {if $s_key == $hypay_j5_auth_status}selected="selected"{/if}>{$status}</option>
              {/foreach}
          </select>
@@ -198,7 +291,7 @@
      <label class="control-label" for="elm_hypay_j5_captured_status">{__("hypay_j5_captured_status")}</label>
      <div class="controls">
          <select name="payment_data[processor_params][j5_captured_status]" id="elm_hypay_j5_captured_status">
-             {foreach from=$statuses item="status" key="s_key"}
+             {foreach from=$hypay_target_statuses item="status" key="s_key"}
                  <option value="{$s_key}" {if $s_key == $hypay_j5_captured_status}selected="selected"{/if}>{$status}</option>
              {/foreach}
          </select>
@@ -229,7 +322,7 @@
      <label class="control-label" for="elm_hypay_j5_void_status">{__("hypay_j5_void_status")}</label>
      <div class="controls">
          <select name="payment_data[processor_params][j5_void_status]" id="elm_hypay_j5_void_status">
-             {foreach from=$statuses item="status" key="s_key"}
+             {foreach from=$hypay_target_statuses item="status" key="s_key"}
                  <option value="{$s_key}" {if $s_key == $hypay_j5_void_status}selected="selected"{/if}>{$status}</option>
              {/foreach}
          </select>
@@ -315,6 +408,19 @@
              Sign
          </label>
          <p class="muted description">{__("hypay_encoding_flags_desc")}</p>
+     </div>
+ </div>
+
+ {* Checking the customer's return with Hyp before a payment is recorded.
+    On unless switched off: an unchecked box posts nothing, so the hidden N
+    is what says "off". *}
+ <div class="control-group">
+     <label class="control-label" for="hypay_verify_return">{__("hypay_verify_return")}</label>
+     <div class="controls">
+         <input type="hidden" name="payment_data[processor_params][verify_return]" value="N" />
+         <input type="checkbox" name="payment_data[processor_params][verify_return]" id="hypay_verify_return" value="Y"
+                {if $processor_params.verify_return != "N"}checked="checked"{/if} />
+         <p class="muted description">{__("hypay_verify_return_desc")}</p>
      </div>
  </div>
 
@@ -505,6 +611,22 @@
          </div>
      </div>
 
+     {* The document Hyp issues when a payment link is paid. Set apart from the
+        checkout one: a link is often a phone sale that wants a different
+        document, or none. Unset means a tax invoice receipt. *}
+     {assign var="ez_int_link_doc_type" value=$processor_params.ez_int_link_doc_type|default:"320"}
+     <div class="control-group">
+         <label class="control-label" for="ez_int_link_doc_type">{__("hypay_ez_link_doc_type")}</label>
+         <div class="controls">
+             <select name="payment_data[processor_params][ez_int_link_doc_type]" id="ez_int_link_doc_type" class="input-large">
+                 <option value="320" {if $ez_int_link_doc_type == "320"}selected="selected"{/if}>{__("hypay_ez_doc_type_320")} (320)</option>
+                 <option value="400" {if $ez_int_link_doc_type == "400"}selected="selected"{/if}>{__("hypay_ez_doc_type_400")} (400)</option>
+                 <option value="none" {if $ez_int_link_doc_type == "none"}selected="selected"{/if}>{__("hypay_ez_link_doc_type_none")}</option>
+             </select>
+             <p class="muted description">{__("hypay_ez_int_link_doc_type_desc")}</p>
+         </div>
+     </div>
+
 
 <hr>
 
@@ -567,6 +689,21 @@
                 <option value="400" {if $processor_params.ez_doc_type == 400}selected{/if}>{__("hypay_ez_doc_type_400")} (400)</option>
             </select>
             <p class="muted description">{__("hypay_ez_doc_type_desc")}</p>
+        </div>
+    </div>
+
+    {* The document issued when a payment link is paid - its own setting, like
+       the J5 one below. Unset means a tax invoice receipt. *}
+    {assign var="ez_link_doc_type" value=$processor_params.ez_link_doc_type|default:"320"}
+    <div class="control-group">
+        <label class="control-label" for="ez_link_doc_type">{__("hypay_ez_link_doc_type")}</label>
+        <div class="controls">
+            <select name="payment_data[processor_params][ez_link_doc_type]" id="ez_link_doc_type" class="input-large">
+                <option value="320" {if $ez_link_doc_type == "320"}selected="selected"{/if}>{__("hypay_ez_doc_type_320")} (320)</option>
+                <option value="400" {if $ez_link_doc_type == "400"}selected="selected"{/if}>{__("hypay_ez_doc_type_400")} (400)</option>
+                <option value="none" {if $ez_link_doc_type == "none"}selected="selected"{/if}>{__("hypay_ez_link_doc_type_none")}</option>
+            </select>
+            <p class="muted description">{__("hypay_ez_link_doc_type_desc")}</p>
         </div>
     </div>
 
@@ -680,6 +817,24 @@
                 {__("hypay_ez_customer_vat_label")}
             </label>
             <p class="muted description">{__("hypay_ez_customer_vat_desc")}</p>
+        </div>
+    </div>
+
+    {* Overrides the two above for a customer who filled them in: a company is
+       never invoiced as a private buyer because a switch was left off. *}
+    <div class="control-group">
+        <label class="control-label" for="ez_customer_force">{__("hypay_ez_customer_force")}</label>
+        <div class="controls">
+            <input type="hidden" name="payment_data[processor_params][ez_customer_force]" value="N" />
+            <label class="checkbox">
+                <input type="checkbox"
+                       id="ez_customer_force"
+                       name="payment_data[processor_params][ez_customer_force]"
+                       value="Y"
+                       {if $processor_params.ez_customer_force == "Y"}checked{/if} />
+                {__("hypay_ez_customer_force_label")}
+            </label>
+            <p class="muted description">{__("hypay_ez_customer_force_desc")}</p>
         </div>
     </div>
 

@@ -14,5 +14,8 @@ if (!defined('BOOTSTRAP')) { die('Access denied'); }
 // from the hook name verbatim, so registering the latter makes it look for
 // fn_hypay_get_order_info - and finding only fn_hypay_get_order_info_post, it
 // throws "Hook is not callable" on every order page rather than skipping it.
-fn_register_hooks('get_order_info_post');
+//
+// 'change_order_status' keeps the add-on's own status changes out of the
+// forbidden status (Backordered) - see fn_hypay_guarded_status_change().
+fn_register_hooks('get_order_info_post', 'change_order_status');
 
