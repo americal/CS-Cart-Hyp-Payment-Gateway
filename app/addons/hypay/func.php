@@ -4461,7 +4461,7 @@ function fn_hypay_repair_addon_texts()
         //    it on whenever one is added
         $canary = db_get_field(
             "SELECT COUNT(*) FROM ?:language_values WHERE name = ?s AND lang_code = ?s",
-            'hypay_ez_customer_force_desc',
+            'hypay_j5_capture_fallback_credit',
             CART_LANGUAGE
         );
         if (!$canary) {

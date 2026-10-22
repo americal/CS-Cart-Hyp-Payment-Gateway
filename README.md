@@ -268,7 +268,7 @@ The refused capture is kept on the transaction and printed beside the charge, so
 an order paid this way explains itself. The fallback is only tried on a definite
 refusal — an unreadable answer still locks the row, because a charge that may
 have gone through must never be repeated. It can be switched off with **Refused
-capture → Charge the saved card when the capture is refused**; with it off the
+capture (Debit) → Charge the saved card when the capture is refused**; with it off the
 refusal is reported and nothing is charged.
 
 **A capture declined over the credit limit**
@@ -279,8 +279,8 @@ of it and declines it. Shva has no answer of its own for that: it comes back as
 `CCode=4` (*not approved*) or `CCode=3` (*call the credit company*). Retrying
 cannot help while the hold is still there.
 
-**Credit limit → Release the hold and charge the card when the capture is
-declined** handles it. On `CCode` 4 or 3 the hold is reversed first through
+**Refused capture (Credit) → Release the hold and charge the card when the
+capture is declined** handles it. On `CCode` 4 or 3 the hold is reversed first through
 `CancelTrans`, to free the limit, and only once Hyp confirms the reversal is the
 amount charged as an ordinary transaction on the saved token — the same request
 the Direct fallback sends. It also covers that fallback: a Direct card whose

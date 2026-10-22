@@ -356,7 +356,7 @@
     that never saw this field keeps the fallback - the alternative is a capture
     that cannot be completed at all *}
  <div class="control-group">
-     <label class="control-label" for="hypay_j5_capture_fallback">{__("hypay_j5_capture_fallback")}</label>
+     <label class="control-label" for="hypay_j5_capture_fallback">{__("hypay_j5_capture_fallback_debit")}</label>
      <div class="controls">
          <label class="checkbox">
              <input type="hidden" name="payment_data[processor_params][j5_capture_fallback]" value="N" />
@@ -371,7 +371,7 @@
  {* off unless switched on: it reverses the hold before the charge, and a
     charge declined after that leaves the order with no hold at all *}
  <div class="control-group">
-     <label class="control-label" for="hypay_j5_limit_fallback">{__("hypay_j5_limit_fallback")}</label>
+     <label class="control-label" for="hypay_j5_limit_fallback">{__("hypay_j5_capture_fallback_credit")}</label>
      <div class="controls">
          <label class="checkbox">
              <input type="hidden" name="payment_data[processor_params][j5_limit_fallback]" value="N" />
