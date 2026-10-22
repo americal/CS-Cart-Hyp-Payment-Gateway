@@ -368,6 +368,21 @@
      </div>
  </div>
 
+ {* off unless switched on: it reverses the hold before the charge, and a
+    charge declined after that leaves the order with no hold at all *}
+ <div class="control-group">
+     <label class="control-label" for="hypay_j5_limit_fallback">{__("hypay_j5_limit_fallback")}</label>
+     <div class="controls">
+         <label class="checkbox">
+             <input type="hidden" name="payment_data[processor_params][j5_limit_fallback]" value="N" />
+             <input type="checkbox" name="payment_data[processor_params][j5_limit_fallback]" id="hypay_j5_limit_fallback"
+                    value="Y" {if $processor_params.j5_limit_fallback == "Y"}checked="checked"{/if} />
+             {__("hypay_j5_limit_fallback_label")}
+         </label>
+         <p class="muted description">{__("hypay_j5_limit_fallback_desc")}</p>
+     </div>
+ </div>
+
  <hr>
 
  {* --- Return URL (read-only) --- *}
