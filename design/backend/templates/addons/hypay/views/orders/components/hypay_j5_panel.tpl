@@ -206,6 +206,11 @@
                     <p class="muted">{__("hypay_j5_void_instalments_hint", ["[days]" => $hypay_j5.hold_days])}</p>
                 {elseif $hypay_j5.void_state == "not_cancellable"}
                     <p class="muted">{__("hypay_j5_void_not_cancellable_hint", ["[days]" => $hypay_j5.hold_days])}</p>
+                {elseif $hypay_j5.void_state == "confirmed"}
+                    {* a confirmed reversal carries an error only when it was
+                       made to free the credit limit and the charge after it
+                       was declined *}
+                    <p class="text-error">{__("hypay_j5_void_limit_hint")}</p>
                 {else}
                     <p class="text-warning">{__("hypay_j5_void_not_confirmed_hint")}</p>
                 {/if}

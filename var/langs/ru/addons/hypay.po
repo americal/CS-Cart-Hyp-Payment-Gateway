@@ -800,9 +800,9 @@ msgctxt "Languages::hypay_j5_note_fallback_hold_stays"
 msgid "The capture was refused by the acquirer; the amount was charged as a separate transaction. The hold could not be reversed and is released by the issuer within [days] days."
 msgstr "Capture отклонён эквайером; сумма списана отдельной сделкой. Удержание отменить не удалось, эмитент освободит средства в течение [days] дн."
 
-msgctxt "Languages::hypay_j5_capture_fallback"
-msgid "Refused capture"
-msgstr "Отклонённый capture"
+msgctxt "Languages::hypay_j5_capture_fallback_debit"
+msgid "Refused capture (Debit)"
+msgstr "Отклонённый capture (дебет)"
 
 msgctxt "Languages::hypay_j5_capture_fallback_label"
 msgid "Charge the saved card when the capture is refused"
@@ -811,6 +811,34 @@ msgstr "Списывать с сохранённой карты, когда capt
 msgctxt "Languages::hypay_j5_capture_fallback_desc"
 msgid "An immediate-debit (Direct) card refuses a capture that carries the hold's authorization number (CCode 512, 455, 445). With this on, the amount is then charged as an ordinary transaction on the saved card, and the hold is reversed if it still can be - so the order is paid instead of stuck. Switch it off to have the refusal reported and nothing charged."
 msgstr "Карта немедленного дебета (Direct) отклоняет capture, несущий номер авторизации удержания (CCode 512, 455, 445). Если включено, сумма после этого списывается обычной сделкой по сохранённой карте, а удержание отменяется, если это ещё возможно — заказ оказывается оплачен, а не заблокирован. Выключите, чтобы отказ просто показывался и ничего не списывалось."
+
+msgctxt "Languages::hypay_j5_capture_fallback_credit"
+msgid "Refused capture (Credit)"
+msgstr "Отклонённый capture (кредит)"
+
+msgctxt "Languages::hypay_j5_limit_fallback_label"
+msgid "Release the hold and charge the card when the capture is declined"
+msgstr "Снять удержание и списать с карты, когда capture отклонён"
+
+msgctxt "Languages::hypay_j5_limit_fallback_desc"
+msgid "A credit card capture declined with CCode 4 (not approved) or 3 (call the credit company) is usually the credit limit: the hold still occupies it, and the issuer sees the capture as a second charge on top of it. With this on, the hold is reversed first to free the limit, and once Hyp confirms the reversal the amount is charged as an ordinary transaction on the saved card. If Hyp does not confirm it - a hold taken in instalments never is - nothing is charged and the hold stays capturable. If the charge is declined even so, the hold is already gone and the order has to be paid another way."
+msgstr "Capture по кредитной карте, отклонённый с CCode 4 (не одобрено) или 3 (обратитесь в кредитную компанию), обычно упирается в кредитный лимит (מסגרת): удержание всё ещё его занимает, и эмитент видит capture как второе списание поверх него. Если включено, сначала удержание отменяется, чтобы освободить лимит, и после того как Hyp подтвердит отмену, сумма списывается обычной сделкой по сохранённой карте. Если Hyp отмену не подтвердил — удержание в рассрочку не подтверждается никогда — ничего не списывается и удержание остаётся доступным для capture. Если списание всё равно отклонено, удержания уже нет, и заказ придётся оплатить иначе."
+
+msgctxt "Languages::hypay_j5_limit_released"
+msgid "the hold was reversed to free the credit limit"
+msgstr "удержание отменено, чтобы освободить кредитный лимит"
+
+msgctxt "Languages::hypay_j5_limit_not_released"
+msgid "the hold could not be reversed to free the credit limit, so nothing else was charged:"
+msgstr "удержание не удалось отменить, чтобы освободить кредитный лимит, поэтому больше ничего не списывалось:"
+
+msgctxt "Languages::hypay_j5_note_limit_charge_refused"
+msgid "The hold was reversed to free the credit limit, and the charge that followed was declined. Nothing was charged and the order is no longer secured by a hold:"
+msgstr "Удержание отменено, чтобы освободить кредитный лимит, и последовавшее за этим списание отклонено. Ничего не списано, и заказ больше не обеспечен удержанием:"
+
+msgctxt "Languages::hypay_j5_void_limit_hint"
+msgid "The capture was declined, the hold was reversed to free the credit limit, and the ordinary charge that followed was declined too. Nothing was charged and there is no hold left to capture: the order has to be paid another way, a payment link for one."
+msgstr "Capture отклонён, удержание отменено, чтобы освободить кредитный лимит, и обычное списание после этого тоже отклонено. Ничего не списано, и удержания для capture больше нет: заказ нужно оплатить иначе, например по ссылке на оплату."
 
 
 msgctxt "Languages::hypay_j5_personal_id_desc_short"

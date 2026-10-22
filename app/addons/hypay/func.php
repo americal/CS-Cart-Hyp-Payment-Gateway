@@ -3681,6 +3681,64 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
         $first_refusal = $refusal;
     }
 
+    // Declined over the credit limit (מסגרת).
+    //
+    // The hold still occupies the limit, and an issuer that does not match the
+    // capture to it sees a second charge on top of the first and declines it -
+    // with the plain "not approved" or "call the credit company", the only two
+    // answers Shva has for it. Retrying cannot help while the hold is there, so
+    // the hold is reversed first, to free the limit, and only then is the
+    // amount charged as an ordinary token charge, the same request the Direct
+    // fallback above sends.
+    //
+    // The order matters and is not reversible: once the hold is gone, a charge
+    // that is declined anyway leaves the order secured by nothing. So the
+    // charge goes out only when Hyp confirms the reversal - an unconfirmed one
+    // has freed nothing, and a hold in instalments is never confirmed - and the
+    // whole path is off unless the payment method switches it on.
+    $limit_release = '';
+    if (in_array($ccode, ['3', '4'], true) && ($pp['j5_limit_fallback'] ?? 'N') === 'Y') {
+        $refusal = fn_hypay_format_error($ccode, $response['errMsg'] ?? '', $result['raw']);
+        if ($fallback_used) {
+            $refusal = $first_refusal . ' | ' . __('hypay_j5_capture_fallback_also_refused') . ' ' . $refusal;
+        }
+        hypay_log($order_id, 'j5.capture declined, releasing the hold to free the credit limit', [
+            'refusal' => $refusal,
+            'hyp_id'  => $tx['hyp_id'],
+        ]);
+
+        $release_detail = 'no authorization Id stored, CancelTrans was not attempted';
+        if ((string) $tx['hyp_id'] !== '') {
+            list($limit_release, $release_detail) = fn_hypay_cancel_trans($order_id, $pp, $tx['hyp_id']);
+        } else {
+            $limit_release = 'not_attempted';
+        }
+
+        if ($limit_release !== 'confirmed') {
+            // the hold is exactly as it was, so it stays capturable
+            $error = $refusal . ' | ' . __('hypay_j5_limit_not_released') . ' ' . $release_detail;
+            fn_hypay_update_transaction($tx['transaction_id'], ['status' => 'authorized', 'last_error' => 'capture: ' . $error]);
+            fn_set_notification('E', __('error'), __('hypay_j5_capture_failed') . ' ' . $error);
+            fn_hypay_order_note($order_id, __('hypay_j5_capture_failed') . ' ' . $error);
+
+            return false;
+        }
+
+        // the reversal is recorded before the charge, so a charge that hangs
+        // cannot leave the row claiming a hold that is no longer there
+        fn_hypay_update_transaction($tx['transaction_id'], [
+            'void_state' => 'confirmed',
+            'last_error' => $refusal . ' | ' . __('hypay_j5_limit_released'),
+        ]);
+
+        $result   = fn_hypay_api_request($order_id, $params, 'j5.capture.limit');
+        $response = $result['params'];
+        $ccode    = isset($response['CCode']) ? (string) $response['CCode'] : '';
+
+        $fallback_used = true;
+        $first_refusal = $refusal . ' | ' . __('hypay_j5_limit_released');
+    }
+
     if ($ccode === '') {
         // No readable answer: the charge may or may not have happened. The row is
         // deliberately left in 'capturing' so nobody can charge the customer twice
@@ -3702,6 +3760,36 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
         if ($fallback_used) {
             $error = $first_refusal . ' | ' . __('hypay_j5_capture_fallback_also_refused') . ' ' . $error;
         }
+
+        // The hold was reversed to free the limit and the charge was declined
+        // all the same: there is nothing left to capture, so the row is closed
+        // the way a void closes it, and the order says it has to be paid
+        // another way.
+        if ($limit_release === 'confirmed') {
+            fn_hypay_update_transaction($tx['transaction_id'], [
+                'status'     => 'voided',
+                'voided_at'  => TIME,
+                'void_state' => 'confirmed',
+                'last_error' => 'capture: ' . $error,
+            ]);
+            fn_hypay_update_payment_info($order_id, [
+                'reason_text' => '⚪ ' . __('hypay_j5_pi_voided_confirmed'),
+                'hypay_j5'    => __('hypay_j5_pi_voided_on', [
+                    '[amount]' => number_format($authorized, 2, '.', ''),
+                    '[date]'   => date('d.m.Y H:i', TIME),
+                ]),
+            ]);
+            fn_hypay_change_order_status_silently(
+                $order_id,
+                fn_hypay_allowed_status(!empty($pp['j5_void_status']) ? $pp['j5_void_status'] : 'I')
+            );
+            fn_set_notification('E', __('error'), __('hypay_j5_note_limit_charge_refused') . ' ' . $error);
+            fn_hypay_order_note($order_id, __('hypay_j5_note_limit_charge_refused') . ' ' . $error);
+            hypay_log($order_id, 'j5.capture: hold released for the credit limit, charge declined, hold closed');
+
+            return false;
+        }
+
         fn_hypay_update_transaction($tx['transaction_id'], ['status' => 'authorized', 'last_error' => 'capture: ' . $error]);
         fn_set_notification('E', __('error'), __('hypay_j5_capture_failed') . ' ' . $error);
         fn_hypay_order_note($order_id, __('hypay_j5_capture_failed') . ' ' . $error);
@@ -3724,7 +3812,7 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
         'captured_at'     => TIME,
         // set as soon as the hold's fate is known; on the fallback path it also
         // marks the row as charged by a separate transaction
-        'hold_release_state' => $fallback_used ? 'pending' : '',
+        'hold_release_state' => $fallback_used ? ($limit_release !== '' ? $limit_release : 'pending') : '',
         // the refused capture is kept: it is why this order was charged with a
         // second transaction rather than the hold, and the panel prints it
         'last_error'      => $fallback_used ? $first_refusal : '',
@@ -3739,8 +3827,9 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
     // the outcome is recorded rather than acted on, and the panel says which of
     // the two happened. Either way the hold is never captured again, and the
     // issuer releases it when the authorization window runs out.
-    $release_state = '';
-    if ($fallback_used) {
+    // A hold already reversed to free the credit limit is not asked again.
+    $release_state = $limit_release;
+    if ($fallback_used && $release_state === '') {
         if ((string) $tx['hyp_id'] !== '') {
             list($release_state) = fn_hypay_cancel_trans($order_id, $pp, $tx['hyp_id']);
         } else {
@@ -4372,7 +4461,7 @@ function fn_hypay_repair_addon_texts()
         //    it on whenever one is added
         $canary = db_get_field(
             "SELECT COUNT(*) FROM ?:language_values WHERE name = ?s AND lang_code = ?s",
-            'hypay_ez_customer_force_desc',
+            'hypay_j5_capture_fallback_credit',
             CART_LANGUAGE
         );
         if (!$canary) {

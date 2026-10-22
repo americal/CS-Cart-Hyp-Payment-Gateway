@@ -598,9 +598,9 @@ msgctxt "Languages::hypay_j5_note_fallback_hold_stays"
 msgid "The capture was refused by the acquirer; the amount was charged as a separate transaction. The hold could not be reversed and is released by the issuer within [days] days."
 msgstr "הגבייה נדחתה על ידי הסולק; הסכום חויב כעסקה נפרדת. לא ניתן היה לבטל את השמירה, והמנפיק משחרר אותה בתוך [days] ימים."
 
-msgctxt "Languages::hypay_j5_capture_fallback"
-msgid "Refused capture"
-msgstr "גבייה שנדחתה"
+msgctxt "Languages::hypay_j5_capture_fallback_debit"
+msgid "Refused capture (Debit)"
+msgstr "גבייה שנדחתה (דביט)"
 
 msgctxt "Languages::hypay_j5_capture_fallback_label"
 msgid "Charge the saved card when the capture is refused"
@@ -609,6 +609,34 @@ msgstr "לחייב את הכרטיס השמור כשהגבייה נדחית"
 msgctxt "Languages::hypay_j5_capture_fallback_desc"
 msgid "An immediate-debit (Direct) card refuses a capture that carries the hold's authorization number (CCode 512, 455, 445). With this on, the amount is then charged as an ordinary transaction on the saved card, and the hold is reversed if it still can be - so the order is paid instead of stuck. Switch it off to have the refusal reported and nothing charged."
 msgstr "כרטיס חיוב מיידי (דיירקט) דוחה גבייה שנושאת את מספר האישור של השמירה (CCode‏ 512, 455, 445). כשהאפשרות פעילה, הסכום מחויב לאחר מכן כעסקה רגילה בכרטיס השמור, והשמירה מבוטלת אם עדיין אפשר - כך שההזמנה משולמת ולא נתקעת. כבו כדי שהדחייה רק תדווח ודבר לא יחויב."
+
+msgctxt "Languages::hypay_j5_capture_fallback_credit"
+msgid "Refused capture (Credit)"
+msgstr "גבייה שנדחתה (אשראי)"
+
+msgctxt "Languages::hypay_j5_limit_fallback_label"
+msgid "Release the hold and charge the card when the capture is declined"
+msgstr "ביטול השמירה וחיוב הכרטיס כשהגבייה נדחית"
+
+msgctxt "Languages::hypay_j5_limit_fallback_desc"
+msgid "A credit card capture declined with CCode 4 (not approved) or 3 (call the credit company) is usually the credit limit: the hold still occupies it, and the issuer sees the capture as a second charge on top of it. With this on, the hold is reversed first to free the limit, and once Hyp confirms the reversal the amount is charged as an ordinary transaction on the saved card. If Hyp does not confirm it - a hold taken in instalments never is - nothing is charged and the hold stays capturable. If the charge is declined even so, the hold is already gone and the order has to be paid another way."
+msgstr "גבייה בכרטיס אשראי שנדחית עם CCode‏ 4 (לא אושר) או 3 (התקשר לחברת האשראי) נובעת בדרך כלל ממסגרת האשראי: השמירה עדיין תופסת אותה, וחברת האשראי רואה בגבייה חיוב נוסף מעליה. כשהאפשרות פעילה, השמירה מבוטלת קודם כדי לשחרר את המסגרת, ולאחר ש-Hyp מאשר את הביטול הסכום מחויב כעסקה רגילה בכרטיס השמור. אם Hyp לא מאשר את הביטול - ושמירה בתשלומים לעולם אינה מאושרת - דבר לא מחויב והשמירה נשארת זמינה לגבייה. אם החיוב נדחה בכל זאת, השמירה כבר בוטלה ויש לגבות את ההזמנה בדרך אחרת."
+
+msgctxt "Languages::hypay_j5_limit_released"
+msgid "the hold was reversed to free the credit limit"
+msgstr "השמירה בוטלה כדי לשחרר את מסגרת האשראי"
+
+msgctxt "Languages::hypay_j5_limit_not_released"
+msgid "the hold could not be reversed to free the credit limit, so nothing else was charged:"
+msgstr "לא ניתן היה לבטל את השמירה כדי לשחרר את מסגרת האשראי, ולכן דבר נוסף לא חויב:"
+
+msgctxt "Languages::hypay_j5_note_limit_charge_refused"
+msgid "The hold was reversed to free the credit limit, and the charge that followed was declined. Nothing was charged and the order is no longer secured by a hold:"
+msgstr "השמירה בוטלה כדי לשחרר את מסגרת האשראי, והחיוב שבא אחריה נדחה. דבר לא חויב וההזמנה כבר אינה מובטחת בשמירה:"
+
+msgctxt "Languages::hypay_j5_void_limit_hint"
+msgid "The capture was declined, the hold was reversed to free the credit limit, and the ordinary charge that followed was declined too. Nothing was charged and there is no hold left to capture: the order has to be paid another way, a payment link for one."
+msgstr "הגבייה נדחתה, השמירה בוטלה כדי לשחרר את מסגרת האשראי, וגם החיוב הרגיל שבא אחריה נדחה. דבר לא חויב ואין עוד שמירה לגבות: יש לגבות את ההזמנה בדרך אחרת, למשל בקישור לתשלום."
 
 
 msgctxt "Languages::hypay_j5_personal_id_desc_short"
