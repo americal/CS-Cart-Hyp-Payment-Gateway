@@ -69,8 +69,8 @@ msgid "Transaction Info (Info)"
 msgstr "Описание транзакции (Info)"
 
 msgctxt "Languages::hypay_info_desc"
-msgid "Template for the Info parameter. You can use {order_id}. Hyp echoes this text back in the return URL without encoding it, so #, &, ?, = and % are stripped before it is sent."
-msgstr "Шаблон для параметра Info. Можно использовать {order_id}. Hyp возвращает этот текст в URL возврата без кодирования, поэтому символы #, &, ?, = и % вырезаются перед отправкой."
+msgid "Template for the Info parameter. You can use {order_id}. Only letters, digits, spaces, dots and hyphens are sent: Hyp refuses other characters, so they are removed."
+msgstr "Шаблон для параметра Info. Можно использовать {order_id}. Отправляются только буквы, цифры, пробелы, точки и дефисы: остальные символы Hyp отклоняет, поэтому они удаляются."
 
 msgctxt "Languages::hypay_encoding_flags"
 msgid "Encoding & signature"

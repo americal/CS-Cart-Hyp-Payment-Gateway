@@ -1153,30 +1153,33 @@ function hypay_sanitize_name($s)
 }
 
 /**
- * Strip the characters Hyp cannot echo back safely.
+ * Free text the way Hyp takes it: letters (any alphabet), digits, spaces,
+ * dots and hyphens - nothing else.
  *
  * Hyp copies the free-text parameters it was given (Info, ClientName, street,
  * city, ...) into the redirect URL the customer comes back on, and it does NOT
- * url-encode them. A "#" therefore turns the rest of that URL into a fragment,
- * and a fragment is never sent to the server: every parameter Hyp listed after
- * it - UID, Hesh, errMsg and the signature among them - is silently lost.
- * "&", "?", "=" and "%" corrupt the same URL in less visible ways.
+ * url-encode them: a "#" turns the rest of that URL into a fragment, and "&",
+ * "?", "=" and "%" corrupt it. And it refuses others outright with "Invalid
+ * characters in <field>" (CCode=16) - a geresh, gershayim, a colon, quotes -
+ * without saying which. So whatever is not plainly a letter or a digit goes
+ * before the request is made. A geresh or gershayim goes without leaving a
+ * gap ("בע"מ" reads "בעמ"), niqqud is dropped, an HTML entity CS-Cart may have
+ * stored is decoded first so that it goes too.
  *
- * Non-ASCII is safe (the browser percent-encodes it), so Hebrew is untouched.
+ * Non-ASCII letters are safe (the browser percent-encodes them), so Hebrew stays.
  */
 function hypay_sanitize_url_echo($s)
 {
-    $s = (string) $s;
+    $s = html_entity_decode((string) $s, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $s = str_replace(['"', "'", '׳', '״', '`', '‘', '’', '“', '”'], '', $s);
 
-    $stripped = preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $s);
-    if ($stripped !== null) { $s = $stripped; }
+    $plain = preg_replace(['/\p{M}+/u', '/[^\p{L}\p{N} .\-]+/u'], ['', ' '], $s);
+    if ($plain === null) {
+        // not valid UTF-8: Latin letters are all that can be vouched for
+        return fn_hypay_latin_name($s);
+    }
 
-    $s = str_replace(['#', '&', '?', '=', '%', '+'], ' ', $s);
-
-    $collapsed = preg_replace('/\s+/u', ' ', $s);
-    if ($collapsed !== null) { $s = $collapsed; }
-
-    return trim($s);
+    return trim((string) preg_replace('/\s+/u', ' ', $plain));
 }
 
 /**
@@ -5374,47 +5377,26 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
         $result = fn_hypay_link_api_request($order_id, $params, 'link.create');
         $answer = $result['params'];
 
-        // Hyp refuses some names on payRequest ("Invalid characters in
-        // ClientName", CCode=16) that the checkout payment page takes without a
-        // word. The name is kept in Hebrew as long as there is a way: first
-        // without its punctuation (the gershayim of "בע"מ"), then with the
-        // whole request in windows-1255, the terminal's own encoding - and only
-        // then in Latin letters: a link with a transliterated name beats no
-        // link. An Info it refuses the same way is made plainer just as well.
-        $name_retries   = ['plain', 'windows-1255', 'latin'];
-        $info_fallbacks = fn_hypay_info_fallbacks($info, array_keys($orders));
-        $sent_info      = $info;
-        while (true) {
-            $next = null;
-            if ($info_fallbacks && fn_hypay_info_refused($answer)) {
-                $attempt   = 'info: ' . key($info_fallbacks);
-                $what      = 'Info';
-                $sent_info = array_shift($info_fallbacks);
-                $next      = $params;
-                // a request already moved to windows-1255 stays in it
-                $next['Info'] = (($params['UTF8'] ?? '') === 'False')
-                    ? (string) (fn_hypay_windows_1255($sent_info) ?? fn_hypay_latin_name($sent_info))
-                    : $sent_info;
-            } elseif (fn_hypay_link_name_refused($answer)) {
-                $what = 'ClientName';
-                while ($name_retries && $next === null) {
-                    $attempt = array_shift($name_retries);
-                    $next    = fn_hypay_link_name_retry($attempt, $params);
-                }
-            }
+        // Whatever Hyp still says it will not take is put plainly or left out
+        // - see fn_hypay_fix_refused_field() - and the link asked for again
+        for ($tries = 0; $tries < 6 && trim((string) ($answer['payRequestId'] ?? '')) === ''; $tries++) {
+            $field = fn_hypay_refused_field($answer);
+            $next  = ($field === '') ? null : fn_hypay_fix_refused_field($params, $field, array_keys($orders));
             if ($next === null) {
                 break;
             }
-            hypay_log($order_id, 'link.create: ' . $what . ' refused, trying again (' . $attempt . ')', [
+            hypay_log($order_id, 'link.create: ' . $field . ' refused, trying again without it', [
                 'errMsg' => $answer['errMsg'] ?? '',
+                'was'    => $params[$field] ?? '',
+                'now'    => $next[$field] ?? '(not sent)',
             ]);
             $params = $next;
-            $result = fn_hypay_link_api_request($order_id, $params, 'link.create.' . $attempt);
+            $result = fn_hypay_link_api_request($order_id, $params, 'link.create.' . $field);
             $answer = $result['params'];
         }
 
         // the link is stored with the Info Hyp took: a return is matched by it
-        $info = $sent_info;
+        $info = (string) ($params['Info'] ?? $info);
     }
 
     $pay_request_id = trim((string) ($answer['payRequestId'] ?? ''));
@@ -5547,104 +5529,72 @@ function fn_hypay_link_capture_list_products($order_id)
     return null;
 }
 
-/** did Hyp refuse the payRequest because of the customer's name? */
-function fn_hypay_link_name_refused(array $answer)
+/**
+ * The parameter Hyp says it will not take: "Invalid characters in
+ * ClientLName" -> "ClientLName". '' when the refusal names none.
+ */
+function fn_hypay_refused_field(array $answer)
 {
     if (trim((string) ($answer['payRequestId'] ?? '')) !== '') {
-        return false;
+        return '';
     }
 
-    return stripos((string) ($answer['errMsg'] ?? ''), 'ClientName') !== false
-        || stripos((string) ($answer['errMsg'] ?? ''), 'ClientLName') !== false;
+    $err = (string) ($answer['errMsg'] ?? '');
+    if (preg_match('/invalid\s+char\w*\s+in\s+([A-Za-z0-9_.]+)/i', $err, $m)) {
+        return $m[1];
+    }
+
+    // a refusal worded otherwise that still names one of them
+    foreach (['ClientLName', 'ClientName', 'street', 'city', 'Info'] as $field) {
+        if (preg_match('/\b' . $field . '\b/i', $err)) {
+            return $field;
+        }
+    }
+
+    return '';
 }
 
 /**
- * The payRequest again with the customer's name put another way, for when Hyp
- * refuses it:
- *   plain        - the same name, Hebrew and all, without its punctuation;
- *   windows-1255 - the whole request in the terminal's own encoding, and said
- *                  so with UTF8=False: a name in windows-1255 under UTF8=True
- *                  is not valid UTF-8, and Hyp could only refuse it again;
- *   latin        - the name in Latin letters.
+ * The request again without what Hyp refused in it:
+ *   Info       - "Order <number>" (it must be there: a return is matched by it);
+ *   ClientName  - in Latin letters, failing that "Customer";
+ *   ClientLName - added to ClientName, and not sent on its own;
+ *   street, city, zip, phone - only details: not sent at all.
+ * The payment goes through with less on it, rather than not at all.
  *
- * @param string $how plain | windows-1255 | latin
+ * @param array $order_ids the orders the payment is for
  *
- * @return array|null the request to send, null when $how changes nothing or
- *                    cannot be done
+ * @return array|null the request to send; null when there is nothing left to
+ *                    take out
  */
-function fn_hypay_link_name_retry($how, array $params)
+function fn_hypay_fix_refused_field(array $params, $field, array $order_ids)
 {
-    $first = (string) ($params['ClientName'] ?? '');
-    $last  = (string) ($params['ClientLName'] ?? '');
-    $retry = $params;
+    // matched to the spelling the request has it in
+    foreach (array_keys($params) as $key) {
+        if (strcasecmp((string) $key, (string) $field) === 0) {
+            $field = (string) $key;
+            break;
+        }
+    }
 
-    if ($how === 'plain') {
-        $retry['ClientName']  = fn_hypay_plain_text($first);
-        $retry['ClientLName'] = fn_hypay_plain_text($last);
-        if ($retry['ClientName'] === '' && $retry['ClientLName'] === '') {
-            return null;
-        }
-    } elseif ($how === 'windows-1255') {
-        if (($params['UTF8'] ?? '') === 'False') {
-            return null;
-        }
-        foreach ($retry as $key => $value) {
-            if (!is_string($value) || !preg_match('/[^\x00-\x7F]/', $value)) {
-                continue;
-            }
-            $converted = fn_hypay_windows_1255($value);
-            if ($converted === null) {
-                return null;
-            }
-            $retry[$key] = $converted;
-        }
-        $retry['UTF8'] = 'False';
+    $fixed = $params;
+
+    if ($field === 'Info') {
+        $fixed['Info'] = 'Order ' . implode(' ', array_map('intval', $order_ids));
+    } elseif ($field === 'ClientName') {
+        $latin = fn_hypay_latin_name((string) ($params['ClientName'] ?? ''));
+        $fixed['ClientName'] = ($latin !== '' && $latin !== ($params['ClientName'] ?? '')) ? $latin : 'Customer';
+    } elseif ($field === 'ClientLName') {
+        // the last name joins the first, which Hyp has taken so far
+        $fixed['ClientName'] = trim(($params['ClientName'] ?? '') . ' ' . ($params['ClientLName'] ?? ''));
+        unset($fixed['ClientLName']);
+    } elseif (in_array($field, ['street', 'city', 'zip', 'phone'], true)) {
+        unset($fixed[$field]);
     } else {
-        $retry['ClientName']  = fn_hypay_latin_name($first);
-        $retry['ClientLName'] = fn_hypay_latin_name($last);
-        if ($retry['ClientName'] === '' && $retry['ClientLName'] === '') {
-            $retry['ClientName'] = 'Customer';
-        }
-    }
-
-    return $retry === $params ? null : $retry;
-}
-
-/**
- * UTF-8 text in windows-1255.
- *
- * @return string|null null when it has a character windows-1255 does not
- */
-function fn_hypay_windows_1255($text)
-{
-    $text = (string) $text;
-    if (!function_exists('iconv')) {
         return null;
     }
 
-    $converted = @iconv('UTF-8', 'windows-1255//IGNORE', $text);
-    if ($converted === false || @iconv('windows-1255', 'UTF-8', $converted) !== $text) {
-        return null;
-    }
-
-    return $converted;
-}
-
-/**
- * Text in letters (any alphabet), digits, spaces, dots and hyphens only - the
- * characters every refusal of Hyp's has let through. A geresh or gershayim
- * goes without leaving a gap, so "בע"מ" reads "בעמ" rather than "בע מ".
- */
-function fn_hypay_plain_text($text)
-{
-    $text  = str_replace(['"', "'", '׳', '״', '`', '‘', '’', '“', '”'], '', (string) $text);
-    $plain = preg_replace('/[^\p{L}\p{N} .\-]+/u', ' ', $text);
-    if ($plain === null) {
-        // not valid UTF-8: nothing safer to offer than what Latin letters keep
-        return fn_hypay_latin_name($text);
-    }
-
-    return trim((string) preg_replace('/\s+/u', ' ', $plain));
+    return $fixed === $params ? null : $fixed;
 }
 
 /**
@@ -5688,11 +5638,11 @@ function fn_hypay_latin_name($name)
  * So when the request is not signed it is made again, each time with less:
  *   1. the items as a single line "Info ~ 1 ~ amount" - the amount, and Hyp's
  *      check of the lines against it, stay the same;
- *   2. that, with the name, street and city in Latin letters as well, for a
- *      character Hyp refuses in them.
- * And whenever Hyp says it is Info it will not take ("Invalid characters in
- * Info", CCode=16), the same request goes again with a plainer Info - see
- * fn_hypay_info_fallbacks() - before anything else is given up.
+ *   2. that, with the name, street and city in Latin letters as well, when Hyp
+ *      answered nothing at all.
+ * And whenever Hyp names a parameter it will not take ("Invalid characters in
+ * ClientLName", CCode=16), the same request goes again without it - see
+ * fn_hypay_fix_refused_field() - before anything else is given up.
  * The payment page opens with less detail, rather than not at all.
  *
  * @param array $order_ids every order the payment is for, when there are
@@ -5715,61 +5665,60 @@ function fn_hypay_sign_request($order_id, array $params, $label, array $order_id
         $attempts['single line'] = $params;
     }
 
-    // the name, street and city: in Hebrew still but without punctuation,
-    // then in Latin letters
-    $prefix = isset($attempts['single line']) ? 'single line, ' : '';
-    $plain  = $latin = $params;
+    // the name, street and city in Latin letters, for an answer that says
+    // nothing - a refusal that names them is dealt with below
+    $latin = $params;
     foreach (['ClientName', 'ClientLName', 'street', 'city'] as $field) {
         if (isset($params[$field]) && preg_match('/[^\x00-\x7F]/', (string) $params[$field])) {
-            $plain[$field] = fn_hypay_plain_text($params[$field]);
             $latin[$field] = fn_hypay_latin_name($params[$field]);
         }
     }
-    $name_attempts = [];
-    if ($plain !== $params) {
-        $attempts[$prefix . 'plain names'] = $plain;
-        $name_attempts[$prefix . 'plain names'] = true;
-    }
-    if ($latin !== $params && $latin !== $plain) {
-        $attempts[$prefix . 'latin'] = $latin;
-        $name_attempts[$prefix . 'latin'] = true;
+    if ($latin !== $params) {
+        $attempts[isset($attempts['single line']) ? 'single line, latin' : 'latin'] = $latin;
     }
 
-    $info_fallbacks = fn_hypay_info_fallbacks((string) ($params['Info'] ?? ''), $order_ids ? $order_ids : [$order_id]);
-    $info           = null; // the plainer Info, once Hyp has refused the configured one
+    $order_ids = $order_ids ? $order_ids : [$order_id];
+    $fixes     = []; // what Hyp refused, put plainly or left out: field => value, null = not sent
 
     $response = '';
     $answer   = [];
     foreach ($attempts as $attempt => $request) {
-        // The name is given up on only when it may be why: Hyp named it, or
-        // said nothing at all. A refusal of something else - Info, say - is
-        // no reason to send the customer's name in Latin letters.
-        if (isset($name_attempts[$attempt]) && !fn_hypay_names_may_be_refused($answer)) {
+        // Latin names only when Hyp said nothing: a refusal it explained is
+        // put right by what it named
+        if (substr($attempt, -5) === 'latin' && trim((string) ($answer['errMsg'] ?? '')) !== '') {
             continue;
         }
-        if ($info !== null) {
-            $request['Info'] = $info;
+        foreach ($fixes as $field => $value) {
+            if ($value === null) {
+                unset($request[$field]);
+            } else {
+                $request[$field] = $value;
+            }
         }
 
-        $response = fn_hypay_sign_send($order_id, $request, $label, $attempt);
-        if (fn_hypay_sign_ok($response)) {
-            return ['response' => $response, 'ok' => true, 'params' => $request];
-        }
-
-        $answer = [];
-        parse_str($response, $answer);
-        while ($info_fallbacks && fn_hypay_info_refused($answer)) {
-            $info_attempt    = (string) key($info_fallbacks);
-            $info            = array_shift($info_fallbacks);
-            $request['Info'] = $info;
-
-            $response = fn_hypay_sign_send($order_id, $request, $label, ltrim($attempt . ', info: ' . $info_attempt, ', '));
+        $label_attempt = $attempt;
+        for ($tries = 0; $tries < 6; $tries++) {
+            $response = fn_hypay_sign_send($order_id, $request, $label, $label_attempt);
             if (fn_hypay_sign_ok($response)) {
                 return ['response' => $response, 'ok' => true, 'params' => $request];
             }
 
             $answer = [];
             parse_str($response, $answer);
+
+            $field = fn_hypay_refused_field($answer);
+            $fixed = ($field === '') ? null : fn_hypay_fix_refused_field($request, $field, $order_ids);
+            if ($fixed === null) {
+                break;
+            }
+            foreach (array_keys($request) as $key) {
+                if (strcasecmp((string) $key, $field) === 0) {
+                    $field = (string) $key;
+                }
+            }
+            $fixes[$field] = array_key_exists($field, $fixed) ? $fixed[$field] : null;
+            $request       = $fixed;
+            $label_attempt = ltrim($attempt . ', without ' . $field, ', ');
         }
     }
 
@@ -5802,60 +5751,10 @@ function fn_hypay_sign_send($order_id, array $request, $label, $attempt)
     return $response;
 }
 
-/** could Hyp have refused the request over the name, street or city? */
-function fn_hypay_names_may_be_refused(array $answer)
-{
-    $err = trim((string) ($answer['errMsg'] ?? ''));
-
-    return $err === '' || (bool) preg_match('/ClientL?Name|street|city/i', $err);
-}
-
 /** did APISign / SIGN sign the request? */
 function fn_hypay_sign_ok($response)
 {
     return $response !== '' && strpos($response, 'signature=') !== false;
-}
-
-/** did Hyp refuse the request because of its Info? */
-function fn_hypay_info_refused(array $answer)
-{
-    if (trim((string) ($answer['payRequestId'] ?? '')) !== '') {
-        return false;
-    }
-
-    return (bool) preg_match('/\bInfo\b/i', (string) ($answer['errMsg'] ?? ''));
-}
-
-/**
- * Plainer Infos to send when Hyp refuses the configured one.
- *
- * Hyp checks Info against a set of characters it does not document and
- * answers "Invalid characters in Info" (CCode=16) - punctuation such as the
- * geresh of "מס'" well beyond what hypay_sanitize_url_echo() strips. So the
- * template is tried again as fn_hypay_plain_text() leaves it, and failing
- * that as "Order <number>": a payment with a plain description beats none.
- *
- * @param array $order_ids the orders the payment is for
- *
- * @return array [attempt label => Info], only the ones that differ from what
- *               was already sent
- */
-function fn_hypay_info_fallbacks($info, array $order_ids)
-{
-    $info      = (string) $info;
-    $fallbacks = [];
-
-    $plain = fn_hypay_plain_text($info);
-    if ($plain !== '' && $plain !== $info) {
-        $fallbacks['plain'] = $plain;
-    }
-
-    $basic = 'Order ' . implode(' ', array_map('intval', $order_ids));
-    if ($basic !== $info && $basic !== $plain) {
-        $fallbacks['order number'] = $basic;
-    }
-
-    return $fallbacks;
 }
 
 /**

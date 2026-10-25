@@ -584,12 +584,16 @@ thinks is cancelled, and that payment would not be recorded. Paid or deleted
 in LIST is recorded as such; absent from LIST, the link is marked cancelled.
 LIST rows are matched by `payRequestId`, then by the link's address.
 
-**Customer names Hyp refuses.** `payRequest` (a link Hyp sends by e-mail /
-SMS) can refuse a name the checkout payment page accepts — a Hebrew one, with
-`CCode=16 … Invalid characters in ClientName`. The link is then asked for
-again with the name in windows-1255, the terminal's own encoding, and if that
-is refused as well, with the name in Latin letters (מאיר בן יאיר → *Mayr Bn
-Yayr*; nothing usable → *Customer*). Every attempt is in the log.
+**Characters Hyp refuses.** Hyp answers `CCode=16 … Invalid characters in
+<field>` for punctuation in free text, without saying which. So the name,
+street, city and Info go to Hyp in letters (Hebrew included), digits, spaces,
+dots and hyphens only — everything else is removed before the request is made
+(`בע"מ` → `בעמ`, `מס' 12:` → `מס 12`, HTML entities decoded first, niqqud
+dropped). If Hyp still names a field, the request is made again without it:
+*ClientLName* is added to *ClientName*; *street*, *city*, *zip*, *phone* are
+left out; *ClientName* goes in Latin letters (מאיר → *Mayr*; nothing usable →
+*Customer*); *Info* becomes `Order <number>`. This applies to the checkout
+payment page and to payment links alike. Every attempt is in the log.
 
 **Terminal permission.** The link API needs its own permission on the terminal:
 sending links by hand from the Hyp portal does not grant it. Hyp refuses the
@@ -771,18 +775,12 @@ When a request is not signed it is now made again, each time with less:
 
 1. the line items as **a single line** (`Info`, quantity 1, the order total) —
    the amount, and Hyp's check of the lines against it, stay the same;
-2. that, with the customer's **name, street and city without punctuation**,
-   still in Hebrew (`בע"מ` → `בעמ`), and then **in Latin letters** — both only
-   when Hyp named one of them or answered nothing at all, never for a refusal
-   of something else.
+2. that, with the customer's **name, street and city in Latin letters**, only
+   when Hyp answered nothing at all.
 
-Whenever Hyp answers *Invalid characters in Info* (CCode=16), the same request
-goes again with the Info template in letters, digits and spaces only, then as
-`Order <number>`. A payment link is stored with the Info Hyp took.
-
-A **payment link sent by e-mail / SMS** (payRequest) whose name Hyp refuses is
-asked for again with the name without punctuation, then with the whole request
-in windows-1255 (`UTF8=False`), and only then in Latin letters.
+A refusal that names a field (`Invalid characters in ClientLName`) is dealt
+with by taking that field out, as described under *Characters Hyp refuses*. A
+payment link is stored with the Info Hyp took.
 
 The payment page opens with less detail rather than not at all. In EzCount
 *integrated* mode the document Hyp issues for such an order has the one line;

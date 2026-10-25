@@ -69,8 +69,8 @@ msgid "Transaction Info (Info)"
 msgstr "Transaction Info (Info)"
 
 msgctxt "Languages::hypay_info_desc"
-msgid "Template for the Info parameter. You can use {order_id}. Hyp echoes this text back in the return URL without encoding it, so #, &, ?, = and % are stripped before it is sent."
-msgstr "Template for the Info parameter. You can use {order_id}. Hyp echoes this text back in the return URL without encoding it, so #, &, ?, = and % are stripped before it is sent."
+msgid "Template for the Info parameter. You can use {order_id}. Only letters, digits, spaces, dots and hyphens are sent: Hyp refuses other characters, so they are removed."
+msgstr "Template for the Info parameter. You can use {order_id}. Only letters, digits, spaces, dots and hyphens are sent: Hyp refuses other characters, so they are removed."
 
 msgctxt "Languages::hypay_encoding_flags"
 msgid "Encoding & signature"
