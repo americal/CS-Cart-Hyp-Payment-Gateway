@@ -1355,6 +1355,18 @@ msgctxt "Languages::hypay_link_deal_j5_desc"
 msgid "the amount is held on the card and charged later from the order's J5 block; this order only"
 msgstr "the amount is held on the card and charged later from the order's J5 block; this order only"
 
+msgctxt "Languages::hypay_link_line_items"
+msgid "Document lines"
+msgstr "Document lines"
+
+msgctxt "Languages::hypay_link_line_items_products_desc"
+msgid "a line per product, plus shipping and discounts"
+msgstr "a line per product, plus shipping and discounts"
+
+msgctxt "Languages::hypay_link_line_items_orders_desc"
+msgid "one line per order: \"Order #1234\" at the order total"
+msgstr "one line per order: \"Order #1234\" at the order total"
+
 msgctxt "Languages::hypay_link_error_j5_single"
 msgid "A J5 (hold) link can pay for one order only: untick the other orders."
 msgstr "A J5 (hold) link can pay for one order only: untick the other orders."

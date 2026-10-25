@@ -100,7 +100,9 @@ if (in_array($mode, ['link_create', 'link_cancel', 'link_check'], true)) {
             (string) ($_REQUEST['cell'] ?? ''),
             array_filter(array_map('intval', $order_ids)),
             // J4 (charge now) unless J5 (hold) was picked
-            ($_REQUEST['deal'] ?? 'j4') === 'j5'
+            ($_REQUEST['deal'] ?? 'j4') === 'j5',
+            // list_products | list_orders; anything else: the method's setting
+            (string) ($_REQUEST['line_items'] ?? '')
         );
     } elseif ($expired) {
         // nothing left to cancel or check
