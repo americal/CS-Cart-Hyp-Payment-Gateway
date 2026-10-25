@@ -49,6 +49,14 @@
             <span class="hypay-lp-summary__value">{$hypay_link.customer_name|default:"—"}</span>
         </div>
         <div class="hypay-lp-summary__item">
+            <span class="hypay-lp-summary__label">{__("hypay_link_ez_name")}</span>
+            <span class="hypay-lp-summary__value">{$hypay_link.ez_name|default:"—"}</span>
+        </div>
+        <div class="hypay-lp-summary__item">
+            <span class="hypay-lp-summary__label">{__("hypay_link_ez_vat")}</span>
+            <span class="hypay-lp-summary__value"><bdi>{$hypay_link.ez_vat|default:"—"}</bdi></span>
+        </div>
+        <div class="hypay-lp-summary__item">
             <span class="hypay-lp-summary__label">{__("email")}</span>
             <span class="hypay-lp-summary__value"><bdi>{$hypay_link.email|default:"—"}</bdi></span>
         </div>

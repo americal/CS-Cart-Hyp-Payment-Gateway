@@ -1355,6 +1355,14 @@ msgctxt "Languages::hypay_link_deal_j5_desc"
 msgid "the amount is held on the card and charged later from the order's J5 block; this order only"
 msgstr "сумма блокируется на карте и списывается позже из блока J5 заказа; только этот заказ"
 
+msgctxt "Languages::hypay_link_ez_name"
+msgid "EzCount Name"
+msgstr "Имя EzCount"
+
+msgctxt "Languages::hypay_link_ez_vat"
+msgid "VAT"
+msgstr "VAT (ח.פ.)"
+
 msgctxt "Languages::hypay_link_line_items"
 msgid "Document lines"
 msgstr "Строки документа"

@@ -4390,7 +4390,7 @@ function fn_hypay_repair_addon_texts()
         //    it on whenever one is added
         $canary = db_get_field(
             "SELECT COUNT(*) FROM ?:language_values WHERE name = ?s AND lang_code = ?s",
-            'hypay_link_line_items_orders_desc',
+            'hypay_link_ez_vat',
             CART_LANGUAGE
         );
         if (!$canary) {
@@ -7015,6 +7015,11 @@ function fn_hypay_get_link_panel_data($order_id)
         'kind'          => (string) ($link['kind'] ?? 'request'),
         'j5'            => !empty($link) && fn_hypay_link_is_j5($link),
         'customer_name' => trim(($order_info['firstname'] ?? '') . ' ' . ($order_info['lastname'] ?? '')),
+        // the EzCount name and VAT ID on the customer's profile - the fields
+        // hypay_ez_customer() takes them from; decoded, as the window
+        // escapes them itself
+        'ez_name'       => html_entity_decode(hypay_ez_profile_value($order_info, 'fax'), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+        'ez_vat'        => html_entity_decode(hypay_ez_profile_value($order_info, 'url'), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
         'currency'      => (string) (fn_hypay_currency_symbol()),
         // whether the settings offer other orders at all - the panel says so
         // when they do and the customer simply has none
