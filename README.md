@@ -590,10 +590,17 @@ street, city and Info go to Hyp in letters (Hebrew included), digits, spaces,
 dots and hyphens only — everything else is removed before the request is made
 (`בע"מ` → `בעמ`, `מס' 12:` → `מס 12`, HTML entities decoded first, niqqud
 dropped). If Hyp still names a field, the request is made again without it:
-*ClientLName* is added to *ClientName*; *street*, *city*, *zip*, *phone* are
-left out; *ClientName* goes in Latin letters (מאיר → *Mayr*; nothing usable →
-*Customer*); *Info* becomes `Order <number>`. This applies to the checkout
-payment page and to payment links alike. Every attempt is in the log.
+*ClientName* or *ClientLName* — both halves of the name go in Latin letters,
+neither empty (מאיר → *Mayr*; a whole name in the first half gives its last
+word to the second; nothing usable → *Customer*); *street*, *city*, *zip*,
+*phone* are left out; *Info* becomes `Order <number>`. This applies to the
+checkout payment page and to payment links alike. Every attempt is in the log.
+
+`payRequest` (a link Hyp sends by e-mail / SMS) takes **no Hebrew in the
+name** at all — in UTF-8 or in windows-1255 — and requires `ClientLName`:
+empty or left out, it is refused as *Invalid characters in ClientLName* too.
+So such a link carries the name in Latin letters. A link made without
+e-mail / SMS (APISign) keeps the Hebrew name.
 
 **Terminal permission.** The link API needs its own permission on the terminal:
 sending links by hand from the Hyp portal does not grant it. Hyp refuses the

@@ -2636,7 +2636,10 @@ function fn_hypay_format_error($ccode, $err_msg = '', $raw = '')
 
     $parts = [];
     if ($ccode !== '') {
-        $meaning = fn_hypay_ccode_message($ccode);
+        // 16 is Hyp's answer to any field it will not take, and errMsg names
+        // the field: the textbook meaning ("no permission for currency type")
+        // would only send the reader the wrong way
+        $meaning = ($ccode === '16' && $err_msg !== '') ? '' : fn_hypay_ccode_message($ccode);
         $parts[] = 'CCode=' . $ccode . ($meaning !== '' ? ' — ' . $meaning : '');
     }
     if ($err_msg !== '') {
@@ -5557,8 +5560,7 @@ function fn_hypay_refused_field(array $answer)
 /**
  * The request again without what Hyp refused in it:
  *   Info       - "Order <number>" (it must be there: a return is matched by it);
- *   ClientName  - in Latin letters, failing that "Customer";
- *   ClientLName - added to ClientName, and not sent on its own;
+ *   ClientName / ClientLName - both in Latin letters, neither empty;
  *   street, city, zip, phone - only details: not sent at all.
  * The payment goes through with less on it, rather than not at all.
  *
@@ -5581,13 +5583,20 @@ function fn_hypay_fix_refused_field(array $params, $field, array $order_ids)
 
     if ($field === 'Info') {
         $fixed['Info'] = 'Order ' . implode(' ', array_map('intval', $order_ids));
-    } elseif ($field === 'ClientName') {
-        $latin = fn_hypay_latin_name((string) ($params['ClientName'] ?? ''));
-        $fixed['ClientName'] = ($latin !== '' && $latin !== ($params['ClientName'] ?? '')) ? $latin : 'Customer';
-    } elseif ($field === 'ClientLName') {
-        // the last name joins the first, which Hyp has taken so far
-        $fixed['ClientName'] = trim(($params['ClientName'] ?? '') . ' ' . ($params['ClientLName'] ?? ''));
-        unset($fixed['ClientLName']);
+    } elseif ($field === 'ClientName' || $field === 'ClientLName') {
+        // payRequest takes no Hebrew in either half of the name - not in
+        // UTF-8, not in windows-1255 - and wants both, ClientLName included:
+        // empty or left out, it is "Invalid characters in ClientLName" all
+        // the same. So both go in Latin letters at once, neither empty.
+        $first = fn_hypay_latin_name((string) ($params['ClientName'] ?? ''));
+        $last  = fn_hypay_latin_name((string) ($params['ClientLName'] ?? ''));
+        if ($last === '' && strpos($first, ' ') !== false) {
+            // a whole name in the first half - a company's: its last word
+            $last  = substr($first, strrpos($first, ' ') + 1);
+            $first = substr($first, 0, strrpos($first, ' '));
+        }
+        $fixed['ClientName']  = $first !== '' ? $first : 'Customer';
+        $fixed['ClientLName'] = $last  !== '' ? $last  : 'Customer';
     } elseif (in_array($field, ['street', 'city', 'zip', 'phone'], true)) {
         unset($fixed[$field]);
     } else {
