@@ -1153,6 +1153,14 @@ msgctxt "Languages::hypay_link_deal_j5_desc"
 msgid "the amount is held on the card and charged later from the order's J5 block; this order only"
 msgstr "הסכום נתפס בכרטיס ונגבה מאוחר יותר מבלוק J5 של ההזמנה; להזמנה זו בלבד"
 
+msgctxt "Languages::hypay_link_ez_name"
+msgid "EzCount Name"
+msgstr "שם ב-EzCount"
+
+msgctxt "Languages::hypay_link_ez_vat"
+msgid "VAT"
+msgstr "ח.פ. / ע.מ."
+
 msgctxt "Languages::hypay_link_line_items"
 msgid "Document lines"
 msgstr "שורות המסמך"
