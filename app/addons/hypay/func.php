@@ -5353,6 +5353,7 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
         }
         $answer = ['payRequestId' => $signed['id'], 'paymentURL' => $signed['url']];
         $result = ['raw' => ''];
+        $info   = $signed['info'];
     } else {
         $result = fn_hypay_link_api_request($order_id, $params, 'link.create');
         $answer = $result['params'];
@@ -5362,16 +5363,30 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
         // in ClientName", CCode=16). The link is asked for again with the name
         // in windows-1255, the terminal's own encoding, and failing that in
         // Latin letters: a link with a transliterated name beats no link.
-        foreach (fn_hypay_link_name_fallbacks($params) as $attempt => $names) {
-            if (!fn_hypay_link_name_refused($answer)) {
+        // An Info it refuses the same way is made plainer just as well.
+        $name_fallbacks = fn_hypay_link_name_fallbacks($params);
+        $info_fallbacks = fn_hypay_info_fallbacks($info, array_keys($orders));
+        while (true) {
+            if ($info_fallbacks && fn_hypay_info_refused($answer)) {
+                $attempt        = 'info: ' . key($info_fallbacks);
+                $params['Info'] = array_shift($info_fallbacks);
+                $what           = 'Info';
+            } elseif ($name_fallbacks && fn_hypay_link_name_refused($answer)) {
+                $attempt = (string) key($name_fallbacks);
+                $params  = array_shift($name_fallbacks) + $params;
+                $what    = 'ClientName';
+            } else {
                 break;
             }
-            hypay_log($order_id, 'link.create: ClientName refused, trying again (' . $attempt . ')', [
+            hypay_log($order_id, 'link.create: ' . $what . ' refused, trying again (' . $attempt . ')', [
                 'errMsg' => $answer['errMsg'] ?? '',
             ]);
-            $result = fn_hypay_link_api_request($order_id, $names + $params, 'link.create.' . $attempt);
+            $result = fn_hypay_link_api_request($order_id, $params, 'link.create.' . $attempt);
             $answer = $result['params'];
         }
+
+        // the link is stored with the Info Hyp took: a return is matched by it
+        $info = (string) $params['Info'];
     }
 
     $pay_request_id = trim((string) ($answer['payRequestId'] ?? ''));
@@ -5532,12 +5547,18 @@ function fn_hypay_latin_name($name)
  *      check of the lines against it, stay the same;
  *   2. that, with the name, street and city in Latin letters as well, for a
  *      character Hyp refuses in them.
+ * And whenever Hyp says it is Info it will not take ("Invalid characters in
+ * Info", CCode=16), the same request goes again with a plainer Info - see
+ * fn_hypay_info_fallbacks() - before anything else is given up.
  * The payment page opens with less detail, rather than not at all.
+ *
+ * @param array $order_ids every order the payment is for, when there are
+ *                         several (a payment link); the order alone otherwise
  *
  * @return array ['response' => the signed query string or what Hyp answered,
  *                'ok' => signed or not, 'params' => the request that was sent]
  */
-function fn_hypay_sign_request($order_id, array $params, $label)
+function fn_hypay_sign_request($order_id, array $params, $label, array $order_ids = [])
 {
     $attempts = ['' => $params];
 
@@ -5561,34 +5582,113 @@ function fn_hypay_sign_request($order_id, array $params, $label)
         $attempts[isset($attempts['single line']) ? 'single line, latin' : 'latin'] = $latin;
     }
 
+    $info_fallbacks = fn_hypay_info_fallbacks((string) ($params['Info'] ?? ''), $order_ids ? $order_ids : [$order_id]);
+    $info           = null; // the plainer Info, once Hyp has refused the configured one
+
     $response = '';
     foreach ($attempts as $attempt => $request) {
-        $suffix = $attempt === '' ? '' : ' (' . $attempt . ')';
-        $query  = http_build_query($request);
-
-        if ($attempt !== '') {
-            hypay_log($order_id, $label . ': not signed, trying again' . $suffix, hypay_mask_params(
-                array_intersect_key($request, array_flip(['heshDesc', 'ClientName', 'ClientLName', 'street', 'city']))
-            ));
+        if ($info !== null) {
+            $request['Info'] = $info;
         }
 
-        $response = trim((string) Http::get(HYPAY_API_URL . '?' . $query, ['timeout' => 30]));
-
-        // what is needed to tell a refusal from a request that never got there
-        $http = ['length' => strlen($query)];
-        if (method_exists('\Tygh\Http', 'getStatus')) { $http['status'] = Http::getStatus(); }
-        if (method_exists('\Tygh\Http', 'getError'))  { $http['error']  = Http::getError(); }
-        hypay_log($order_id, $label . ' response' . $suffix, [
-            'raw'  => strlen($response) > 2000 ? substr($response, 0, 2000) . '…' : $response,
-            'http' => $http,
-        ]);
-
-        if ($response !== '' && strpos($response, 'signature=') !== false) {
+        $response = fn_hypay_sign_send($order_id, $request, $label, $attempt);
+        if (fn_hypay_sign_ok($response)) {
             return ['response' => $response, 'ok' => true, 'params' => $request];
+        }
+
+        $answer = [];
+        parse_str($response, $answer);
+        while ($info_fallbacks && fn_hypay_info_refused($answer)) {
+            $info_attempt    = (string) key($info_fallbacks);
+            $info            = array_shift($info_fallbacks);
+            $request['Info'] = $info;
+
+            $response = fn_hypay_sign_send($order_id, $request, $label, ltrim($attempt . ', info: ' . $info_attempt, ', '));
+            if (fn_hypay_sign_ok($response)) {
+                return ['response' => $response, 'ok' => true, 'params' => $request];
+            }
+
+            $answer = [];
+            parse_str($response, $answer);
         }
     }
 
     return ['response' => $response, 'ok' => false, 'params' => $params];
+}
+
+/** one APISign / SIGN call of fn_hypay_sign_request(), logged; Hyp's answer */
+function fn_hypay_sign_send($order_id, array $request, $label, $attempt)
+{
+    $suffix = $attempt === '' ? '' : ' (' . $attempt . ')';
+    $query  = http_build_query($request);
+
+    if ($attempt !== '') {
+        hypay_log($order_id, $label . ': not signed, trying again' . $suffix, hypay_mask_params(
+            array_intersect_key($request, array_flip(['Info', 'heshDesc', 'ClientName', 'ClientLName', 'street', 'city']))
+        ));
+    }
+
+    $response = trim((string) Http::get(HYPAY_API_URL . '?' . $query, ['timeout' => 30]));
+
+    // what is needed to tell a refusal from a request that never got there
+    $http = ['length' => strlen($query)];
+    if (method_exists('\Tygh\Http', 'getStatus')) { $http['status'] = Http::getStatus(); }
+    if (method_exists('\Tygh\Http', 'getError'))  { $http['error']  = Http::getError(); }
+    hypay_log($order_id, $label . ' response' . $suffix, [
+        'raw'  => strlen($response) > 2000 ? substr($response, 0, 2000) . '…' : $response,
+        'http' => $http,
+    ]);
+
+    return $response;
+}
+
+/** did APISign / SIGN sign the request? */
+function fn_hypay_sign_ok($response)
+{
+    return $response !== '' && strpos($response, 'signature=') !== false;
+}
+
+/** did Hyp refuse the request because of its Info? */
+function fn_hypay_info_refused(array $answer)
+{
+    if (trim((string) ($answer['payRequestId'] ?? '')) !== '') {
+        return false;
+    }
+
+    return (bool) preg_match('/\bInfo\b/i', (string) ($answer['errMsg'] ?? ''));
+}
+
+/**
+ * Plainer Infos to send when Hyp refuses the configured one.
+ *
+ * Hyp checks Info against a set of characters it does not document and
+ * answers "Invalid characters in Info" (CCode=16) - punctuation such as the
+ * geresh of "מס'" well beyond what hypay_sanitize_url_echo() strips. So the
+ * template is tried again with letters, digits and spaces only, and failing
+ * that as "Order <number>": a payment with a plain description beats none.
+ *
+ * @param array $order_ids the orders the payment is for
+ *
+ * @return array [attempt label => Info], only the ones that differ from what
+ *               was already sent
+ */
+function fn_hypay_info_fallbacks($info, array $order_ids)
+{
+    $info      = (string) $info;
+    $fallbacks = [];
+
+    $plain = preg_replace('/[^\p{L}\p{N} ]+/u', ' ', $info);
+    $plain = trim((string) preg_replace('/\s+/u', ' ', (string) $plain));
+    if ($plain !== '' && $plain !== $info) {
+        $fallbacks['plain'] = $plain;
+    }
+
+    $basic = 'Order ' . implode(' ', array_map('intval', $order_ids));
+    if ($basic !== $info && $basic !== $plain) {
+        $fallbacks['order number'] = $basic;
+    }
+
+    return $fallbacks;
 }
 
 /**
@@ -5605,7 +5705,8 @@ function fn_hypay_sign_request($order_id, array $params, $label)
  * What it cannot do is be withdrawn at Hyp or listed there: cancelling it is
  * the store's own note, and a payment made on it anyway is still recorded.
  *
- * @return array ['id' => local id, 'url' => payment page URL, 'error' => text]
+ * @return array ['id' => local id, 'url' => payment page URL, 'error' => text,
+ *                'info' => the Info signed, which may be plainer than $info]
  */
 function fn_hypay_link_sign($order_id, array $order_info, array $orders, $amount, $info, $page_lang, array $pp, array $ez_customer, $j5 = false)
 {
@@ -5679,7 +5780,7 @@ function fn_hypay_link_sign($order_id, array $order_info, array $orders, $amount
 
     hypay_log($order_id, 'link.sign request', hypay_mask_params($params));
 
-    $signed   = fn_hypay_sign_request($order_id, $params, 'link.sign');
+    $signed   = fn_hypay_sign_request($order_id, $params, 'link.sign', array_keys($orders));
     $response = $signed['response'];
 
     if (!$signed['ok']) {
@@ -5699,6 +5800,7 @@ function fn_hypay_link_sign($order_id, array $order_info, array $orders, $amount
         'id'    => 'S' . substr(md5(uniqid((string) $order_id, true)), 0, 15),
         'url'   => HYPAY_API_URL . '?' . $response,
         'error' => '',
+        'info'  => (string) ($signed['params']['Info'] ?? $info),
     ];
 }
 
