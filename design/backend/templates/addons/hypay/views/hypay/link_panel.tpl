@@ -108,6 +108,9 @@
                 {__("hypay_link_url")}
                 <span class="hypay-lp-badge hypay-lp-badge--ok">{__("hypay_link_state_active", ["[date]" => $hypay_link.created_at|date_format:$hypay_lp_date])}</span>
                 <span class="hypay-lp-badge hypay-lp-badge--muted">{if $hypay_link.j5}{__("hypay_link_deal_j5")}{else}{__("hypay_link_deal_j4")}{/if}</span>
+                {if $hypay_link.line_items && $hypay_link.doc_type && $hypay_link.doc_type.type != "none"}
+                    <span class="hypay-lp-badge hypay-lp-badge--muted">{if $hypay_link.line_items == "list_orders"}{__("hypay_ez_line_items_mode_orders")}{else}{__("hypay_ez_line_items_mode_products")}{/if}</span>
+                {/if}
                 {if $hypay_link.expires_at}
                     <span class="hypay-lp-badge hypay-lp-badge--muted">{__("hypay_link_expires_on", ["[date]" => $hypay_link.expires_at|date_format:$hypay_lp_date])}</span>
                 {/if}
@@ -161,6 +164,28 @@
                 <input type="radio" name="hypay_lp_deal" class="hypay-lp-deal-input" value="j5" />
                 {__("hypay_link_deal_j5")}
                 <small class="muted">— {__("hypay_link_deal_j5_desc")}</small>
+            </label>
+        </div>
+    {/if}
+
+    {* ---------------------------------------------------------- document lines
+       Picked anew with each deal type, from the payment method's setting for
+       it, until somebody picks one here themselves *}
+    {if $hypay_lp_pick && $hypay_link.doc_type && $hypay_link.doc_type.type != "none"}
+        <div class="hypay-lp-card hypay-lp-lines"
+             data-default-j4="{$hypay_link.line_items_j4}" data-default-j5="{$hypay_link.line_items_j5}">
+            <div class="hypay-lp-card__title">{__("hypay_link_line_items")}</div>
+            <label class="radio hypay-lp-deal">
+                <input type="radio" name="hypay_lp_lines" class="hypay-lp-lines-input" value="list_products"
+                       {if $hypay_link.line_items_j4 != "list_orders"}checked="checked"{/if} />
+                {__("hypay_ez_line_items_mode_products")}
+                <small class="muted">— {__("hypay_link_line_items_products_desc")}</small>
+            </label>
+            <label class="radio hypay-lp-deal">
+                <input type="radio" name="hypay_lp_lines" class="hypay-lp-lines-input" value="list_orders"
+                       {if $hypay_link.line_items_j4 == "list_orders"}checked="checked"{/if} />
+                {__("hypay_ez_line_items_mode_orders")}
+                <small class="muted">— {__("hypay_link_line_items_orders_desc")}</small>
             </label>
         </div>
     {/if}
@@ -390,6 +415,9 @@
             var cell       = $q('.hypay-lp-cell');
             var create     = $q('.hypay-lp-action[data-action="create"]');
             var deals      = $qa('.hypay-lp-deal-input');
+            var lines_box  = $q('.hypay-lp-lines');
+            var lines      = $qa('.hypay-lp-lines-input');
+            var lines_set  = false; // picked by hand: the deal type no longer moves it
             var currency   = block.getAttribute('data-currency') || '';
 
             var picked = function () {
@@ -439,8 +467,21 @@
                 }
                 return 'j4';
             };
+            var line_items = function () {
+                for (var l = 0; l < lines.length; l++) {
+                    if (lines[l].checked) { return lines[l].value; }
+                }
+                return '';
+            };
+            for (var ll = 0; ll < lines.length; ll++) {
+                lines[ll].addEventListener('change', function () { lines_set = true; });
+            }
             var sync_deal = function () {
                 var j5 = deal() === 'j5';
+                if (lines_box && !lines_set) {
+                    var wanted = lines_box.getAttribute('data-default-' + deal());
+                    for (var w = 0; w < lines.length; w++) { lines[w].checked = (lines[w].value === wanted); }
+                }
                 for (var o = 0; o < orders.length; o++) {
                     if (orders[o].getAttribute('data-selectable') !== '1') { continue; }
                     if (j5) { orders[o].checked = false; }
@@ -477,6 +518,7 @@
                     var ids = picked().ids;
                     if (ids.length) { params.append('order_ids', ids.join(',')); }
                     params.append('deal', deal());
+                    if (line_items()) { params.append('line_items', line_items()); }
                 }
                 if (action === 'cancel' && !window.confirm(block.getAttribute('data-confirm-cancel'))) { return; }
 

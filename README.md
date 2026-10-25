@@ -682,6 +682,15 @@ Each EzCount mode has its own **Document after a payment link is paid** setting:
 
 The panel says in advance which document the payment will produce.
 
+**Document lines.** The link window asks how the document is itemized:
+*List products* (a line per product, plus shipping and discounts) or *Order
+number only* (one line per order, `Order #1234` at its total). It starts on the
+payment method's *Document line items* setting — the regular one for *Charge
+now (J4)*, the J5 one for *Hold only (J5)*, switching with the deal type until
+it is picked by hand. The choice is kept with the link and used for the Direct
+API document issued when the link is paid, or when its J5 hold is captured;
+in integrated mode it decides the `heshDesc` lines of the document Hyp issues.
+
 **Safeguards**
 
 - A link is offered for an order that has no document attached yet — a tax
@@ -762,8 +771,18 @@ When a request is not signed it is now made again, each time with less:
 
 1. the line items as **a single line** (`Info`, quantity 1, the order total) —
    the amount, and Hyp's check of the lines against it, stay the same;
-2. that, with the customer's **name, street and city in Latin letters** too,
-   for a character Hyp refuses in them.
+2. that, with the customer's **name, street and city without punctuation**,
+   still in Hebrew (`בע"מ` → `בעמ`), and then **in Latin letters** — both only
+   when Hyp named one of them or answered nothing at all, never for a refusal
+   of something else.
+
+Whenever Hyp answers *Invalid characters in Info* (CCode=16), the same request
+goes again with the Info template in letters, digits and spaces only, then as
+`Order <number>`. A payment link is stored with the Info Hyp took.
+
+A **payment link sent by e-mail / SMS** (payRequest) whose name Hyp refuses is
+asked for again with the name without punctuation, then with the whole request
+in windows-1255 (`UTF8=False`), and only then in Latin letters.
 
 The payment page opens with less detail rather than not at all. In EzCount
 *integrated* mode the document Hyp issues for such an order has the one line;

@@ -165,6 +165,9 @@ function fn_hypay_ensure_schema()
         . " kind varchar(16) NOT NULL default 'request',"
         // Y: the link holds the money (J5) instead of charging it
         . " j5 char(1) NOT NULL default 'N',"
+        // the document's lines, as picked in the link window:
+        // list_products | list_orders; '' for the payment method's setting
+        . " line_items varchar(16) NOT NULL default '',"
         . " created_at int(11) unsigned NOT NULL default '0',"
         . " cancelled_at int(11) unsigned NOT NULL default '0',"
         . " paid_at int(11) unsigned NOT NULL default '0',"
@@ -189,6 +192,9 @@ function fn_hypay_ensure_schema()
     }
     if ($link_columns && !in_array('j5', $link_columns, true)) {
         db_query("ALTER TABLE ?:hypay_payment_links ADD j5 char(1) NOT NULL default 'N'");
+    }
+    if ($link_columns && !in_array('line_items', $link_columns, true)) {
+        db_query("ALTER TABLE ?:hypay_payment_links ADD line_items varchar(16) NOT NULL default ''");
     }
 
     // payment_url was a varchar(255), and a signed payment page URL is longer:
@@ -2094,7 +2100,10 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
     $doc_lang           = ($pp['ez_doc_lang'] ?? 'he') === 'en' ? 'en' : 'he';
     $auto_calc          = isset($pp['ez_auto_calc_payments']) ? (int) (!empty($pp['ez_auto_calc_payments'])) : 0;
     $flow               = ($ctx['flow'] ?? 'regular') === 'j5' ? 'j5' : 'regular';
-    $list_products      = hypay_ez_is_list_products_mode($pp, $flow);
+    // the payment link window's choice, when the document is a link's
+    $list_products      = isset($ctx['list_products'])
+        ? (bool) $ctx['list_products']
+        : hypay_ez_is_list_products_mode($pp, $flow);
     $customer           = hypay_ez_customer($pp, $order_info, 'ez');
 
     // Unlike the line-items mode next to it, the UA UUID does not fall back to
@@ -3794,14 +3803,20 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
     // the document is issued now, for the amount that was actually charged
     if (($pp['ez_mode'] ?? 'none') === 'direct') {
         $order_info = fn_get_order_info($order_id); // re-read: the status has changed
-        fn_hypay_create_ezcount_doc($order_id, $order_info, $pp, [
+        $doc_ctx    = [
             'transaction_id' => $capture_id,
             'brand'          => $tx['brand'],
             'last4'          => $tx['last4'],
             'payments'       => $payments,
             'amount'         => $amount,
             'flow'           => 'j5',
-        ]);
+        ];
+        // a hold made through a payment link: the lines picked for it there
+        $link_list_products = fn_hypay_link_capture_list_products($order_id);
+        if ($link_list_products !== null) {
+            $doc_ctx['list_products'] = $link_list_products;
+        }
+        fn_hypay_create_ezcount_doc($order_id, $order_info, $pp, $doc_ctx);
     } else {
         hypay_log($order_id, 'ezcount skipped after capture (ez_mode != direct)', ['ez_mode' => $pp['ez_mode'] ?? 'none']);
     }
@@ -4372,7 +4387,7 @@ function fn_hypay_repair_addon_texts()
         //    it on whenever one is added
         $canary = db_get_field(
             "SELECT COUNT(*) FROM ?:language_values WHERE name = ?s AND lang_code = ?s",
-            'hypay_ez_customer_force_desc',
+            'hypay_link_line_items_orders_desc',
             CART_LANGUAGE
         );
         if (!$canary) {
@@ -5159,7 +5174,7 @@ function fn_hypay_link_credentials(array $pp)
  *
  * @return bool
  */
-function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_ids = [], $j5 = false)
+function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_ids = [], $j5 = false, $line_items = '')
 {
     fn_hypay_ensure_schema();
 
@@ -5229,6 +5244,11 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
 
         return false;
     }
+
+    // the document's lines: as picked in the window, else as the payment
+    // method sets them for this kind of deal
+    $line_items    = fn_hypay_link_line_items($line_items, $pp, $j5);
+    $list_products = ($line_items === 'list_products');
 
     $amounts = [];
     foreach ($orders as $oid => $o) {
@@ -5317,11 +5337,7 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
     $int_doc_type = $is_integrated ? fn_hypay_link_doc_type($pp, 'integrated') : 'none';
     if ($is_integrated && $int_doc_type !== 'none') {
         // every order's lines, so they add up to the amount of the link
-        $hesh_desc = '';
-        foreach ($orders as $o) {
-            list($order_hesh) = hypay_build_heshdesc($o);
-            $hesh_desc .= $order_hesh;
-        }
+        $hesh_desc = fn_hypay_link_hesh_desc($orders, $list_products);
         $params['SendHesh'] = hypay_bool($pp['sendhesh'] ?? 'N');
         $params['Pritim']   = hypay_bool($pp['pritim']   ?? 'Y');
         if ($params['Pritim'] === 'True') {
@@ -5344,7 +5360,7 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
     }
 
     if ($kind === 'sign') {
-        $signed = fn_hypay_link_sign($order_id, $order_info, $orders, $amount, $info, $page_lang, $pp, $ez_customer, $j5);
+        $signed = fn_hypay_link_sign($order_id, $order_info, $orders, $amount, $info, $page_lang, $pp, $ez_customer, $j5, $list_products);
         if (empty($signed['url'])) {
             fn_set_notification('E', __('error'), __('hypay_link_create_failed') . ' ' . $signed['error']);
             hypay_log($order_id, 'link.sign FAILED', $signed['error']);
@@ -5358,35 +5374,47 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
         $result = fn_hypay_link_api_request($order_id, $params, 'link.create');
         $answer = $result['params'];
 
-        // Hyp refuses some names on payRequest - a Hebrew one among them, which
-        // the checkout payment page takes without a word ("Invalid characters
-        // in ClientName", CCode=16). The link is asked for again with the name
-        // in windows-1255, the terminal's own encoding, and failing that in
-        // Latin letters: a link with a transliterated name beats no link.
-        // An Info it refuses the same way is made plainer just as well.
-        $name_fallbacks = fn_hypay_link_name_fallbacks($params);
+        // Hyp refuses some names on payRequest ("Invalid characters in
+        // ClientName", CCode=16) that the checkout payment page takes without a
+        // word. The name is kept in Hebrew as long as there is a way: first
+        // without its punctuation (the gershayim of "בע"מ"), then with the
+        // whole request in windows-1255, the terminal's own encoding - and only
+        // then in Latin letters: a link with a transliterated name beats no
+        // link. An Info it refuses the same way is made plainer just as well.
+        $name_retries   = ['plain', 'windows-1255', 'latin'];
         $info_fallbacks = fn_hypay_info_fallbacks($info, array_keys($orders));
+        $sent_info      = $info;
         while (true) {
+            $next = null;
             if ($info_fallbacks && fn_hypay_info_refused($answer)) {
-                $attempt        = 'info: ' . key($info_fallbacks);
-                $params['Info'] = array_shift($info_fallbacks);
-                $what           = 'Info';
-            } elseif ($name_fallbacks && fn_hypay_link_name_refused($answer)) {
-                $attempt = (string) key($name_fallbacks);
-                $params  = array_shift($name_fallbacks) + $params;
-                $what    = 'ClientName';
-            } else {
+                $attempt   = 'info: ' . key($info_fallbacks);
+                $what      = 'Info';
+                $sent_info = array_shift($info_fallbacks);
+                $next      = $params;
+                // a request already moved to windows-1255 stays in it
+                $next['Info'] = (($params['UTF8'] ?? '') === 'False')
+                    ? (string) (fn_hypay_windows_1255($sent_info) ?? fn_hypay_latin_name($sent_info))
+                    : $sent_info;
+            } elseif (fn_hypay_link_name_refused($answer)) {
+                $what = 'ClientName';
+                while ($name_retries && $next === null) {
+                    $attempt = array_shift($name_retries);
+                    $next    = fn_hypay_link_name_retry($attempt, $params);
+                }
+            }
+            if ($next === null) {
                 break;
             }
             hypay_log($order_id, 'link.create: ' . $what . ' refused, trying again (' . $attempt . ')', [
                 'errMsg' => $answer['errMsg'] ?? '',
             ]);
+            $params = $next;
             $result = fn_hypay_link_api_request($order_id, $params, 'link.create.' . $attempt);
             $answer = $result['params'];
         }
 
         // the link is stored with the Info Hyp took: a return is matched by it
-        $info = (string) $params['Info'];
+        $info = $sent_info;
     }
 
     $pay_request_id = trim((string) ($answer['payRequestId'] ?? ''));
@@ -5415,6 +5443,7 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
         'status'         => 'active',
         'kind'           => $kind,
         'j5'             => $j5 ? 'Y' : 'N',
+        'line_items'     => $line_items,
         'created_at'     => TIME,
         'checked_at'     => TIME,
         'last_error'     => '',
@@ -5448,12 +5477,74 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
         'amount'       => $amount,
         'orders'       => $amounts,
         'j5'           => $j5,
+        'line_items'   => $line_items,
     ]);
     fn_set_notification('N', __('notice'), $kind === 'sign'
         ? __('hypay_link_created_ok_copy')
         : __('hypay_link_created_ok', ['[sent_to]' => $sent_to]));
 
     return true;
+}
+
+/**
+ * The lines of the document a link's payment produces, one of
+ * list_products | list_orders: the one picked in the link window, or, when
+ * nothing (valid) was, what the payment method sets for this kind of deal -
+ * the regular setting for a charge, the J5 one for a hold.
+ */
+function fn_hypay_link_line_items($picked, array $pp, $j5 = false)
+{
+    $picked = (string) $picked;
+    if ($picked === 'list_products' || $picked === 'list_orders') {
+        return $picked;
+    }
+
+    return hypay_ez_is_list_products_mode($pp, $j5 ? 'j5' : 'regular') ? 'list_products' : 'list_orders';
+}
+
+/**
+ * heshDesc for the orders of a link - the lines of the document Hyp issues
+ * itself (integrated EzCount): every product of every order, or a single
+ * "Order #1234" line per order at its total. Either way they add up to the
+ * amount of the link.
+ */
+function fn_hypay_link_hesh_desc(array $orders, $list_products = true)
+{
+    $hesh_desc = '';
+    foreach ($orders as $o) {
+        if ($list_products) {
+            list($order_hesh) = hypay_build_heshdesc($o);
+            $hesh_desc .= $order_hesh;
+        } else {
+            $hesh_desc .= '[0~Order #' . (int) $o['order_id'] . '~1~'
+                . number_format(round((float) $o['total'], 2), 2, '.', '') . ']';
+        }
+    }
+
+    return $hesh_desc;
+}
+
+/**
+ * The line items picked for the J5 link whose hold is being captured.
+ *
+ * @return bool|null true: list the products, false: order lines only, null
+ *                   when the hold is not a link's or the link picked nothing
+ */
+function fn_hypay_link_capture_list_products($order_id)
+{
+    $line_items = (string) db_get_field(
+        "SELECT l.line_items FROM ?:hypay_payment_links AS l"
+        . " INNER JOIN ?:hypay_payment_link_orders AS lo ON lo.link_id = l.link_id"
+        . " WHERE lo.order_id = ?i AND l.j5 = 'Y' AND l.status = 'paid'"
+        . " ORDER BY l.link_id DESC LIMIT 1",
+        (int) $order_id
+    );
+
+    if ($line_items === 'list_products' || $line_items === 'list_orders') {
+        return $line_items === 'list_products';
+    }
+
+    return null;
 }
 
 /** did Hyp refuse the payRequest because of the customer's name? */
@@ -5468,40 +5559,92 @@ function fn_hypay_link_name_refused(array $answer)
 }
 
 /**
- * Other ways to put the customer's name to payRequest, for when Hyp refuses
- * the first: the name in windows-1255, then in Latin letters. Only the ones
- * that differ from what was already sent.
+ * The payRequest again with the customer's name put another way, for when Hyp
+ * refuses it:
+ *   plain        - the same name, Hebrew and all, without its punctuation;
+ *   windows-1255 - the whole request in the terminal's own encoding, and said
+ *                  so with UTF8=False: a name in windows-1255 under UTF8=True
+ *                  is not valid UTF-8, and Hyp could only refuse it again;
+ *   latin        - the name in Latin letters.
  *
- * @return array [attempt label => ['ClientName' => ..., 'ClientLName' => ...]]
+ * @param string $how plain | windows-1255 | latin
+ *
+ * @return array|null the request to send, null when $how changes nothing or
+ *                    cannot be done
  */
-function fn_hypay_link_name_fallbacks(array $params)
+function fn_hypay_link_name_retry($how, array $params)
 {
     $first = (string) ($params['ClientName'] ?? '');
     $last  = (string) ($params['ClientLName'] ?? '');
+    $retry = $params;
 
-    $fallbacks = [];
-
-    if (function_exists('iconv') && preg_match('/[^\x00-\x7F]/', $first . $last)) {
-        $first_1255 = @iconv('UTF-8', 'windows-1255//TRANSLIT//IGNORE', $first);
-        $last_1255  = @iconv('UTF-8', 'windows-1255//TRANSLIT//IGNORE', $last);
-        // a letter windows-1255 does not have comes out as "?": not worth sending
-        if ($first_1255 !== false && $last_1255 !== false
-            && substr_count($first_1255 . $last_1255, '?') === substr_count($first . $last, '?')
-        ) {
-            $fallbacks['windows-1255'] = ['ClientName' => $first_1255, 'ClientLName' => $last_1255];
+    if ($how === 'plain') {
+        $retry['ClientName']  = fn_hypay_plain_text($first);
+        $retry['ClientLName'] = fn_hypay_plain_text($last);
+        if ($retry['ClientName'] === '' && $retry['ClientLName'] === '') {
+            return null;
+        }
+    } elseif ($how === 'windows-1255') {
+        if (($params['UTF8'] ?? '') === 'False') {
+            return null;
+        }
+        foreach ($retry as $key => $value) {
+            if (!is_string($value) || !preg_match('/[^\x00-\x7F]/', $value)) {
+                continue;
+            }
+            $converted = fn_hypay_windows_1255($value);
+            if ($converted === null) {
+                return null;
+            }
+            $retry[$key] = $converted;
+        }
+        $retry['UTF8'] = 'False';
+    } else {
+        $retry['ClientName']  = fn_hypay_latin_name($first);
+        $retry['ClientLName'] = fn_hypay_latin_name($last);
+        if ($retry['ClientName'] === '' && $retry['ClientLName'] === '') {
+            $retry['ClientName'] = 'Customer';
         }
     }
 
-    $first_latin = fn_hypay_latin_name($first);
-    $last_latin  = fn_hypay_latin_name($last);
-    if ($first_latin === '' && $last_latin === '') {
-        $first_latin = 'Customer';
-    }
-    if ($first_latin !== $first || $last_latin !== $last) {
-        $fallbacks['latin'] = ['ClientName' => $first_latin, 'ClientLName' => $last_latin];
+    return $retry === $params ? null : $retry;
+}
+
+/**
+ * UTF-8 text in windows-1255.
+ *
+ * @return string|null null when it has a character windows-1255 does not
+ */
+function fn_hypay_windows_1255($text)
+{
+    $text = (string) $text;
+    if (!function_exists('iconv')) {
+        return null;
     }
 
-    return $fallbacks;
+    $converted = @iconv('UTF-8', 'windows-1255//IGNORE', $text);
+    if ($converted === false || @iconv('windows-1255', 'UTF-8', $converted) !== $text) {
+        return null;
+    }
+
+    return $converted;
+}
+
+/**
+ * Text in letters (any alphabet), digits, spaces, dots and hyphens only - the
+ * characters every refusal of Hyp's has let through. A geresh or gershayim
+ * goes without leaving a gap, so "בע"מ" reads "בעמ" rather than "בע מ".
+ */
+function fn_hypay_plain_text($text)
+{
+    $text  = str_replace(['"', "'", '׳', '״', '`', '‘', '’', '“', '”'], '', (string) $text);
+    $plain = preg_replace('/[^\p{L}\p{N} .\-]+/u', ' ', $text);
+    if ($plain === null) {
+        // not valid UTF-8: nothing safer to offer than what Latin letters keep
+        return fn_hypay_latin_name($text);
+    }
+
+    return trim((string) preg_replace('/\s+/u', ' ', $plain));
 }
 
 /**
@@ -5572,21 +5715,38 @@ function fn_hypay_sign_request($order_id, array $params, $label, array $order_id
         $attempts['single line'] = $params;
     }
 
-    $latin = $params;
+    // the name, street and city: in Hebrew still but without punctuation,
+    // then in Latin letters
+    $prefix = isset($attempts['single line']) ? 'single line, ' : '';
+    $plain  = $latin = $params;
     foreach (['ClientName', 'ClientLName', 'street', 'city'] as $field) {
-        if (isset($latin[$field]) && preg_match('/[^\x00-\x7F]/', (string) $latin[$field])) {
-            $latin[$field] = fn_hypay_latin_name($latin[$field]);
+        if (isset($params[$field]) && preg_match('/[^\x00-\x7F]/', (string) $params[$field])) {
+            $plain[$field] = fn_hypay_plain_text($params[$field]);
+            $latin[$field] = fn_hypay_latin_name($params[$field]);
         }
     }
-    if ($latin !== $params) {
-        $attempts[isset($attempts['single line']) ? 'single line, latin' : 'latin'] = $latin;
+    $name_attempts = [];
+    if ($plain !== $params) {
+        $attempts[$prefix . 'plain names'] = $plain;
+        $name_attempts[$prefix . 'plain names'] = true;
+    }
+    if ($latin !== $params && $latin !== $plain) {
+        $attempts[$prefix . 'latin'] = $latin;
+        $name_attempts[$prefix . 'latin'] = true;
     }
 
     $info_fallbacks = fn_hypay_info_fallbacks((string) ($params['Info'] ?? ''), $order_ids ? $order_ids : [$order_id]);
     $info           = null; // the plainer Info, once Hyp has refused the configured one
 
     $response = '';
+    $answer   = [];
     foreach ($attempts as $attempt => $request) {
+        // The name is given up on only when it may be why: Hyp named it, or
+        // said nothing at all. A refusal of something else - Info, say - is
+        // no reason to send the customer's name in Latin letters.
+        if (isset($name_attempts[$attempt]) && !fn_hypay_names_may_be_refused($answer)) {
+            continue;
+        }
         if ($info !== null) {
             $request['Info'] = $info;
         }
@@ -5642,6 +5802,14 @@ function fn_hypay_sign_send($order_id, array $request, $label, $attempt)
     return $response;
 }
 
+/** could Hyp have refused the request over the name, street or city? */
+function fn_hypay_names_may_be_refused(array $answer)
+{
+    $err = trim((string) ($answer['errMsg'] ?? ''));
+
+    return $err === '' || (bool) preg_match('/ClientL?Name|street|city/i', $err);
+}
+
 /** did APISign / SIGN sign the request? */
 function fn_hypay_sign_ok($response)
 {
@@ -5664,7 +5832,7 @@ function fn_hypay_info_refused(array $answer)
  * Hyp checks Info against a set of characters it does not document and
  * answers "Invalid characters in Info" (CCode=16) - punctuation such as the
  * geresh of "מס'" well beyond what hypay_sanitize_url_echo() strips. So the
- * template is tried again with letters, digits and spaces only, and failing
+ * template is tried again as fn_hypay_plain_text() leaves it, and failing
  * that as "Order <number>": a payment with a plain description beats none.
  *
  * @param array $order_ids the orders the payment is for
@@ -5677,8 +5845,7 @@ function fn_hypay_info_fallbacks($info, array $order_ids)
     $info      = (string) $info;
     $fallbacks = [];
 
-    $plain = preg_replace('/[^\p{L}\p{N} ]+/u', ' ', $info);
-    $plain = trim((string) preg_replace('/\s+/u', ' ', (string) $plain));
+    $plain = fn_hypay_plain_text($info);
     if ($plain !== '' && $plain !== $info) {
         $fallbacks['plain'] = $plain;
     }
@@ -5708,17 +5875,19 @@ function fn_hypay_info_fallbacks($info, array $order_ids)
  * @return array ['id' => local id, 'url' => payment page URL, 'error' => text,
  *                'info' => the Info signed, which may be plainer than $info]
  */
-function fn_hypay_link_sign($order_id, array $order_info, array $orders, $amount, $info, $page_lang, array $pp, array $ez_customer, $j5 = false)
+function fn_hypay_link_sign($order_id, array $order_info, array $orders, $amount, $info, $page_lang, array $pp, array $ez_customer, $j5 = false, $list_products = true)
 {
     $ez_name = (string) ($ez_customer['ezcount_name'] ?? '');
 
+    // the document Hyp issues itself follows the payment link setting, as it
+    // does for a link Hyp sends
+    $is_integrated = !$j5 && (($pp['ez_mode'] ?? 'none') === 'integrated');
+    $int_doc_type  = $is_integrated ? fn_hypay_link_doc_type($pp, 'integrated') : 'none';
+
     // every order's lines, adding up to the amount of the link - Hyp checks
-    // the one against the other unless blockItemValidation says not to
-    $hesh_desc = '';
-    foreach ($orders as $o) {
-        list($order_hesh) = hypay_build_heshdesc($o);
-        $hesh_desc .= $order_hesh;
-    }
+    // the one against the other unless blockItemValidation says not to. Order
+    // lines instead of products only where they make up Hyp's own document.
+    $hesh_desc = fn_hypay_link_hesh_desc($orders, $list_products || !$is_integrated || $int_doc_type === 'none');
 
     $params = [
         'action'      => 'APISign',
@@ -5766,10 +5935,6 @@ function fn_hypay_link_sign($order_id, array $order_info, array $orders, $amount
     hypay_put($params, 'Tash',     isset($pp['tash'])     && $pp['tash']     !== '' ? (int) $pp['tash']     : null);
     hypay_put($params, 'tashType', isset($pp['tashtype']) && $pp['tashtype'] !== '' ? (int) $pp['tashtype'] : null);
 
-    // the document Hyp issues itself follows the payment link setting, as it
-    // does for a link Hyp sends
-    $is_integrated = !$j5 && (($pp['ez_mode'] ?? 'none') === 'integrated');
-    $int_doc_type  = $is_integrated ? fn_hypay_link_doc_type($pp, 'integrated') : 'none';
     if ($is_integrated && $int_doc_type !== 'none') {
         $params['SendHesh'] = hypay_bool($pp['sendhesh'] ?? 'N');
         $params[HYPAY_EZ_INT_DOC_TYPE_PARAM] = $int_doc_type;
@@ -6684,6 +6849,9 @@ function fn_hypay_link_issue_document($order_id, array $pp, array $link, array $
         'amount'         => round((float) $link['amount'], 2),
         'flow'           => 'regular',
         'doc_type'       => $doc_type,
+        // as picked in the link window; a link from before the choice
+        // follows the setting
+        'list_products'  => fn_hypay_link_line_items($link['line_items'] ?? '', $pp) === 'list_products',
     ]);
 }
 
@@ -6955,6 +7123,11 @@ function fn_hypay_get_link_panel_data($order_id)
         'can_create'    => ($state !== 'active' && $state !== 'paid' && $order_total > 0),
         // what the payment will produce, so nobody is surprised afterwards
         'doc_type'      => fn_hypay_link_panel_doc_type($pp_link),
+        // the document's lines: what the link was made with, and for a new
+        // one the payment method's setting for each kind of deal
+        'line_items'    => (string) ($link['line_items'] ?? ''),
+        'line_items_j4' => fn_hypay_link_line_items('', $pp_link, false),
+        'line_items_j5' => fn_hypay_link_line_items('', $pp_link, true),
         // and, once it is paid, what it did produce (direct API)
         'document'      => ($state === 'paid') ? fn_hypay_get_order_document($order_id) : [],
         'email'         => (string) ($order_info['email'] ?? ''),
