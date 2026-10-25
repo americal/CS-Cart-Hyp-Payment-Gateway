@@ -102,7 +102,12 @@ if (in_array($mode, ['link_create', 'link_cancel', 'link_check'], true)) {
             // J4 (charge now) unless J5 (hold) was picked
             ($_REQUEST['deal'] ?? 'j4') === 'j5',
             // list_products | list_orders; anything else: the method's setting
-            (string) ($_REQUEST['line_items'] ?? '')
+            (string) ($_REQUEST['line_items'] ?? ''),
+            // the name in Latin letters, as written in the window
+            [
+                'first' => (string) ($_REQUEST['client_fname'] ?? ''),
+                'last'  => (string) ($_REQUEST['client_lname'] ?? ''),
+            ]
         );
     } elseif ($expired) {
         // nothing left to cancel or check

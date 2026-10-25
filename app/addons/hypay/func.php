@@ -2636,7 +2636,10 @@ function fn_hypay_format_error($ccode, $err_msg = '', $raw = '')
 
     $parts = [];
     if ($ccode !== '') {
-        $meaning = fn_hypay_ccode_message($ccode);
+        // 16 is Hyp's answer to any field it will not take, and errMsg names
+        // the field: the textbook meaning ("no permission for currency type")
+        // would only send the reader the wrong way
+        $meaning = ($ccode === '16' && $err_msg !== '') ? '' : fn_hypay_ccode_message($ccode);
         $parts[] = 'CCode=' . $ccode . ($meaning !== '' ? ' — ' . $meaning : '');
     }
     if ($err_msg !== '') {
@@ -4390,7 +4393,7 @@ function fn_hypay_repair_addon_texts()
         //    it on whenever one is added
         $canary = db_get_field(
             "SELECT COUNT(*) FROM ?:language_values WHERE name = ?s AND lang_code = ?s",
-            'hypay_link_ez_vat',
+            'hypay_link_client_name_hint',
             CART_LANGUAGE
         );
         if (!$canary) {
@@ -5177,7 +5180,7 @@ function fn_hypay_link_credentials(array $pp)
  *
  * @return bool
  */
-function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_ids = [], $j5 = false, $line_items = '')
+function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_ids = [], $j5 = false, $line_items = '', array $names = [])
 {
     fn_hypay_ensure_schema();
 
@@ -5325,6 +5328,17 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
         'UTF8'        => hypay_bool($pp['utf8']    ?? 'Y'),
         'UTF8out'     => hypay_bool($pp['utf8out'] ?? 'Y'),
     ];
+
+    // The name as written in the link window - Latin letters there, prefilled
+    // and put right by hand where the transliteration got it wrong. It is for
+    // a link Hyp sends (payRequest takes no Hebrew); one made to copy keeps
+    // the name in Hebrew.
+    $typed_first = hypay_sanitize_url_echo($names['first'] ?? '');
+    $typed_last  = hypay_sanitize_url_echo($names['last']  ?? '');
+    if ($typed_first !== '' || $typed_last !== '') {
+        $params['ClientName']  = $typed_first;
+        $params['ClientLName'] = $typed_last;
+    }
     hypay_put($params, 'email', $email);
     hypay_put($params, 'cell',  $cell);
 
@@ -5557,8 +5571,7 @@ function fn_hypay_refused_field(array $answer)
 /**
  * The request again without what Hyp refused in it:
  *   Info       - "Order <number>" (it must be there: a return is matched by it);
- *   ClientName  - in Latin letters, failing that "Customer";
- *   ClientLName - added to ClientName, and not sent on its own;
+ *   ClientName / ClientLName - both in Latin letters, neither empty;
  *   street, city, zip, phone - only details: not sent at all.
  * The payment goes through with less on it, rather than not at all.
  *
@@ -5581,13 +5594,15 @@ function fn_hypay_fix_refused_field(array $params, $field, array $order_ids)
 
     if ($field === 'Info') {
         $fixed['Info'] = 'Order ' . implode(' ', array_map('intval', $order_ids));
-    } elseif ($field === 'ClientName') {
-        $latin = fn_hypay_latin_name((string) ($params['ClientName'] ?? ''));
-        $fixed['ClientName'] = ($latin !== '' && $latin !== ($params['ClientName'] ?? '')) ? $latin : 'Customer';
-    } elseif ($field === 'ClientLName') {
-        // the last name joins the first, which Hyp has taken so far
-        $fixed['ClientName'] = trim(($params['ClientName'] ?? '') . ' ' . ($params['ClientLName'] ?? ''));
-        unset($fixed['ClientLName']);
+    } elseif ($field === 'ClientName' || $field === 'ClientLName') {
+        // payRequest takes no Hebrew in either half of the name - not in
+        // UTF-8, not in windows-1255 - and wants both, ClientLName included:
+        // empty or left out, it is "Invalid characters in ClientLName" all
+        // the same. So both go in Latin letters at once, neither empty.
+        list($fixed['ClientName'], $fixed['ClientLName']) = fn_hypay_latin_name_pair(
+            (string) ($params['ClientName'] ?? ''),
+            (string) ($params['ClientLName'] ?? '')
+        );
     } elseif (in_array($field, ['street', 'city', 'zip', 'phone'], true)) {
         unset($fixed[$field]);
     } else {
@@ -5595,6 +5610,44 @@ function fn_hypay_fix_refused_field(array $params, $field, array $order_ids)
     }
 
     return $fixed === $params ? null : $fixed;
+}
+
+/**
+ * Both halves of a name the way payRequest takes them: in Latin letters, and
+ * neither empty. A whole name in the first half - a company's - gives its last
+ * word to the second; a half with nothing usable left reads "Customer".
+ *
+ * @return string[] [first, last]
+ */
+function fn_hypay_latin_name_pair($first, $last)
+{
+    $first = fn_hypay_latin_name($first);
+    $last  = fn_hypay_latin_name($last);
+    if ($last === '' && strpos($first, ' ') !== false) {
+        $last  = substr($first, strrpos($first, ' ') + 1);
+        $first = substr($first, 0, strrpos($first, ' '));
+    }
+
+    return [$first !== '' ? $first : 'Customer', $last !== '' ? $last : 'Customer'];
+}
+
+/**
+ * The name a payment link goes out with, before anything is done to it: the
+ * EzCount name in integrated mode (a whole name, the company's, in the first
+ * half), the profile's first and last name otherwise.
+ *
+ * @return string[] [first, last], sanitized for Hyp
+ */
+function fn_hypay_link_client_name(array $order_info, array $pp, $j5 = false)
+{
+    $is_integrated = !$j5 && (($pp['ez_mode'] ?? 'none') === 'integrated');
+    $ez_customer   = $is_integrated ? hypay_ez_customer($pp, $order_info, 'ez_int') : [];
+    $ez_name       = (string) ($ez_customer['ezcount_name'] ?? '');
+
+    return [
+        hypay_sanitize_url_echo($ez_name !== '' ? $ez_name : ($order_info['firstname'] ?? '')),
+        hypay_sanitize_url_echo($ez_name !== '' ? ''       : ($order_info['lastname']  ?? '')),
+    ];
 }
 
 /**
@@ -7015,6 +7068,9 @@ function fn_hypay_get_link_panel_data($order_id)
         'kind'          => (string) ($link['kind'] ?? 'request'),
         'j5'            => !empty($link) && fn_hypay_link_is_j5($link),
         'customer_name' => trim(($order_info['firstname'] ?? '') . ' ' . ($order_info['lastname'] ?? '')),
+        // the name a link Hyp sends goes out with, in Latin letters - prefilled
+        // in the window, to be put right by hand
+        'link_name'     => call_user_func_array('fn_hypay_latin_name_pair', fn_hypay_link_client_name($order_info, $pp_link)),
         // the EzCount name and VAT ID on the customer's profile - the fields
         // hypay_ez_customer() takes them from; decoded, as the window
         // escapes them itself
