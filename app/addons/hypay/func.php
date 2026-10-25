@@ -4668,9 +4668,7 @@ function fn_hypay_link_order_ids(array $link)
 
 /**
  * "Paid by payment link on 29.09.2026 14:05", in the reader's language - with
- * the orders the payment covered when there were several and the link was
- * made with order lines only (or before that choice existed). A link that
- * listed the products names no orders here.
+ * the orders the payment covered when there were several.
  */
 function fn_hypay_link_paid_label(array $link)
 {
@@ -4680,7 +4678,7 @@ function fn_hypay_link_paid_label(array $link)
     ]);
 
     $ids = fn_hypay_link_order_ids($link);
-    if (count($ids) > 1 && ($link['line_items'] ?? '') !== 'list_products') {
+    if (count($ids) > 1) {
         $label .= ' (' . __('hypay_link_pi_orders', ['[orders]' => '#' . implode(', #', $ids)]) . ')';
     }
 
