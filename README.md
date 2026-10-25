@@ -599,8 +599,11 @@ checkout payment page and to payment links alike. Every attempt is in the log.
 `payRequest` (a link Hyp sends by e-mail / SMS) takes **no Hebrew in the
 name** at all — in UTF-8 or in windows-1255 — and requires `ClientLName`:
 empty or left out, it is refused as *Invalid characters in ClientLName* too.
-So such a link carries the name in Latin letters. A link made without
-e-mail / SMS (APISign) keeps the Hebrew name.
+So such a link carries the name in Latin letters. As soon as *Send by e-mail*
+or *Send by SMS* is ticked, the link window shows that name — first and last,
+transliterated in advance — in two fields that can be corrected by hand
+before the link is created. A link made without e-mail / SMS (APISign) keeps
+the Hebrew name.
 
 **Terminal permission.** The link API needs its own permission on the terminal:
 sending links by hand from the Hyp portal does not grant it. Hyp refuses the

@@ -217,6 +217,18 @@
                 <input type="text" class="input-medium hypay-lp-cell" dir="ltr" inputmode="tel" autocomplete="off"
                        value="{$hypay_link.cell}" placeholder="0501234567" />
             </div>
+            {* the name Hyp sends the link with: Latin letters only, so it is
+               shown - and can be put right - before it goes *}
+            <div class="hypay-lp-names" style="display: none;">
+                <div class="hypay-lp-send">
+                    <span class="hypay-lp-send__toggle">{__("hypay_link_client_name")}</span>
+                    <input type="text" class="input-medium hypay-lp-fname" dir="ltr" autocomplete="off"
+                           value="{$hypay_link.link_name.0}" placeholder="{__("first_name")}" />
+                    <input type="text" class="input-medium hypay-lp-lname" dir="ltr" autocomplete="off"
+                           value="{$hypay_link.link_name.1}" placeholder="{__("last_name")}" />
+                </div>
+                <p class="muted hypay-lp-note">{__("hypay_link_client_name_hint")}</p>
+            </div>
             <p class="muted hypay-lp-note hypay-lp-copy-only">{__("hypay_link_copy_only_hint")}</p>
         </div>
     {/if}
@@ -423,6 +435,9 @@
             var cell       = $q('.hypay-lp-cell');
             var create     = $q('.hypay-lp-action[data-action="create"]');
             var deals      = $qa('.hypay-lp-deal-input');
+            var names      = $q('.hypay-lp-names');
+            var fname      = $q('.hypay-lp-fname');
+            var lname      = $q('.hypay-lp-lname');
             var lines_box  = $q('.hypay-lp-lines');
             var lines      = $qa('.hypay-lp-lines-input');
             var lines_set  = false; // picked by hand: the deal type no longer moves it
@@ -450,6 +465,8 @@
                 if (create) {
                     create.innerHTML = block.getAttribute((e_on || s_on) ? 'data-label-send' : 'data-label-create');
                 }
+                // only a link Hyp sends needs the name in Latin letters
+                if (names) { names.style.display = (e_on || s_on) ? '' : 'none'; }
             };
 
             if (filter) {
@@ -523,6 +540,10 @@
                 if (action === 'create') {
                     if (send_email && send_email.checked && email) { params.append('email', email.value.replace(/^\s+|\s+$/g, '')); }
                     if (send_sms && send_sms.checked && cell)     { params.append('cell', cell.value.replace(/[^\d+]/g, '')); }
+                    if ((send_email && send_email.checked) || (send_sms && send_sms.checked)) {
+                        if (fname) { params.append('client_fname', fname.value.replace(/^\s+|\s+$/g, '')); }
+                        if (lname) { params.append('client_lname', lname.value.replace(/^\s+|\s+$/g, '')); }
+                    }
                     var ids = picked().ids;
                     if (ids.length) { params.append('order_ids', ids.join(',')); }
                     params.append('deal', deal());

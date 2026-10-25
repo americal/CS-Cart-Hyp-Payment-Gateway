@@ -1363,6 +1363,14 @@ msgctxt "Languages::hypay_link_ez_vat"
 msgid "VAT"
 msgstr "VAT (ח.פ.)"
 
+msgctxt "Languages::hypay_link_client_name"
+msgid "Name on the link"
+msgstr "Имя в ссылке"
+
+msgctxt "Languages::hypay_link_client_name_hint"
+msgid "Hyp sends a link only with a name in Latin letters: check it, and correct it if the transliteration got it wrong."
+msgstr "Hyp отправляет ссылку только с именем латиницей: проверьте его и исправьте, если транслитерация вышла неточной."
+
 msgctxt "Languages::hypay_link_line_items"
 msgid "Document lines"
 msgstr "Строки документа"
