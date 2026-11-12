@@ -4,7 +4,8 @@
  *  loaded by ajax - and says under its name what became of the last link.
  * ========================================================================== *}
 
-{$hypay_link_menu = $order_info.order_id|fn_hypay_get_link_panel_data}
+{* only what the menu item prints; the window loads the rest when it is opened *}
+{$hypay_link_menu = $order_info.order_id|fn_hypay_get_link_menu_data}
 
 {* why there is no menu item, readable in the page source *}
 {if $hypay_link_menu.hidden}

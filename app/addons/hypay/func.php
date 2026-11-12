@@ -45,6 +45,14 @@ if (!defined('HYPAY_STATUS_FORBIDDEN')) { define('HYPAY_STATUS_FORBIDDEN', 'B');
 /** what the order gets instead of HYPAY_STATUS_FORBIDDEN */
 if (!defined('HYPAY_STATUS_FORBIDDEN_FALLBACK')) { define('HYPAY_STATUS_FORBIDDEN_FALLBACK', 'O'); }
 
+/**
+ * The version of the add-on's own tables. fn_hypay_ensure_schema() runs its
+ * CREATE / SHOW COLUMNS / ALTER checks once per version instead of on every
+ * request that touches a hold or a payment link; raise it whenever that
+ * function learns a new table or column.
+ */
+if (!defined('HYPAY_SCHEMA_VERSION')) { define('HYPAY_SCHEMA_VERSION', '8'); }
+
 /** global debug switch (filled from payment settings later) */
 if (!isset($GLOBALS['HYPAY_DEBUG'])) { $GLOBALS['HYPAY_DEBUG'] = false; }
 
@@ -81,7 +89,7 @@ function fn_hypay_install()
             '%s:5:"masof";%'
         );
     }
-    fn_hypay_ensure_schema();
+    fn_hypay_ensure_schema(true);
     fn_set_notification('N', __('notice'), 'Hypay payment processor registered.');
 }
 
@@ -90,15 +98,36 @@ function fn_hypay_uninstall()
     db_query("DELETE FROM ?:payment_processors WHERE processor_script = ?s", 'hypay.php');
     // ?:hypay_transactions is intentionally kept: it holds financial records
     // (authorizations / captures) that must survive an addon re-install.
+    // The tables are checked again by whatever is installed next.
+    if (function_exists('fn_set_storage_data')) {
+        fn_set_storage_data('hypay_schema_version', '');
+    }
     fn_set_notification('W', __('notice'), 'Hypay processor removed. The hypay_transactions table was kept.');
 }
 
-/** Create the J5 transaction table if it is not there yet (also covers upgrades) */
-function fn_hypay_ensure_schema()
+/**
+ * Create the add-on's tables if they are not there yet (also covers upgrades).
+ *
+ * The checks below are a dozen queries, DDL among them, and used to run on
+ * every request that read a hold or a payment link - every order page, every
+ * order list, every return from Hyp. They now run once per schema version:
+ * the version they brought the tables to is kept in CS-Cart's storage, and a
+ * request that finds it current asks nothing else.
+ *
+ * @param bool $force check the tables whatever the stored version says
+ */
+function fn_hypay_ensure_schema($force = false)
 {
     static $done = false;
-    if ($done) { return; }
+    if ($done && !$force) { return; }
     $done = true;
+
+    if (!$force
+        && function_exists('fn_get_storage_data')
+        && (string) fn_get_storage_data('hypay_schema_version') === HYPAY_SCHEMA_VERSION
+    ) {
+        return;
+    }
 
     db_query(
         "CREATE TABLE IF NOT EXISTS ?:hypay_transactions ("
@@ -276,6 +305,11 @@ function fn_hypay_ensure_schema()
             db_query('ALTER TABLE ?:hypay_transactions ADD ' . $column . ' ' . $definition);
         }
     }
+
+    // everything above went through: the next request need not ask again
+    if (function_exists('fn_set_storage_data')) {
+        fn_set_storage_data('hypay_schema_version', HYPAY_SCHEMA_VERSION);
+    }
 }
 
 /* ============================================================================
@@ -323,6 +357,65 @@ function hypay_mask_params(array $params)
     return $params;
 }
 
+/**
+ * The same for an answer Hyp gave as a query string, before it is logged:
+ * getToken answers with the card token itself, and a token together with the
+ * terminal's credentials is enough to charge the card.
+ */
+function hypay_mask_response($raw)
+{
+    return (string) preg_replace(
+        '/(^|[&?\s])(Token|CC|KEY|PassP)=([^&\s]{0,4})[^&\s]*/i',
+        '$1$2=$3***',
+        (string) $raw
+    );
+}
+
+/**
+ * GET against Hyp, kept out of CS-Cart's own request log.
+ *
+ * Hyp's API takes everything in the query string - the terminal's PassP and
+ * API key, and on a capture the card token. Tygh\Http writes every request it
+ * makes, URL and all, to the store's log (Administration -> Logs) when request
+ * logging is on, which it is by default: the terminal's password would sit
+ * there in plain text for every administrator who may read logs. So logging is
+ * switched off for the length of the call, where this CS-Cart version lets it
+ * be; the add-on's own debug log has the request with the secrets masked.
+ *
+ * @return string Hyp's answer, '' when there was none
+ */
+function hypay_http_get($url, $timeout = 45)
+{
+    static $can_mute = null;
+    if ($can_mute === null) {
+        $can_mute = false;
+        try {
+            if (property_exists('\Tygh\Http', 'logging')) {
+                $property = new \ReflectionProperty('\Tygh\Http', 'logging');
+                $can_mute = $property->isPublic() && $property->isStatic();
+            }
+        } catch (\Throwable $e) {
+            $can_mute = false;
+        }
+    }
+
+    $was = null;
+    if ($can_mute) {
+        $was = Http::$logging;
+        Http::$logging = false;
+    }
+
+    try {
+        $response = Http::get($url, ['timeout' => (int) $timeout]);
+    } finally {
+        if ($can_mute) {
+            Http::$logging = $was;
+        }
+    }
+
+    return (string) $response;
+}
+
 /** one-shot cURL JSON POST with headers/response capture (fallback to Tygh\Http) */
 function hypay_curl_json($order_id, $url, array $payload, array $extra_headers = [])
 {
@@ -343,6 +436,7 @@ function hypay_curl_json($order_id, $url, array $payload, array $extra_headers =
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HEADER         => true,
+            CURLOPT_CONNECTTIMEOUT => 15,
             CURLOPT_TIMEOUT        => 45,
         ]);
 
@@ -368,7 +462,8 @@ function hypay_curl_json($order_id, $url, array $payload, array $extra_headers =
 
     hypay_log($order_id, '[cURL] POST',        ['url' => $url, 'code' => $code, 'errno' => $errno, 'err' => $err]);
     hypay_log($order_id, '[cURL] req.headers', $headers);
-    hypay_log($order_id, '[cURL] req.body',    $json);
+    // the body as sent, but for the API keys in it
+    hypay_log($order_id, '[cURL] req.body',    json_encode(hypay_mask_params($payload), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     if ($resp_headers !== '') { hypay_log($order_id, '[cURL] resp.headers', $resp_headers); }
     hypay_log($order_id, '[cURL] resp.body',   $resp_body);
 
@@ -393,9 +488,9 @@ function fn_hypay_api_request($order_id, array $params, $label = 'api')
 
     hypay_log($order_id, $label . ' request', hypay_mask_params($params));
 
-    $response = Http::get($url, ['timeout' => 45]);
+    $response = hypay_http_get($url, 45);
 
-    hypay_log($order_id, $label . ' response', $response);
+    hypay_log($order_id, $label . ' response', hypay_mask_response($response));
 
     $parsed = [];
     parse_str(trim((string) $response), $parsed);
@@ -428,7 +523,7 @@ function hypay_get_marker_data($order_id)
 {
     $row = db_get_row("SELECT data FROM ?:order_data WHERE order_id = ?i AND type = 'H'", $order_id);
     if (!empty($row['data'])) {
-        $data = @unserialize($row['data']);
+        $data = @unserialize($row['data'], ['allowed_classes' => false]);
         if (is_array($data)) { return $data; }
     }
     return [];
@@ -481,20 +576,137 @@ function fn_hypay_link_customer_url(array $order_info)
     return fn_url('index.php', 'C', 'current');
 }
 
+/** a URL as a JavaScript string literal, safe inside a <script> block */
+function hypay_js_string($url)
+{
+    $js = json_encode((string) $url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES);
+
+    return is_string($js) ? $js : '""';
+}
+
 /** push a clean redirect (JS replace + meta refresh + noscript link) */
 function hypay_clean_redirect($url)
 {
-    $url_js   = str_replace(['\\', '"'], ['\\\\', '\"'], $url);
+    $url_js   = hypay_js_string($url);
     $url_html = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
 
     echo '<!doctype html><html><head>';
     echo '<meta charset="utf-8">';
     echo '<meta http-equiv="refresh" content="0;url=' . $url_html . '">';
     echo '</head><body>';
-    echo '<script>try{window.location.replace("' . $url_js . '");}catch(e){window.location.href="' . $url_js . '";}</script>';
+    echo '<script>try{window.location.replace(' . $url_js . ');}catch(e){window.location.href=' . $url_js . ';}</script>';
     echo '<noscript><a href="' . $url_html . '">Continue</a></noscript>';
     echo '</body></html>';
     exit;
+}
+
+/**
+ * A URL made safe to hand to a browser without changing anything it says.
+ *
+ * Only what cannot stand in a URL as it is gets percent-encoded - spaces,
+ * control characters, non-ASCII bytes, quotes, angle brackets and "#", which
+ * would otherwise cut the address short. Everything already encoded, and every
+ * "&", "=", "+" and "%", stays byte for byte: the address is a signed one.
+ */
+function hypay_browser_url($url)
+{
+    return (string) preg_replace_callback(
+        '/[^\x21\x24-\x26\x28-\x3B\x3D\x3F-\x5B\x5D\x5F\x61-\x7A\x7E]/',
+        static function (array $m) {
+            return '%' . strtoupper(bin2hex($m[0]));
+        },
+        (string) $url
+    );
+}
+
+/**
+ * Send the customer to the signed Hyp payment page - to exactly the address
+ * Hyp signed.
+ *
+ * This used to be CS-Cart's fn_create_payment_form($url, [], 'Hypay', true,
+ * 'get'), and that does not open the address it is given: for a GET it takes
+ * the query string apart and rebuilds it as a form of hidden fields, leaving
+ * out every parameter whose value is empty. Hyp signs the request as a whole,
+ * so a page requested with one parameter missing no longer matches its
+ * signature, and Hyp answers it with "שגיאה - שגיאת אימות" (verification
+ * error) instead of the payment form. A customer with no address in the
+ * profile was the usual victim: street= and city= went to Hyp empty, came back
+ * signed, and were then dropped on the way to the browser. An order without a
+ * phone number did the same.
+ *
+ * The browser now gets the signed address itself, in the page body rather
+ * than in a Location header: with a long order the address runs to several
+ * kilobytes, more than a web server's header buffer is sure to hold.
+ * location.replace keeps this page out of the history, so "back" on the Hyp
+ * page returns to the checkout and not to a page that sends the customer
+ * straight to Hyp again.
+ */
+function fn_hypay_open_payment_page($url)
+{
+    $url      = hypay_browser_url($url);
+    $url_js   = hypay_js_string($url);
+    $url_html = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+
+    // "Connecting to Hypay..." in the store's own words, when it has them
+    $message = __('text_cc_processor_connection', ['[processor]' => 'Hypay']);
+    if (!is_string($message) || strpos($message, 'text_cc_processor_connection') !== false) {
+        $message = '';
+    }
+    $message_html = htmlspecialchars(strip_tags($message), ENT_QUOTES, 'UTF-8');
+
+    if (!headers_sent()) {
+        header('Content-Type: text/html; charset=utf-8');
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Pragma: no-cache');
+    }
+
+    echo '<!doctype html><html><head>';
+    echo '<meta charset="utf-8">';
+    echo '<meta name="robots" content="noindex,nofollow">';
+    echo '<title>Hypay</title>';
+    echo '<noscript><meta http-equiv="refresh" content="0;url=' . $url_html . '"></noscript>';
+    echo '</head><body>';
+    echo '<p style="font-family:sans-serif;text-align:center;margin-top:20%">' . $message_html . '</p>';
+    echo '<script>try{window.location.replace(' . $url_js . ');}catch(e){window.location.href=' . $url_js . ';}</script>';
+    echo '<noscript><p style="text-align:center"><a href="' . $url_html . '">Hypay &rarr;</a></p></noscript>';
+    echo '</body></html>';
+    exit;
+}
+
+/**
+ * The first of an order's fields that has something in it, trimmed; '' when
+ * none does. CS-Cart gives every order all of its address keys, the empty
+ * ones as empty strings, so "??" never gets past the first one.
+ */
+function hypay_first_filled($order_info, array $keys)
+{
+    foreach ($keys as $key) {
+        $value = trim((string) ($order_info[$key] ?? ''));
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    return '';
+}
+
+/**
+ * A payment page request without the customer details that are empty.
+ *
+ * An empty street=, city= or phone= tells Hyp nothing, and a signed address
+ * with empty parameters in it is exactly what something on the way to the
+ * browser is likeliest to "tidy up" - see fn_hypay_open_payment_page(). Left
+ * out before the request is signed, they are not there to lose.
+ */
+function hypay_drop_empty_details(array $params)
+{
+    foreach (['email', 'phone', 'cell', 'street', 'city', 'zip'] as $key) {
+        if (array_key_exists($key, $params) && trim((string) $params[$key]) === '') {
+            unset($params[$key]);
+        }
+    }
+
+    return $params;
 }
 
 /**
@@ -1035,6 +1247,13 @@ function fn_hypay_verify_return($order_id, array $order_info, array $pp, array $
         return ['ok' => true, 'how' => 'off', 'error' => ''];
     }
 
+    // Hyp sends the customer back with a GET, and the check below reads the
+    // query string. Anything riding in a request body is not Hyp's - and PHP
+    // would let it stand in for the signed values of the same name.
+    if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET' || !empty($_POST)) {
+        return ['ok' => false, 'how' => 'request', 'error' => 'the return is not a plain GET'];
+    }
+
     $expected = !empty($link) ? round((float) $link['amount'], 2) : round((float) ($order_info['total'] ?? 0), 2);
     $amount   = hypay_request_value(['Amount']);
     if ($amount === '' || !is_numeric($amount) || abs((float) $amount - $expected) >= 0.01) {
@@ -1052,30 +1271,55 @@ function fn_hypay_verify_return($order_id, array $order_info, array $pp, array $
 
         // Hyp's own parameters exactly as they arrived - raw, so the values it
         // signed go back byte for byte - without the store's own ones
-        $own   = ['dispatch', 'payment', 'mode', 'action', 'what', 'key', 'passp', 'masof'];
-        $pairs = [];
-        $seen  = [];
+        $own    = ['dispatch', 'payment', 'mode', 'action', 'what', 'key', 'passp', 'masof'];
+        $pairs  = [];
+        $seen   = [];
+        $signed = []; // what goes to Hyp to be checked: name (lower case) => value
         foreach (explode('&', (string) ($_SERVER['QUERY_STRING'] ?? '')) as $pair) {
             if ($pair === '') {
                 continue;
             }
-            $name = strtolower(urldecode(strstr($pair, '=', true) ?: $pair));
+            $raw_name = strstr($pair, '=', true);
+            if ($raw_name === false) {
+                $raw_name = $pair;
+            }
+            $name = strtolower(urldecode($raw_name));
 
             // A name given twice is how a genuine return is dressed up as
-            // another: Hyp checks the first Order or Amount, PHP reads the last
-            if (isset($seen[$name])) {
-                return ['ok' => false, 'how' => 'sign', 'error' => 'parameter ' . $name . ' given more than once'];
+            // another: Hyp checks the first Order or Amount, PHP reads the
+            // last. And "twice" is judged the way PHP names its variables, not
+            // the way the query string spells them: " Order", "Order[]" and
+            // "Order%00x" are all $_REQUEST['Order'] to PHP and something else
+            // to Hyp.
+            $php_name = hypay_php_param_name($raw_name);
+            if ($php_name === '') {
+                continue;
             }
-            $seen[$name] = true;
+            if (isset($seen[$php_name])) {
+                return ['ok' => false, 'how' => 'sign', 'error' => 'parameter ' . $php_name . ' given more than once'];
+            }
+            $seen[$php_name] = true;
 
             if (!in_array($name, $own, true)) {
                 $pairs[] = $pair;
+                $value   = strstr($pair, '=');
+                $signed[$name] = ($value === false) ? '' : urldecode(substr($value, 1));
             }
         }
 
         // the order Hyp signed has to be the order this return is recorded on
         if ((int) hypay_request_value(['Order']) !== (int) $order_id) {
             return ['ok' => false, 'how' => 'sign', 'error' => 'the signed order is not order ' . (int) $order_id];
+        }
+
+        // And what is recorded has to be what Hyp is asked about: the order,
+        // the amount and the result are read once more from the very pairs
+        // sent to VERIFY, so no other source of $_REQUEST can stand in for them
+        if (!isset($signed['order']) || (int) $signed['order'] !== (int) $order_id
+            || !isset($signed['amount']) || !is_numeric($signed['amount']) || abs((float) $signed['amount'] - $expected) >= 0.01
+            || !isset($signed['ccode']) || trim($signed['ccode']) !== trim((string) ($_REQUEST['CCode'] ?? ''))
+        ) {
+            return ['ok' => false, 'how' => 'sign', 'error' => 'the order, amount or result read by the store is not the one Hyp signed'];
         }
 
         $query = http_build_query([
@@ -1087,7 +1331,7 @@ function fn_hypay_verify_return($order_id, array $order_info, array $pp, array $
         ]) . ($pairs ? '&' . implode('&', $pairs) : '');
 
         hypay_log($order_id, 'verify request', ['params' => count($pairs)]);
-        $response = trim((string) Http::get(HYPAY_API_URL . '?' . $query, ['timeout' => 20]));
+        $response = trim(hypay_http_get(HYPAY_API_URL . '?' . $query, 20));
         hypay_log($order_id, 'verify response', $response);
 
         $parsed = [];
@@ -1117,9 +1361,11 @@ function fn_hypay_verify_return($order_id, array $order_info, array $pp, array $
                 continue;
             }
 
+            // the transaction this return names has to be the one that paid
+            // the link, whenever Hyp says which one that was
             $trans_id  = trim((string) ($row['transId'] ?? ''));
             $return_id = hypay_request_value(['Id', 'TransId']);
-            if ((string) ($row['status'] ?? '') === '3' && ($trans_id === '' || $return_id === '' || $trans_id === $return_id)) {
+            if ((string) ($row['status'] ?? '') === '3' && ($trans_id === '' || $trans_id === $return_id)) {
                 return ['ok' => true, 'how' => 'list', 'error' => ''];
             }
 
@@ -1130,6 +1376,28 @@ function fn_hypay_verify_return($order_id, array $order_info, array $pp, array $
     }
 
     return ['ok' => false, 'how' => 'sign', 'error' => 'the return carries no signature'];
+}
+
+/**
+ * A query string parameter name the way PHP will know it, lower case.
+ *
+ * PHP does not take names as they come: leading spaces are dropped, the name
+ * ends at a NUL byte, "[" starts an array (the base name is what counts here),
+ * and spaces and dots become underscores. Two spellings that end up as one
+ * variable are one parameter, whatever they look like on the wire.
+ */
+function hypay_php_param_name($raw_name)
+{
+    $name = ltrim(urldecode((string) $raw_name), ' ');
+
+    foreach (["\0", '['] as $stop) {
+        $at = strpos($name, $stop);
+        if ($at !== false) {
+            $name = substr($name, 0, $at);
+        }
+    }
+
+    return strtolower(strtr($name, ' .', '__'));
 }
 
 /** put non-empty scalar into assoc array */
@@ -2076,6 +2344,74 @@ function hypay_ez_customer(array $pp, $order_info, $prefix = 'ez')
     ];
 }
 
+/**
+ * Integrated mode: what a payment request tells Hyp about the document it is
+ * going to issue itself, in the parameters Hyp documents for it
+ * (https://developers.hyp.co.il/pay/invoicing/basic-invoicing):
+ *
+ *   EZ.customer_crn  the customer's company number - the VAT ID setting
+ *   EZ.cc_emails     up to ten more addresses the document is copied to
+ *   EZ.lang          the document's language, when the settings name one
+ *   EZ.vat           0 for a customer who is exempt from VAT
+ *
+ * The VAT ID used to travel as UserId alone. UserId is the cardholder's
+ * Israeli ID, the number an issuer may check a debit card against, and a
+ * company number is not that - so it now goes where the documentation puts
+ * it. UserId still carries it as well while "ez_int_vat_as_userid" is on (the
+ * default), so nothing changes for a terminal that files the document by it;
+ * switch it off once a document has come out right without it.
+ *
+ * Nothing here touches the direct API: there the add-on issues the document
+ * itself, see fn_hypay_create_ezcount_doc().
+ *
+ * @param array $ez_customer hypay_ez_customer($pp, $order_info, 'ez_int');
+ *                           empty when Hyp issues no document for the request
+ *
+ * @return array parameter => value, to be added to the request
+ */
+function hypay_ez_int_doc_params(array $pp, $order_info, array $ez_customer)
+{
+    if (!$ez_customer) {
+        return [];
+    }
+
+    $params = [];
+
+    $vat = trim((string) ($ez_customer['vat'] ?? ''));
+    if ($vat !== '') {
+        $crn = (string) preg_replace('/[^0-9A-Za-z\-]+/', '', $vat);
+        if ($crn !== '') {
+            $params['EZ.customer_crn'] = $crn;
+        }
+        if (($pp['ez_int_vat_as_userid'] ?? 'Y') !== 'N') {
+            $params['UserId'] = $vat;
+        }
+    }
+
+    $cc_emails = [];
+    foreach ((array) ($ez_customer['cc_emails'] ?? []) as $email) {
+        $email = trim((string) $email);
+        if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $cc_emails[$email] = $email;
+        }
+    }
+    if ($cc_emails) {
+        $params['EZ.cc_emails'] = implode(',', array_slice(array_values($cc_emails), 0, 10));
+    }
+
+    $lang = (string) ($pp['ez_int_doc_lang'] ?? '');
+    if ($lang === 'he' || $lang === 'en') {
+        $params['EZ.lang'] = $lang;
+    }
+
+    // the same test the direct API document is made by
+    if (!empty($order_info['user_data']['tax_exempt']) && $order_info['user_data']['tax_exempt'] === 'Y') {
+        $params['EZ.vat'] = '0';
+    }
+
+    return $params;
+}
+
 /* ============================================================================
  * EzCount (Direct API) document
  * ==========================================================================*/
@@ -2299,7 +2635,7 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
             // the same row; carried over the way that add-on carries it over
             // itself, so issuing a document does not wipe the transfers out
             $existing_raw = db_get_field("SELECT data FROM ?:order_data WHERE order_id = ?i AND type = 'X'", $doc_order_id);
-            $existing     = $existing_raw ? @unserialize($existing_raw) : false;
+            $existing     = $existing_raw ? @unserialize($existing_raw, ['allowed_classes' => false]) : false;
             if (is_array($existing) && !empty($existing['bank_transfers'])) {
                 $order_doc['bank_transfers'] = $existing['bank_transfers'];
                 $order_doc['subtype']        = 'bank_transfers';
@@ -2757,6 +3093,22 @@ function fn_hypay_store_authorization($order_id, array $data)
 
     $data['order_id'] = (int) $order_id;
     $data['status']   = 'authorized';
+
+    // Held to the width of the column it goes into. Under MySQL's strict mode
+    // a value one character too long fails the whole INSERT - and this row is
+    // the only record that the customer's money is being held.
+    $widths = [
+        'hyp_id' => 64, 'acode' => 64, 'uid' => 64, 'personal_id' => 32,
+        'client_name' => 128, 'client_lname' => 128, 'brand' => 32, 'last4' => 8,
+        'sp_type' => 32, 'trans_type' => 32, 'issuer' => 64, 'bincard' => 16,
+    ];
+    foreach ($widths as $column => $width) {
+        if (isset($data[$column]) && is_string($data[$column])) {
+            $data[$column] = function_exists('mb_substr')
+                ? mb_substr($data[$column], 0, $width, 'UTF-8')
+                : substr($data[$column], 0, $width);
+        }
+    }
 
     return db_query("INSERT INTO ?:hypay_transactions ?e", $data);
 }
@@ -3631,6 +3983,68 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
         }
     }
 
+    // Integrated EzCount: Hyp issues its document for this charge itself, as
+    // it does for every successful transaction, and makes it from what the
+    // request says. The capture used to say nothing, so the document came out
+    // with the terminal's defaults and was sent to nobody. It now carries what
+    // a checkout charge carries: where to send it, its lines, the company
+    // number, the copies, the language. Direct mode sends none of this - there
+    // the document is issued from here, below.
+    $doc_params    = [];
+    $profile_names = null; // the names as authorized, when the EzCount name replaced them
+    if (($pp['ez_mode'] ?? 'none') === 'integrated') {
+        $ez_customer = hypay_ez_customer($pp, $order_info, 'ez_int');
+        $doc_params  = hypay_ez_int_doc_params($pp, $order_info, $ez_customer);
+
+        // The document is made out to whoever the request names. With the
+        // EzCount name setting on, that is the company - a whole name in the
+        // first half and no second half, exactly as an integrated checkout
+        // charge sends it - so the document for a captured hold names the
+        // customer the way the direct API document does. The acquirer's row
+        // for the charge then reads the company's name too, beside a hold
+        // made in the buyer's.
+        $ez_name = hypay_sanitize_url_echo((string) ($ez_customer['ezcount_name'] ?? ''));
+        if ($ez_name !== '') {
+            $profile_names = ['ClientName' => $params['ClientName'], 'ClientLName' => $params['ClientLName']];
+            $params['ClientName'] = $ez_name;
+            unset($params['ClientLName']);
+        }
+        // UserId on a capture is the cardholder's ID and nothing else
+        unset($doc_params['UserId']);
+
+        $doc_email = trim((string) ($order_info['email'] ?? ''));
+        if ($doc_email !== '' && filter_var($doc_email, FILTER_VALIDATE_EMAIL)) {
+            $doc_params['email']    = $doc_email;
+            $doc_params['SendHesh'] = hypay_bool($pp['sendhesh'] ?? 'N');
+        }
+
+        if (hypay_bool($pp['pritim'] ?? 'Y') === 'True') {
+            // The lines have to add up to the amount exactly (CCode=400
+            // otherwise), and the whole request travels in the query string:
+            // one line for the order unless the products fit and add up.
+            $hesh_desc = '[0~Order ' . $order_id . '~1~' . number_format($amount, 2, '.', '') . ']';
+
+            $list_products = fn_hypay_link_capture_list_products($order_id);
+            if ($list_products === null) {
+                $list_products = hypay_ez_is_list_products_mode($pp, 'j5');
+            }
+            if ($list_products) {
+                list($items_desc, $items_sum) = hypay_build_heshdesc($order_info);
+                if (abs((float) $items_sum - $amount) < 0.005 && strlen(rawurlencode($items_desc)) <= 3000) {
+                    $hesh_desc = $items_desc;
+                }
+            }
+
+            $doc_params['Pritim']   = 'True';
+            $doc_params['heshDesc'] = $hesh_desc;
+        }
+
+        $params = array_merge($params, $doc_params);
+        hypay_log($order_id, 'j5.capture: integrated document details', array_diff_key($doc_params, ['heshDesc' => 1]) + [
+            'ClientName' => $profile_names !== null ? $params['ClientName'] . ' (EzCount name)' : '(as authorized)',
+        ]);
+    }
+
     // what makes it a capture rather than a fresh charge
     $linkage = [
         'AuthNum'                          => (string) $tx['acode'],
@@ -3658,6 +4072,32 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
     $result   = fn_hypay_api_request($order_id, array_merge($params, $linkage), 'j5.capture');
     $response = $result['params'];
     $ccode    = isset($response['CCode']) ? (string) $response['CCode'] : '';
+
+    // CCode=400 is Hyp's "the lines do not add up to the amount" - a definite
+    // refusal of the document's lines, nothing was charged. The money matters
+    // more than the lines: the same capture goes again without them.
+    if ($ccode === '400' && isset($params['heshDesc'])) {
+        hypay_log($order_id, 'j5.capture: document lines refused (CCode=400), capturing without them');
+        unset($params['heshDesc'], $params['Pritim']);
+
+        $result   = fn_hypay_api_request($order_id, array_merge($params, $linkage), 'j5.capture.nolines');
+        $response = $result['params'];
+        $ccode    = isset($response['CCode']) ? (string) $response['CCode'] : '';
+    }
+
+    // CCode=401 is "first or last name is required": the company name alone
+    // was not enough for this terminal. Again a definite refusal with nothing
+    // charged, so the capture goes once more under the names it was
+    // authorized with - the document then names the buyer.
+    if ($ccode === '401' && $profile_names !== null) {
+        hypay_log($order_id, 'j5.capture: EzCount name refused (CCode=401), capturing under the authorized names');
+        $params        = array_merge($params, $profile_names);
+        $profile_names = null;
+
+        $result   = fn_hypay_api_request($order_id, array_merge($params, $linkage), 'j5.capture.names');
+        $response = $result['params'];
+        $ccode    = isset($response['CCode']) ? (string) $response['CCode'] : '';
+    }
 
     // Refused because the card will not carry a pre-obtained authorization.
     //
@@ -4393,7 +4833,7 @@ function fn_hypay_repair_addon_texts()
         //    it on whenever one is added
         $canary = db_get_field(
             "SELECT COUNT(*) FROM ?:language_values WHERE name = ?s AND lang_code = ?s",
-            'hypay_link_client_name_hint',
+            'hypay_ez_int_customer_limits_v2',
             CART_LANGUAGE
         );
         if (!$canary) {
@@ -4522,7 +4962,7 @@ function fn_hypay_get_hypay_payment_methods()
 
     $methods = [];
     foreach ((array) $rows as $row) {
-        $pp    = @unserialize((string) $row['processor_params']);
+        $pp    = @unserialize((string) $row['processor_params'], ['allowed_classes' => false]);
         $masof = is_array($pp) ? trim((string) ($pp['masof'] ?? '')) : '';
         $name  = trim((string) $row['payment']) !== '' ? (string) $row['payment'] : '#' . $row['payment_id'];
 
@@ -4919,11 +5359,17 @@ function fn_hypay_doc_type_name($type)
  * any (number and type, as the EzCount Doc Generator lists them), the link it
  * is already in if any, and whether it can be ticked.
  */
-function fn_hypay_link_order_row(array $row, array $status_names, $current = false)
+function fn_hypay_link_order_row(array $row, array $status_names, $current = false, array $known = null)
 {
     $order_id = (int) $row['order_id'];
-    $document = fn_hypay_get_order_document($order_id);
-    $link     = fn_hypay_link_get_latest($order_id);
+    if ($known !== null) {
+        // read for all the rows at once - fn_hypay_link_rows_context()
+        $document = $known['documents'][$order_id] ?? [];
+        $link     = $known['links'][$order_id] ?? [];
+    } else {
+        $document = fn_hypay_get_order_document($order_id);
+        $link     = fn_hypay_link_get_latest($order_id);
+    }
     $in_link  = !empty($link) && in_array($link['status'], ['active', 'paid'], true);
 
     return [
@@ -4938,6 +5384,51 @@ function fn_hypay_link_order_row(array $row, array $status_names, $current = fal
         'link_state'  => $in_link ? (string) $link['status'] : '',
         'selectable'  => empty($document) && !$in_link,
     ];
+}
+
+/**
+ * The document and the latest link of each of these orders, read in two
+ * queries for all of them - what fn_hypay_get_order_document() and
+ * fn_hypay_link_get_latest() answer for one order at a time. The link window
+ * lists up to a hundred of a customer's orders, and used to ask twice for
+ * each.
+ *
+ * @param int[] $order_ids
+ *
+ * @return array ['documents' => [order_id => document], 'links' => [order_id => link row]]
+ */
+function fn_hypay_link_rows_context(array $order_ids)
+{
+    $context   = ['documents' => [], 'links' => []];
+    $order_ids = array_values(array_unique(array_filter(array_map('intval', $order_ids))));
+    if (!$order_ids) {
+        return $context;
+    }
+
+    fn_hypay_ensure_schema();
+
+    $rows = db_get_array("SELECT order_id, data FROM ?:order_data WHERE type = 'X' AND order_id IN (?n)", $order_ids);
+    foreach ((array) $rows as $row) {
+        $doc = $row['data'] ? @unserialize($row['data'], ['allowed_classes' => false]) : false;
+        if (is_array($doc) && !empty($doc['ezcount_invoice_id'])) {
+            $context['documents'][(int) $row['order_id']] = $doc;
+        }
+    }
+
+    // oldest first, so the last one kept for an order is its latest
+    $rows = db_get_array(
+        "SELECT lo.order_id AS link_order_id, l.* FROM ?:hypay_payment_links AS l"
+        . " INNER JOIN ?:hypay_payment_link_orders AS lo ON lo.link_id = l.link_id"
+        . " WHERE lo.order_id IN (?n) ORDER BY l.link_id",
+        $order_ids
+    );
+    foreach ((array) $rows as $row) {
+        $oid = (int) $row['link_order_id'];
+        unset($row['link_order_id']);
+        $context['links'][$oid] = $row;
+    }
+
+    return $context;
 }
 
 /** the Info a link carries: the configured template, naming every order */
@@ -5114,7 +5605,7 @@ function fn_hypay_link_api_request($order_id, array $params, $label, $timeout = 
 
     hypay_log($order_id, $label . ' request', hypay_mask_params($params));
 
-    $response = (string) Http::get($url, ['timeout' => (int) $timeout]);
+    $response = hypay_http_get($url, $timeout);
 
     // LIST can be long; the log only needs to show what came back
     hypay_log($order_id, $label . ' response', strlen($response) > 4000 ? substr($response, 0, 4000) . '…' : $response);
@@ -5361,7 +5852,10 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
             $params['heshDesc'] = $hesh_desc;
         }
         $params[HYPAY_EZ_INT_DOC_TYPE_PARAM] = $int_doc_type;
-        hypay_put($params, 'UserId', (string) ($ez_customer['vat'] ?? ''));
+        // the customer on Hyp's document: company number, copies, language
+        foreach (hypay_ez_int_doc_params($pp, $order_info, $ez_customer) as $ez_key => $ez_value) {
+            $params[$ez_key] = $ez_value;
+        }
     } elseif ($is_integrated) {
         // nothing to send to the customer; whether Hyp still issues the
         // document depends on how the terminal's invoice module is set up
@@ -5559,8 +6053,8 @@ function fn_hypay_refused_field(array $answer)
     }
 
     // a refusal worded otherwise that still names one of them
-    foreach (['ClientLName', 'ClientName', 'street', 'city', 'Info'] as $field) {
-        if (preg_match('/\b' . $field . '\b/i', $err)) {
+    foreach (['ClientLName', 'ClientName', 'street', 'city', 'Info', 'EZ.customer_crn', 'EZ.cc_emails', 'EZ.lang', 'EZ.vat'] as $field) {
+        if (preg_match('/\b' . preg_quote($field, '/') . '\b/i', $err)) {
             return $field;
         }
     }
@@ -5603,7 +6097,9 @@ function fn_hypay_fix_refused_field(array $params, $field, array $order_ids)
             (string) ($params['ClientName'] ?? ''),
             (string) ($params['ClientLName'] ?? '')
         );
-    } elseif (in_array($field, ['street', 'city', 'zip', 'phone'], true)) {
+    } elseif (in_array($field, ['street', 'city', 'zip', 'phone'], true) || strncasecmp($field, 'EZ.', 3) === 0) {
+        // a detail of the address, or of the document Hyp issues: the payment
+        // is worth more than either
         unset($fixed[$field]);
     } else {
         return null;
@@ -5790,7 +6286,7 @@ function fn_hypay_sign_send($order_id, array $request, $label, $attempt)
         ));
     }
 
-    $response = trim((string) Http::get(HYPAY_API_URL . '?' . $query, ['timeout' => 30]));
+    $response = trim(hypay_http_get(HYPAY_API_URL . '?' . $query, 30));
 
     // what is needed to tell a refusal from a request that never got there
     $http = ['length' => strlen($query)];
@@ -5857,9 +6353,10 @@ function fn_hypay_link_sign($order_id, array $order_info, array $orders, $amount
         'ClientName'  => hypay_sanitize_url_echo($ez_name !== '' ? $ez_name : ($order_info['firstname'] ?? '')),
         'ClientLName' => hypay_sanitize_url_echo($ez_name !== '' ? ''       : ($order_info['lastname']  ?? '')),
         'email'       => (string) ($order_info['email'] ?? ''),
-        'phone'       => (string) ($order_info['phone'] ?? ''),
-        'street'      => hypay_sanitize_url_echo($order_info['s_address'] ?? $order_info['b_address'] ?? ''),
-        'city'        => hypay_sanitize_url_echo($order_info['s_city']    ?? $order_info['b_city']    ?? ''),
+        'phone'       => hypay_first_filled($order_info, ['phone', 'b_phone', 's_phone']),
+        // the shipping address, the billing one when there is none
+        'street'      => hypay_sanitize_url_echo(hypay_first_filled($order_info, ['s_address', 'b_address'])),
+        'city'        => hypay_sanitize_url_echo(hypay_first_filled($order_info, ['s_city', 'b_city'])),
         'MoreData'    => hypay_bool($pp['moredata'] ?? 'Y'),
         'Pritim'      => hypay_bool($pp['pritim']   ?? 'Y'),
         'FixTash'     => hypay_bool($pp['fixtash']  ?? 'N'),
@@ -5890,10 +6387,16 @@ function fn_hypay_link_sign($order_id, array $order_info, array $orders, $amount
     if ($is_integrated && $int_doc_type !== 'none') {
         $params['SendHesh'] = hypay_bool($pp['sendhesh'] ?? 'N');
         $params[HYPAY_EZ_INT_DOC_TYPE_PARAM] = $int_doc_type;
-        hypay_put($params, 'UserId', (string) ($ez_customer['vat'] ?? ''));
+        // the customer on Hyp's document: company number, copies, language
+        foreach (hypay_ez_int_doc_params($pp, $order_info, $ez_customer) as $ez_key => $ez_value) {
+            $params[$ez_key] = $ez_value;
+        }
     } else {
         $params['SendHesh'] = 'False';
     }
+
+    // nothing empty goes into an address that will be signed
+    $params = hypay_drop_empty_details($params);
 
     hypay_log($order_id, 'link.sign request', hypay_mask_params($params));
 
@@ -6815,7 +7318,7 @@ function fn_hypay_link_issue_document($order_id, array $pp, array $link, array $
 function fn_hypay_get_order_document($order_id)
 {
     $data = db_get_field("SELECT data FROM ?:order_data WHERE order_id = ?i AND type = 'X'", (int) $order_id);
-    $doc  = $data ? @unserialize($data) : false;
+    $doc  = $data ? @unserialize($data, ['allowed_classes' => false]) : false;
 
     return (is_array($doc) && !empty($doc['ezcount_invoice_id'])) ? $doc : [];
 }
@@ -6950,6 +7453,47 @@ function fn_hypay_link_retire($order_id, array $pp)
 }
 
 /**
+ * What the "Payment Link" item of the order's tools menu shows: whether there
+ * is an item at all, and what became of the last link.
+ *
+ * The menu used to be given everything the link window needs
+ * (fn_hypay_get_link_panel_data()): the whole order read a second time, the
+ * customer's other orders - up to a hundred - and two more queries for each
+ * of them, on every order page, to print one line. The window still gets all
+ * of that when it is opened; the menu asks three small questions.
+ *
+ * @return array empty when the order is not there; ['hidden' => why] when no
+ *               link is offered for it
+ */
+function fn_hypay_get_link_menu_data($order_id)
+{
+    $order_id = (int) $order_id;
+    if ($order_id <= 0) { return []; }
+
+    $order = db_get_row("SELECT order_id, payment_id FROM ?:orders WHERE order_id = ?i", $order_id);
+    if (empty($order)) { return []; }
+
+    $link  = fn_hypay_link_get_latest($order_id);
+    $state = empty($link) ? 'none' : (string) $link['status'];
+
+    if (empty(fn_hypay_link_processor_params($order, $link))) {
+        return ['hidden' => 'the shop has no active Hypay payment method'];
+    }
+    if ($state !== 'paid' && fn_hypay_order_has_document($order_id)) {
+        return ['hidden' => 'the order has a document attached'];
+    }
+
+    return [
+        'order_id'     => $order_id,
+        'state'        => $state,
+        'j5'           => !empty($link) && fn_hypay_link_is_j5($link),
+        'created_at'   => (int) ($link['created_at'] ?? 0),
+        'cancelled_at' => (int) ($link['cancelled_at'] ?? 0),
+        'paid_at'      => (int) ($link['paid_at'] ?? 0),
+    ];
+}
+
+/**
  * Everything the order page needs to render the payment link block.
  *
  * @return array empty when there is nothing to show: not a Hypay order, or
@@ -6993,14 +7537,32 @@ function fn_hypay_get_link_panel_data($order_id)
     // The orders the link pays for, with what each of them totals today: the
     // sum drifting away from the amount of the link is what the panel warns
     // about - the customer would pay the old amount.
-    $link_orders = [];
-    $link_total  = 0.0;
-    foreach (fn_hypay_link_order_ids($link) as $oid) {
-        $row = db_get_row("SELECT order_id, timestamp, status, total FROM ?:orders WHERE order_id = ?i", $oid);
+    $link_orders    = [];
+    $link_total     = 0.0;
+    $link_order_ids = fn_hypay_link_order_ids($link);
+    $candidate_rows = ($state !== 'active' && $state !== 'paid')
+        ? fn_hypay_link_candidate_orders($order_info, $pp_link)
+        : [];
+
+    // every order the window shows, asked about once
+    $known = fn_hypay_link_rows_context(array_merge(
+        [$order_id],
+        $link_order_ids,
+        array_map(static function ($r) { return (int) $r['order_id']; }, $candidate_rows)
+    ));
+
+    $link_rows = [];
+    if ($link_order_ids) {
+        foreach ((array) db_get_array("SELECT order_id, timestamp, status, total FROM ?:orders WHERE order_id IN (?n)", $link_order_ids) as $row) {
+            $link_rows[(int) $row['order_id']] = $row;
+        }
+    }
+    foreach ($link_order_ids as $oid) {
+        $row = $link_rows[$oid] ?? [];
         if (empty($row)) {
             continue;
         }
-        $order_row     = fn_hypay_link_order_row($row, $status_names, $oid === $order_id);
+        $order_row     = fn_hypay_link_order_row($row, $status_names, $oid === $order_id, $known);
         $link_orders[] = $order_row;
         $link_total   += $order_row['total'];
     }
@@ -7015,9 +7577,9 @@ function fn_hypay_get_link_panel_data($order_id)
             'timestamp' => $order_info['timestamp'],
             'status'    => $order_info['status'],
             'total'     => $order_total,
-        ], $status_names, true);
-        foreach (fn_hypay_link_candidate_orders($order_info, $pp_link) as $row) {
-            $candidates[] = fn_hypay_link_order_row($row, $status_names);
+        ], $status_names, true, $known);
+        foreach ($candidate_rows as $row) {
+            $candidates[] = fn_hypay_link_order_row($row, $status_names, false, $known);
         }
     }
 

@@ -107,17 +107,41 @@ Generator gives it, so neither add-on has to be told about it twice. An
 installation whose field is named something else can name its ID outright in
 **CC e-mail profile field ID**.
 
-**Integrated mode is not the same set.** In `direct` mode this add-on issues the
-document itself and can send all four. In `integrated` mode Hyp issues it, and a
-payment request carries only two of them: the EzCount name (as `ClientName`, in
-place of both halves of the profile name — it is a whole name, usually the
-company's) and the VAT ID (as `UserId`, the number Hyp files the document
-under). They are configured separately from the direct ones, under
-**EzCount (Integrated)**.
+**Integrated mode is configured separately**, under **EzCount (Integrated)**.
+There Hyp issues the document, and the payment request tells it what to put on
+it, in the parameters Hyp documents for that:
 
-The VAT ID is deliberately never sent with a J5 authorization: `UserId` there is
-the cardholder's ID, which Shva checks the later capture against — a company
-number is not that — and a hold issues no document to put it on anyway.
+| On the document | Setting | Sent as |
+| --- | --- | --- |
+| EzCount name | EzCount name | `ClientName` (in place of both halves of the profile name) |
+| VAT ID | VAT ID | `EZ.customer_crn` |
+| CC e-mail | CC e-mail | `EZ.cc_emails` (up to 10) |
+| Language | Document language | `EZ.lang` — not sent while left *as the terminal sets* |
+| VAT exemption | — (the customer's *Tax exempt* flag) | `EZ.vat=0` |
+
+The VAT ID used to go as `UserId` only. `UserId` is the cardholder's Israeli ID,
+which an issuer may check a debit card against — a company number is not that.
+It now goes as `EZ.customer_crn`; **Also send it as UserId** (on by default)
+keeps the old parameter beside it, so nothing changes for a terminal that files
+the document by it. Switch it off once a document has come out with the company
+number without it.
+
+None of this rides on a J5 authorization: a hold issues no document, and
+`UserId` there is the cardholder's ID, which Shva checks the capture against.
+**The capture carries the document details instead** — `email` and `SendHesh`,
+the lines (`Pritim` / `heshDesc`, a single order line when the products would
+not add up to the captured amount or would make the request too long) and the
+`EZ.*` values above — so the document Hyp issues for a captured hold is the
+same one a checkout charge gets. If Hyp refuses the lines (`CCode=400`), the
+capture goes again without them. With the *EzCount name* setting on, the
+capture is made in that name — as an integrated checkout charge is — so the
+document names the company; the acquirer's row for the charge reads the same
+name. Should the terminal refuse it (`CCode=401`), the capture goes again under
+the names the hold was made with. A refused `EZ.*` value on a payment page is
+left out and the page requested again.
+
+*Filing under an existing customer card* is the direct API's only. Nothing in
+this section changes a document issued through the direct API.
 
 ---
 
@@ -748,10 +772,14 @@ guest, a customer signed in as somebody else, or nobody at all.
   means Hyp signed exactly these values. The signed `Order` has to be the order
   the return is recorded on, no parameter may appear twice (Hyp would check the
   first one, PHP reads the last), and the `Amount` has to match the order total
-  (or the link's amount).
+  (or the link's amount). "Twice" is judged the way PHP names its variables —
+  ` Order`, `Order[]` and `Order%00x` are all `Order` to PHP and something else
+  to Hyp — the return has to be a plain GET with no request body, and the order,
+  amount and result are read once more from the very parameters sent to VERIFY.
 - **A link Hyp sent by e-mail / SMS** whose return carries no signature is
   confirmed with `payRequest` / `LIST`: the link has to be paid (`status=3`),
-  with the same transaction Id when Hyp gives one.
+  and when LIST names the transaction that paid it, the return has to name the
+  same one.
 
 A return that does not check out changes nothing — no status, no document, no
 link marked paid. The order's payment information gets an *Unverified return*
@@ -768,6 +796,76 @@ without `Sign=True` (unless the *Sign* box was ticked), so their returns carry
 no signature and are not recorded automatically. Re-create payment links made
 without e-mail / SMS that are still unpaid; links sent by e-mail / SMS are
 confirmed through LIST and are not affected.
+
+---
+
+## 🚫 «שגיאה - שגיאת אימות» instead of the payment page
+
+Some customers pressed *Place order* and got Hyp's error page — *שגיאה - שגיאת
+אימות*, with `HTTP REFERER` and `REMOTE HOST` under it — instead of the payment
+form. It happened to customers with **no address in their profile** (and to
+orders without a phone number).
+
+The payment page is the request the store sent to `APISign` / `What=SIGN`,
+signed by Hyp: the customer's browser has to open exactly that address. It was
+handed to CS-Cart's `fn_create_payment_form(..., 'get')`, which does not open
+the address it is given — for a GET it takes the query string apart, rebuilds it
+as a form of hidden fields and **leaves out every parameter whose value is
+empty**. A customer without an address went to Hyp with `street=&city=`; Hyp
+signed them; the form dropped them; the page arrived with two parameters fewer
+than were signed, and Hyp refused it.
+
+Three changes, any one of which is enough on its own:
+
+- **The browser gets the signed address itself**, byte for byte
+  (`fn_hypay_open_payment_page()`), not a form rebuilt from it. It is written
+  into the page body rather than a `Location` header — a long order makes the
+  address several kilobytes, more than a web server's header buffer is sure to
+  hold — and opened with `location.replace`, so *back* on the Hyp page returns
+  to the checkout instead of a page that sends the customer to Hyp again.
+- **Empty customer details are not sent at all** — `street`, `city`, `phone`,
+  `cell`, `email`, `zip` — so a signed address has nothing empty in it to lose.
+  The same for payment links made without e-mail / SMS.
+- **The billing address is used when there is no shipping address**, and the
+  first phone the order has. The fallback was written with `??`, which never
+  got past the first key: CS-Cart gives an order every address key, the empty
+  ones as empty strings.
+
+With debug mode on, the log shows the request (`SIGN request params`) without
+the empty fields, and `redirect to payment` with the address the browser was
+sent to.
+
+---
+
+## 🧹 Hardening and housekeeping
+
+- **One payment, one document.** The same verified return arriving a second
+  time (a reload, a link scanner, a browser restoring its tabs) used to issue a
+  second EzCount document for the same charge. A return whose transaction is
+  already recorded on the order, on an order that has its document, issues
+  nothing and does not put the additional status back.
+- **Secrets stay out of the logs.** Hyp takes `PassP`, `KEY` and the card token
+  in the query string, and CS-Cart writes every request `Tygh\Http` makes to
+  *Administration → Logs*: request logging is switched off for the add-on's
+  calls. In the debug log the answer of `getToken` (the card token) and the
+  EzCount request body (the API keys) are masked.
+- **A return for an order that does not exist** sends the visitor home instead
+  of ending in a PHP error.
+- **A J5 hold is always stored**: the values Hyp reports are cut to the width
+  of their columns, so MySQL's strict mode cannot refuse the row over one long
+  value.
+- **Postpone is gone.** The checkbox sent `Postpone=True`, but a postponed
+  payment comes back as `CCode=800` and has to be finalized with `commitTrans`
+  within 72 hours; the add-on did neither, so the order was marked failed and
+  the payment lapsed. The parameter is no longer sent. J5 is the hold to use.
+- **Faster admin pages.** The add-on's table checks (a dozen queries, DDL
+  among them) ran on every request that read a hold or a link; they now run
+  once per schema version (`HYPAY_SCHEMA_VERSION`, kept in CS-Cart's storage).
+  The *Payment Link* menu item on the order page no longer loads everything the
+  link window needs — the order a second time, up to a hundred of the
+  customer's other orders, two queries for each — to print one line. The link window
+  itself reads the documents and links of all the orders it lists in two
+  queries instead of two per order.
 
 ---
 

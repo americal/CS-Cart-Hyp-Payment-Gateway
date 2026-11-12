@@ -1623,3 +1623,35 @@ msgstr "While at least one payment link is still payable, opening the order list
 msgctxt "Languages::hypay_link_cancel_still_active"
 msgid "Hyp did not cancel the link (CCode=250, not found by its id), yet it is still payable at Hyp. It stays active here so that a payment on it is recorded. Cancel it in the Hyp Pay portal (payment links), then press Check payment."
 msgstr "Hyp did not cancel the link (CCode=250, not found by its id), yet it is still payable at Hyp. It stays active here so that a payment on it is recorded. Cancel it in the Hyp Pay portal (payment links), then press Check payment."
+
+msgctxt "Languages::hypay_ez_int_customer_vat_desc_v2"
+msgid "Sends the VAT ID from the profile \"URL\" field to Hyp as EZ.customer_crn - the company number on the document Hyp issues. It is not sent with a J5 authorization, which issues no document; the capture sends it."
+msgstr "Sends the VAT ID from the profile \"URL\" field to Hyp as EZ.customer_crn - the company number on the document Hyp issues. It is not sent with a J5 authorization, which issues no document; the capture sends it."
+
+msgctxt "Languages::hypay_ez_int_vat_as_userid_label"
+msgid "Also send it as UserId (as before)"
+msgstr "Also send it as UserId (as before)"
+
+msgctxt "Languages::hypay_ez_int_vat_as_userid_desc"
+msgid "Until now the VAT ID went to Hyp as UserId only. UserId is the cardholder's Israeli ID, and an issuer may check a debit card against it - a company number there can get a payment refused. Leave this on until a document has come out with the company number from EZ.customer_crn, then switch it off."
+msgstr "Until now the VAT ID went to Hyp as UserId only. UserId is the cardholder's Israeli ID, and an issuer may check a debit card against it - a company number there can get a payment refused. Leave this on until a document has come out with the company number from EZ.customer_crn, then switch it off."
+
+msgctxt "Languages::hypay_ez_int_customer_cc_emails_label"
+msgid "Send the profile CC e-mail to Hyp"
+msgstr "Send the profile CC e-mail to Hyp"
+
+msgctxt "Languages::hypay_ez_int_customer_cc_emails_desc"
+msgid "Sends the EzCount CC e-mail from the profile to Hyp as EZ.cc_emails: the document Hyp issues is copied to these addresses (up to 10, comma-separated in the profile field)."
+msgstr "Sends the EzCount CC e-mail from the profile to Hyp as EZ.cc_emails: the document Hyp issues is copied to these addresses (up to 10, comma-separated in the profile field)."
+
+msgctxt "Languages::hypay_ez_int_doc_lang_default"
+msgid "As the terminal sets (not sent)"
+msgstr "As the terminal sets (not sent)"
+
+msgctxt "Languages::hypay_ez_int_doc_lang_desc"
+msgid "The language of the document Hyp issues and of the e-mail it comes with, sent as EZ.lang."
+msgstr "The language of the document Hyp issues and of the e-mail it comes with, sent as EZ.lang."
+
+msgctxt "Languages::hypay_ez_int_customer_limits_v2"
+msgid "These travel with the payment request, and after a J5 hold with the capture. A customer exempt from VAT gets the document with 0% VAT (EZ.vat=0), as with the direct API. Filing the document under an existing customer card is the direct API's only."
+msgstr "These travel with the payment request, and after a J5 hold with the capture. A customer exempt from VAT gets the document with 0% VAT (EZ.vat=0), as with the direct API. Filing the document under an existing customer card is the direct API's only."

@@ -503,7 +503,10 @@
          <label class="checkbox"><input type="checkbox" name="payment_data[processor_params][sendemail]" value="Y" {if $processor_params.sendemail == "Y"}checked{/if} /> sendemail</label>
          <label class="checkbox"><input type="checkbox" name="payment_data[processor_params][moredata]" value="Y"  {if $processor_params.moredata == "Y"}checked{/if}  /> MoreData</label>
          <label class="checkbox"><input type="checkbox" name="payment_data[processor_params][pagetimeout]" value="Y" {if $processor_params.pagetimeout == "Y"}checked{/if} /> pageTimeOut</label>
-         <label class="checkbox"><input type="checkbox" name="payment_data[processor_params][postpone]" value="Y"   {if $processor_params.postpone == "Y"}checked{/if}   /> Postpone</label>
+         {* Postpone is gone: a postponed payment (CCode=800) needs commitTrans
+            within 72 hours, which the add-on does not do. Saved as N so that a
+            setting ticked earlier does not linger. *}
+         <input type="hidden" name="payment_data[processor_params][postpone]" value="N" />
          <label class="checkbox"><input type="checkbox" name="payment_data[processor_params][show_eng_tash_text]" value="Y" {if $processor_params.show_eng_tash_text == "Y"}checked{/if} /> ShowEngTashText</label>
          <label class="checkbox"><input type="checkbox" name="payment_data[processor_params][hide_btns]" value="Y"  {if $processor_params.hide_btns == "Y"}checked{/if}  /> hideBtns</label>
      </div>
@@ -571,8 +574,7 @@
          </div>
      </div>
 
-     {* Customer details Hyp copies onto the document it issues. Only the two the
-        payment request can carry - see the description below the second one. *}
+     {* Customer details Hyp copies onto the document it issues. *}
      <div class="control-group">
          <label class="control-label" for="ez_int_customer_name">{__("hypay_ez_customer_name")}</label>
          <div class="controls">
@@ -601,13 +603,54 @@
                         {if $processor_params.ez_int_customer_vat == "Y"}checked{/if} />
                  {__("hypay_ez_customer_vat_label")}
              </label>
-             <p class="muted description">{__("hypay_ez_int_customer_vat_desc")}</p>
+             <p class="muted description">{__("hypay_ez_int_customer_vat_desc_v2")}</p>
+
+             {* The VAT ID used to go as UserId only. On by default, so nothing
+                changes until it is switched off. *}
+             <input type="hidden" name="payment_data[processor_params][ez_int_vat_as_userid]" value="N" />
+             <label class="checkbox">
+                 <input type="checkbox"
+                        id="ez_int_vat_as_userid"
+                        name="payment_data[processor_params][ez_int_vat_as_userid]"
+                        value="Y"
+                        {if $processor_params.ez_int_vat_as_userid|default:"Y" == "Y"}checked{/if} />
+                 {__("hypay_ez_int_vat_as_userid_label")}
+             </label>
+             <p class="muted description">{__("hypay_ez_int_vat_as_userid_desc")}</p>
+         </div>
+     </div>
+
+     <div class="control-group">
+         <label class="control-label" for="ez_int_customer_cc_emails">{__("hypay_ez_customer_cc_emails")}</label>
+         <div class="controls">
+             <input type="hidden" name="payment_data[processor_params][ez_int_customer_cc_emails]" value="N" />
+             <label class="checkbox">
+                 <input type="checkbox"
+                        id="ez_int_customer_cc_emails"
+                        name="payment_data[processor_params][ez_int_customer_cc_emails]"
+                        value="Y"
+                        {if $processor_params.ez_int_customer_cc_emails == "Y"}checked{/if} />
+                 {__("hypay_ez_int_customer_cc_emails_label")}
+             </label>
+             <p class="muted description">{__("hypay_ez_int_customer_cc_emails_desc")}</p>
+         </div>
+     </div>
+
+     <div class="control-group">
+         <label class="control-label" for="ez_int_doc_lang">{__("hypay_ez_doc_lang")}</label>
+         <div class="controls">
+             <select name="payment_data[processor_params][ez_int_doc_lang]" id="ez_int_doc_lang" class="input-large">
+                 <option value="" {if $processor_params.ez_int_doc_lang == ""}selected{/if}>{__("hypay_ez_int_doc_lang_default")}</option>
+                 <option value="he" {if $processor_params.ez_int_doc_lang == "he"}selected{/if}>he</option>
+                 <option value="en" {if $processor_params.ez_int_doc_lang == "en"}selected{/if}>en</option>
+             </select>
+             <p class="muted description">{__("hypay_ez_int_doc_lang_desc")}</p>
          </div>
      </div>
 
      <div class="control-group">
          <div class="controls">
-             <p class="muted description">{__("hypay_ez_int_customer_limits")}</p>
+             <p class="muted description">{__("hypay_ez_int_customer_limits_v2")}</p>
          </div>
      </div>
 
