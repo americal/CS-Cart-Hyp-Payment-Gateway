@@ -748,10 +748,14 @@ guest, a customer signed in as somebody else, or nobody at all.
   means Hyp signed exactly these values. The signed `Order` has to be the order
   the return is recorded on, no parameter may appear twice (Hyp would check the
   first one, PHP reads the last), and the `Amount` has to match the order total
-  (or the link's amount).
+  (or the link's amount). "Twice" is judged the way PHP names its variables —
+  ` Order`, `Order[]` and `Order%00x` are all `Order` to PHP and something else
+  to Hyp — the return has to be a plain GET with no request body, and the order,
+  amount and result are read once more from the very parameters sent to VERIFY.
 - **A link Hyp sent by e-mail / SMS** whose return carries no signature is
   confirmed with `payRequest` / `LIST`: the link has to be paid (`status=3`),
-  with the same transaction Id when Hyp gives one.
+  and when LIST names the transaction that paid it, the return has to name the
+  same one.
 
 A return that does not check out changes nothing — no status, no document, no
 link marked paid. The order's payment information gets an *Unverified return*
@@ -768,6 +772,70 @@ without `Sign=True` (unless the *Sign* box was ticked), so their returns carry
 no signature and are not recorded automatically. Re-create payment links made
 without e-mail / SMS that are still unpaid; links sent by e-mail / SMS are
 confirmed through LIST and are not affected.
+
+---
+
+## 🚫 «שגיאה - שגיאת אימות» instead of the payment page
+
+Some customers pressed *Place order* and got Hyp's error page — *שגיאה - שגיאת
+אימות*, with `HTTP REFERER` and `REMOTE HOST` under it — instead of the payment
+form. It happened to customers with **no address in their profile** (and to
+orders without a phone number).
+
+The payment page is the request the store sent to `APISign` / `What=SIGN`,
+signed by Hyp: the customer's browser has to open exactly that address. It was
+handed to CS-Cart's `fn_create_payment_form(..., 'get')`, which does not open
+the address it is given — for a GET it takes the query string apart, rebuilds it
+as a form of hidden fields and **leaves out every parameter whose value is
+empty**. A customer without an address went to Hyp with `street=&city=`; Hyp
+signed them; the form dropped them; the page arrived with two parameters fewer
+than were signed, and Hyp refused it.
+
+Three changes, any one of which is enough on its own:
+
+- **The browser gets the signed address itself**, byte for byte
+  (`fn_hypay_open_payment_page()`), not a form rebuilt from it. It is written
+  into the page body rather than a `Location` header — a long order makes the
+  address several kilobytes, more than a web server's header buffer is sure to
+  hold — and opened with `location.replace`, so *back* on the Hyp page returns
+  to the checkout instead of a page that sends the customer to Hyp again.
+- **Empty customer details are not sent at all** — `street`, `city`, `phone`,
+  `cell`, `email`, `zip` — so a signed address has nothing empty in it to lose.
+  The same for payment links made without e-mail / SMS.
+- **The billing address is used when there is no shipping address**, and the
+  first phone the order has. The fallback was written with `??`, which never
+  got past the first key: CS-Cart gives an order every address key, the empty
+  ones as empty strings.
+
+With debug mode on, the log shows the request (`SIGN request params`) without
+the empty fields, and `redirect to payment` with the address the browser was
+sent to.
+
+---
+
+## 🧹 Hardening and housekeeping
+
+- **One payment, one document.** The same verified return arriving a second
+  time (a reload, a link scanner, a browser restoring its tabs) used to issue a
+  second EzCount document for the same charge. A return whose transaction is
+  already recorded on the order, on an order that has its document, issues
+  nothing and does not put the additional status back.
+- **Secrets stay out of the logs.** Hyp takes `PassP`, `KEY` and the card token
+  in the query string, and CS-Cart writes every request `Tygh\Http` makes to
+  *Administration → Logs*: request logging is switched off for the add-on's
+  calls. In the debug log the answer of `getToken` (the card token) and the
+  EzCount request body (the API keys) are masked.
+- **A return for an order that does not exist** sends the visitor home instead
+  of ending in a PHP error.
+- **A J5 hold is always stored**: the values Hyp reports are cut to the width
+  of their columns, so MySQL's strict mode cannot refuse the row over one long
+  value.
+- **Faster admin pages.** The add-on's table checks (a dozen queries, DDL
+  among them) ran on every request that read a hold or a link; they now run
+  once per schema version (`HYPAY_SCHEMA_VERSION`, kept in CS-Cart's storage).
+  The *Payment Link* menu item on the order page no longer loads everything the
+  link window needs — the order a second time, up to a hundred of the
+  customer's other orders, two queries for each — to print one line.
 
 ---
 

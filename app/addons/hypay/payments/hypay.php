@@ -53,6 +53,18 @@ if (defined('PAYMENT_NOTIFICATION')) {
     }
 
     $order_info     = fn_get_order_info($order_id);
+    if (empty($order_info) || !is_array($order_info)) {
+        // An order number that is nobody's: nothing to record anything on, and
+        // everything below takes the order for granted. The visitor is sent
+        // home rather than left on a blank page or an error.
+        hypay_log($order_id, 'payment_notification for an order that does not exist, nothing recorded');
+        if (in_array((string) ($_REQUEST['CCode'] ?? ''), ['0', HYPAY_CCODE_J5_AUTHORIZED], true)) {
+            fn_set_notification('W', __('warning'), __('hypay_customer_payment_unverified'));
+        }
+        hypay_clean_redirect(fn_url('index.php', 'C', 'current'));
+
+        return;
+    }
     $payment_id     = $order_info['payment_id'];
     $processor_data = fn_get_payment_method_data($payment_id);
     $pp             = $processor_data['processor_params'] ?? [];
@@ -470,12 +482,25 @@ if (defined('PAYMENT_NOTIFICATION')) {
             );
         }
 
+        // Has this very transaction been recorded on the order already? Then
+        // this is the same return arriving again - a reload, a link scanner, a
+        // browser restoring its tabs. CS-Cart itself moves the order only once
+        // (fn_finish_payment acts on a payment that was started and not yet
+        // finished); what follows it here must not happen twice either.
+        $return_trans_id  = $hyp_return_id !== '' ? $hyp_return_id : $hyp_return_acode;
+        $already_recorded = $is_success
+            && $return_trans_id !== ''
+            && (string) ($order_info['payment_info']['transaction_id'] ?? '') === $return_trans_id;
+        if ($already_recorded) {
+            hypay_log($order_id, 'return replayed: this transaction is already recorded on the order', ['Id' => $return_trans_id]);
+        }
+
         $pp_response = [
-            'transaction_id' => $_REQUEST['Id']       ?? $_REQUEST['ACode'] ?? '',
+            'transaction_id' => $return_trans_id,
             'reason_text'    => $reason_text,
             'brand'          => $brand_name,
             'card_number'    => $last4,
-            'payments'       => $_REQUEST['Payments'] ?? '',
+            'payments'       => hypay_request_value(['Payments']),
             'personal_id'    => $hyp_user_digits !== '' ? $hyp_user_digits : HYPAY_PERSONAL_ID_UNKNOWN,
             'order_status'   => $is_success ? $success_status : $fail_status,
         ];
@@ -496,7 +521,9 @@ if (defined('PAYMENT_NOTIFICATION')) {
 
         // the J4 counterpart of the J5 pair: the additional status follows the
         // main one, and only a charge that actually went through gets it
-        if ($is_success && !empty($pp['success_additional_status'])) {
+        // - and only once: a replayed return must not put back an additional
+        // status the merchant has since moved on from
+        if ($is_success && !$already_recorded && !empty($pp['success_additional_status'])) {
             fn_hypay_set_additional_status($order_id, $pp['success_additional_status']);
         }
 
@@ -505,9 +532,15 @@ if (defined('PAYMENT_NOTIFICATION')) {
             $ez_mode = $pp['ez_mode'] ?? 'none'; // none | integrated | direct
             if ($ez_mode !== 'direct') {
                 hypay_log($order_id, 'ezcount skipped (mode != direct)', ['ez_mode' => $ez_mode]);
+            } elseif ($already_recorded && fn_hypay_order_has_document($order_id)) {
+                // One payment, one document. The same return arriving a second
+                // time used to issue a second tax invoice for the same money.
+                // A replay still issues it when the first attempt left none
+                // behind (EzCount was unreachable).
+                hypay_log($order_id, 'ezcount skipped (return replayed, the order already has its document)');
             } else {
                 fn_hypay_create_ezcount_doc($order_id, $order_info, $pp, [
-                    'transaction_id' => (string) ($_REQUEST['Id'] ?? ''),
+                    'transaction_id' => $hyp_return_id,
                     'brand'          => $brand_name,
                     'last4'          => $last4,
                     'payments'       => $num_payments,
@@ -672,10 +705,14 @@ $params_sign = [
     'ClientName'  => hypay_sanitize_url_echo($ez_name !== '' ? $ez_name : ($order_info['firstname'] ?? '')),
     'ClientLName' => hypay_sanitize_url_echo($ez_name !== '' ? ''       : ($order_info['lastname']  ?? '')),
     'email'       => (string) ($order_info['email']     ?? ''),
-    'phone'       => (string) ($order_info['phone']     ?? ''),
-    'cell'        => (string) ($order_info['phone']     ?? $order_info['s_phone'] ?? ''),
-    'street'      => hypay_sanitize_url_echo($order_info['s_address'] ?? $order_info['b_address'] ?? ''),
-    'city'        => hypay_sanitize_url_echo($order_info['s_city']    ?? $order_info['b_city']    ?? ''),
+    // The first one the order actually has. CS-Cart gives an order every one
+    // of these keys, the empty ones as empty strings, so the "??" that used to
+    // stand here never reached the billing address or the second phone: a
+    // customer with only a billing address went to Hyp with none at all.
+    'phone'       => hypay_first_filled($order_info, ['phone', 'b_phone', 's_phone']),
+    'cell'        => hypay_first_filled($order_info, ['phone', 's_phone', 'b_phone']),
+    'street'      => hypay_sanitize_url_echo(hypay_first_filled($order_info, ['s_address', 'b_address'])),
+    'city'        => hypay_sanitize_url_echo(hypay_first_filled($order_info, ['s_city', 'b_city'])),
 
     // toggles / UX sprinkles
     'MoreData'    => hypay_bool($pp['moredata'] ?? 'Y'),
@@ -733,6 +770,11 @@ if ($is_j5) {
     $params_sign['J5'] = 'False';
 }
 
+// Customer details the order does not have are not sent at all: an empty
+// street= or city= in the signed address is what broke the payment page for
+// customers without an address - see fn_hypay_open_payment_page().
+$params_sign = hypay_drop_empty_details($params_sign);
+
 // masked request log
 $log_params = $params_sign;
 if (!empty($log_params['KEY']))   { $log_params['KEY']   = substr($log_params['KEY'], 0, 4) . '***'; }
@@ -767,6 +809,10 @@ if ($back === 'front') {
     fn_hypay_snapshot_cart($order_id);
 }
 
+// To the address exactly as Hyp signed it. Not fn_create_payment_form(): for a
+// GET it rebuilds the query string as a form and leaves out every parameter
+// with an empty value, and Hyp answers a signed page that arrives with
+// anything missing with "שגיאת אימות" - see fn_hypay_open_payment_page().
 hypay_log($order_id, 'redirect to payment', $payment_link);
-fn_create_payment_form($payment_link, [], 'Hypay', true, 'get');
+fn_hypay_open_payment_page($payment_link);
 return;
