@@ -3990,9 +3990,25 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
     // a checkout charge carries: where to send it, its lines, the company
     // number, the copies, the language. Direct mode sends none of this - there
     // the document is issued from here, below.
-    $doc_params = [];
+    $doc_params    = [];
+    $profile_names = null; // the names as authorized, when the EzCount name replaced them
     if (($pp['ez_mode'] ?? 'none') === 'integrated') {
-        $doc_params = hypay_ez_int_doc_params($pp, $order_info, hypay_ez_customer($pp, $order_info, 'ez_int'));
+        $ez_customer = hypay_ez_customer($pp, $order_info, 'ez_int');
+        $doc_params  = hypay_ez_int_doc_params($pp, $order_info, $ez_customer);
+
+        // The document is made out to whoever the request names. With the
+        // EzCount name setting on, that is the company - a whole name in the
+        // first half and no second half, exactly as an integrated checkout
+        // charge sends it - so the document for a captured hold names the
+        // customer the way the direct API document does. The acquirer's row
+        // for the charge then reads the company's name too, beside a hold
+        // made in the buyer's.
+        $ez_name = hypay_sanitize_url_echo((string) ($ez_customer['ezcount_name'] ?? ''));
+        if ($ez_name !== '') {
+            $profile_names = ['ClientName' => $params['ClientName'], 'ClientLName' => $params['ClientLName']];
+            $params['ClientName'] = $ez_name;
+            unset($params['ClientLName']);
+        }
         // UserId on a capture is the cardholder's ID and nothing else
         unset($doc_params['UserId']);
 
@@ -4024,7 +4040,9 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
         }
 
         $params = array_merge($params, $doc_params);
-        hypay_log($order_id, 'j5.capture: integrated document details', array_diff_key($doc_params, ['heshDesc' => 1]));
+        hypay_log($order_id, 'j5.capture: integrated document details', array_diff_key($doc_params, ['heshDesc' => 1]) + [
+            'ClientName' => $profile_names !== null ? $params['ClientName'] . ' (EzCount name)' : '(as authorized)',
+        ]);
     }
 
     // what makes it a capture rather than a fresh charge
@@ -4063,6 +4081,20 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
         unset($params['heshDesc'], $params['Pritim']);
 
         $result   = fn_hypay_api_request($order_id, array_merge($params, $linkage), 'j5.capture.nolines');
+        $response = $result['params'];
+        $ccode    = isset($response['CCode']) ? (string) $response['CCode'] : '';
+    }
+
+    // CCode=401 is "first or last name is required": the company name alone
+    // was not enough for this terminal. Again a definite refusal with nothing
+    // charged, so the capture goes once more under the names it was
+    // authorized with - the document then names the buyer.
+    if ($ccode === '401' && $profile_names !== null) {
+        hypay_log($order_id, 'j5.capture: EzCount name refused (CCode=401), capturing under the authorized names');
+        $params        = array_merge($params, $profile_names);
+        $profile_names = null;
+
+        $result   = fn_hypay_api_request($order_id, array_merge($params, $linkage), 'j5.capture.names');
         $response = $result['params'];
         $ccode    = isset($response['CCode']) ? (string) $response['CCode'] : '';
     }

@@ -133,7 +133,11 @@ the lines (`Pritim` / `heshDesc`, a single order line when the products would
 not add up to the captured amount or would make the request too long) and the
 `EZ.*` values above — so the document Hyp issues for a captured hold is the
 same one a checkout charge gets. If Hyp refuses the lines (`CCode=400`), the
-capture goes again without them. A refused `EZ.*` value on a payment page is
+capture goes again without them. With the *EzCount name* setting on, the
+capture is made in that name — as an integrated checkout charge is — so the
+document names the company; the acquirer's row for the charge reads the same
+name. Should the terminal refuse it (`CCode=401`), the capture goes again under
+the names the hold was made with. A refused `EZ.*` value on a payment page is
 left out and the page requested again.
 
 *Filing under an existing customer card* is the direct API's only. Nothing in
