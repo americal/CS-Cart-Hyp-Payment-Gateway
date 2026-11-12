@@ -667,7 +667,7 @@ $ez_name = (string) ($ez_customer['ezcount_name'] ?? '');
 if ($ez_customer) {
     hypay_log($order_id, 'ezcount.integrated customer', [
         'ClientName' => $ez_name !== '' ? $ez_name : '(profile name)',
-        'UserId'     => ($ez_customer['vat'] ?? '') !== '' ? $ez_customer['vat'] : '(not sent)',
+        'VAT ID'     => ($ez_customer['vat'] ?? '') !== '' ? $ez_customer['vat'] : '(not sent)',
     ]);
 }
 
@@ -736,13 +736,18 @@ hypay_put($params_sign, 'Tash',             isset($pp['tash'])       && $pp['tas
 hypay_put($params_sign, 'tashType',         isset($pp['tashtype'])   && $pp['tashtype'] !== ''   ? (int)   $pp['tashtype']   : null);
 hypay_put($params_sign, 'TashFirstPayment', isset($pp['tash_first']) && $pp['tash_first'] !== '' ? (float) $pp['tash_first'] : null);
 hypay_put($params_sign, 'sendemail',        hypay_bool($pp['sendemail'] ?? 'N'));
-hypay_put($params_sign, 'Postpone',         hypay_bool($pp['postpone']  ?? 'N'));
+// Postpone is not sent. A postponed payment comes back as CCode=800 and has to
+// be finalized with commitTrans within 72 hours; this add-on does neither, so
+// the order was marked failed and the payment lapsed. J5 is the hold it has.
 
-// The customer's VAT ID, when the settings ask for it: Hyp files the document
-// it issues under this number. It is deliberately absent from a J5 request -
-// UserId there is the cardholder ID Shva checks the later capture against, and
-// a company number is not that.
-hypay_put($params_sign, 'UserId',           (string) ($ez_customer['vat'] ?? ''));
+// The customer on the document Hyp issues itself (integrated mode only): the
+// company number as EZ.customer_crn, the copies, the language, VAT exemption -
+// see hypay_ez_int_doc_params(). Nothing of it rides on a J5 request: a hold
+// issues no document, and UserId there is the cardholder ID Shva checks the
+// later capture against. The capture carries the document details instead.
+foreach (hypay_ez_int_doc_params($pp, $order_info, $ez_customer) as $ez_key => $ez_value) {
+    $params_sign[$ez_key] = $ez_value;
+}
 
 if ($is_j5) {
     // Step 1 of the two-phase commit: hold the funds instead of charging them.

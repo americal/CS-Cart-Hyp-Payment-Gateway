@@ -107,17 +107,37 @@ Generator gives it, so neither add-on has to be told about it twice. An
 installation whose field is named something else can name its ID outright in
 **CC e-mail profile field ID**.
 
-**Integrated mode is not the same set.** In `direct` mode this add-on issues the
-document itself and can send all four. In `integrated` mode Hyp issues it, and a
-payment request carries only two of them: the EzCount name (as `ClientName`, in
-place of both halves of the profile name — it is a whole name, usually the
-company's) and the VAT ID (as `UserId`, the number Hyp files the document
-under). They are configured separately from the direct ones, under
-**EzCount (Integrated)**.
+**Integrated mode is configured separately**, under **EzCount (Integrated)**.
+There Hyp issues the document, and the payment request tells it what to put on
+it, in the parameters Hyp documents for that:
 
-The VAT ID is deliberately never sent with a J5 authorization: `UserId` there is
-the cardholder's ID, which Shva checks the later capture against — a company
-number is not that — and a hold issues no document to put it on anyway.
+| On the document | Setting | Sent as |
+| --- | --- | --- |
+| EzCount name | EzCount name | `ClientName` (in place of both halves of the profile name) |
+| VAT ID | VAT ID | `EZ.customer_crn` |
+| CC e-mail | CC e-mail | `EZ.cc_emails` (up to 10) |
+| Language | Document language | `EZ.lang` — not sent while left *as the terminal sets* |
+| VAT exemption | — (the customer's *Tax exempt* flag) | `EZ.vat=0` |
+
+The VAT ID used to go as `UserId` only. `UserId` is the cardholder's Israeli ID,
+which an issuer may check a debit card against — a company number is not that.
+It now goes as `EZ.customer_crn`; **Also send it as UserId** (on by default)
+keeps the old parameter beside it, so nothing changes for a terminal that files
+the document by it. Switch it off once a document has come out with the company
+number without it.
+
+None of this rides on a J5 authorization: a hold issues no document, and
+`UserId` there is the cardholder's ID, which Shva checks the capture against.
+**The capture carries the document details instead** — `email` and `SendHesh`,
+the lines (`Pritim` / `heshDesc`, a single order line when the products would
+not add up to the captured amount or would make the request too long) and the
+`EZ.*` values above — so the document Hyp issues for a captured hold is the
+same one a checkout charge gets. If Hyp refuses the lines (`CCode=400`), the
+capture goes again without them. A refused `EZ.*` value on a payment page is
+left out and the page requested again.
+
+*Filing under an existing customer card* is the direct API's only. Nothing in
+this section changes a document issued through the direct API.
 
 ---
 
@@ -830,12 +850,18 @@ sent to.
 - **A J5 hold is always stored**: the values Hyp reports are cut to the width
   of their columns, so MySQL's strict mode cannot refuse the row over one long
   value.
+- **Postpone is gone.** The checkbox sent `Postpone=True`, but a postponed
+  payment comes back as `CCode=800` and has to be finalized with `commitTrans`
+  within 72 hours; the add-on did neither, so the order was marked failed and
+  the payment lapsed. The parameter is no longer sent. J5 is the hold to use.
 - **Faster admin pages.** The add-on's table checks (a dozen queries, DDL
   among them) ran on every request that read a hold or a link; they now run
   once per schema version (`HYPAY_SCHEMA_VERSION`, kept in CS-Cart's storage).
   The *Payment Link* menu item on the order page no longer loads everything the
   link window needs — the order a second time, up to a hundred of the
-  customer's other orders, two queries for each — to print one line.
+  customer's other orders, two queries for each — to print one line. The link window
+  itself reads the documents and links of all the orders it lists in two
+  queries instead of two per order.
 
 ---
 

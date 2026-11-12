@@ -2344,6 +2344,74 @@ function hypay_ez_customer(array $pp, $order_info, $prefix = 'ez')
     ];
 }
 
+/**
+ * Integrated mode: what a payment request tells Hyp about the document it is
+ * going to issue itself, in the parameters Hyp documents for it
+ * (https://developers.hyp.co.il/pay/invoicing/basic-invoicing):
+ *
+ *   EZ.customer_crn  the customer's company number - the VAT ID setting
+ *   EZ.cc_emails     up to ten more addresses the document is copied to
+ *   EZ.lang          the document's language, when the settings name one
+ *   EZ.vat           0 for a customer who is exempt from VAT
+ *
+ * The VAT ID used to travel as UserId alone. UserId is the cardholder's
+ * Israeli ID, the number an issuer may check a debit card against, and a
+ * company number is not that - so it now goes where the documentation puts
+ * it. UserId still carries it as well while "ez_int_vat_as_userid" is on (the
+ * default), so nothing changes for a terminal that files the document by it;
+ * switch it off once a document has come out right without it.
+ *
+ * Nothing here touches the direct API: there the add-on issues the document
+ * itself, see fn_hypay_create_ezcount_doc().
+ *
+ * @param array $ez_customer hypay_ez_customer($pp, $order_info, 'ez_int');
+ *                           empty when Hyp issues no document for the request
+ *
+ * @return array parameter => value, to be added to the request
+ */
+function hypay_ez_int_doc_params(array $pp, $order_info, array $ez_customer)
+{
+    if (!$ez_customer) {
+        return [];
+    }
+
+    $params = [];
+
+    $vat = trim((string) ($ez_customer['vat'] ?? ''));
+    if ($vat !== '') {
+        $crn = (string) preg_replace('/[^0-9A-Za-z\-]+/', '', $vat);
+        if ($crn !== '') {
+            $params['EZ.customer_crn'] = $crn;
+        }
+        if (($pp['ez_int_vat_as_userid'] ?? 'Y') !== 'N') {
+            $params['UserId'] = $vat;
+        }
+    }
+
+    $cc_emails = [];
+    foreach ((array) ($ez_customer['cc_emails'] ?? []) as $email) {
+        $email = trim((string) $email);
+        if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $cc_emails[$email] = $email;
+        }
+    }
+    if ($cc_emails) {
+        $params['EZ.cc_emails'] = implode(',', array_slice(array_values($cc_emails), 0, 10));
+    }
+
+    $lang = (string) ($pp['ez_int_doc_lang'] ?? '');
+    if ($lang === 'he' || $lang === 'en') {
+        $params['EZ.lang'] = $lang;
+    }
+
+    // the same test the direct API document is made by
+    if (!empty($order_info['user_data']['tax_exempt']) && $order_info['user_data']['tax_exempt'] === 'Y') {
+        $params['EZ.vat'] = '0';
+    }
+
+    return $params;
+}
+
 /* ============================================================================
  * EzCount (Direct API) document
  * ==========================================================================*/
@@ -3915,6 +3983,50 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
         }
     }
 
+    // Integrated EzCount: Hyp issues its document for this charge itself, as
+    // it does for every successful transaction, and makes it from what the
+    // request says. The capture used to say nothing, so the document came out
+    // with the terminal's defaults and was sent to nobody. It now carries what
+    // a checkout charge carries: where to send it, its lines, the company
+    // number, the copies, the language. Direct mode sends none of this - there
+    // the document is issued from here, below.
+    $doc_params = [];
+    if (($pp['ez_mode'] ?? 'none') === 'integrated') {
+        $doc_params = hypay_ez_int_doc_params($pp, $order_info, hypay_ez_customer($pp, $order_info, 'ez_int'));
+        // UserId on a capture is the cardholder's ID and nothing else
+        unset($doc_params['UserId']);
+
+        $doc_email = trim((string) ($order_info['email'] ?? ''));
+        if ($doc_email !== '' && filter_var($doc_email, FILTER_VALIDATE_EMAIL)) {
+            $doc_params['email']    = $doc_email;
+            $doc_params['SendHesh'] = hypay_bool($pp['sendhesh'] ?? 'N');
+        }
+
+        if (hypay_bool($pp['pritim'] ?? 'Y') === 'True') {
+            // The lines have to add up to the amount exactly (CCode=400
+            // otherwise), and the whole request travels in the query string:
+            // one line for the order unless the products fit and add up.
+            $hesh_desc = '[0~Order ' . $order_id . '~1~' . number_format($amount, 2, '.', '') . ']';
+
+            $list_products = fn_hypay_link_capture_list_products($order_id);
+            if ($list_products === null) {
+                $list_products = hypay_ez_is_list_products_mode($pp, 'j5');
+            }
+            if ($list_products) {
+                list($items_desc, $items_sum) = hypay_build_heshdesc($order_info);
+                if (abs((float) $items_sum - $amount) < 0.005 && strlen(rawurlencode($items_desc)) <= 3000) {
+                    $hesh_desc = $items_desc;
+                }
+            }
+
+            $doc_params['Pritim']   = 'True';
+            $doc_params['heshDesc'] = $hesh_desc;
+        }
+
+        $params = array_merge($params, $doc_params);
+        hypay_log($order_id, 'j5.capture: integrated document details', array_diff_key($doc_params, ['heshDesc' => 1]));
+    }
+
     // what makes it a capture rather than a fresh charge
     $linkage = [
         'AuthNum'                          => (string) $tx['acode'],
@@ -3942,6 +4054,18 @@ function fn_hypay_capture_j5($order_id, $amount = null, $payments = null, $perso
     $result   = fn_hypay_api_request($order_id, array_merge($params, $linkage), 'j5.capture');
     $response = $result['params'];
     $ccode    = isset($response['CCode']) ? (string) $response['CCode'] : '';
+
+    // CCode=400 is Hyp's "the lines do not add up to the amount" - a definite
+    // refusal of the document's lines, nothing was charged. The money matters
+    // more than the lines: the same capture goes again without them.
+    if ($ccode === '400' && isset($params['heshDesc'])) {
+        hypay_log($order_id, 'j5.capture: document lines refused (CCode=400), capturing without them');
+        unset($params['heshDesc'], $params['Pritim']);
+
+        $result   = fn_hypay_api_request($order_id, array_merge($params, $linkage), 'j5.capture.nolines');
+        $response = $result['params'];
+        $ccode    = isset($response['CCode']) ? (string) $response['CCode'] : '';
+    }
 
     // Refused because the card will not carry a pre-obtained authorization.
     //
@@ -4677,7 +4801,7 @@ function fn_hypay_repair_addon_texts()
         //    it on whenever one is added
         $canary = db_get_field(
             "SELECT COUNT(*) FROM ?:language_values WHERE name = ?s AND lang_code = ?s",
-            'hypay_link_client_name_hint',
+            'hypay_ez_int_customer_limits_v2',
             CART_LANGUAGE
         );
         if (!$canary) {
@@ -5203,11 +5327,17 @@ function fn_hypay_doc_type_name($type)
  * any (number and type, as the EzCount Doc Generator lists them), the link it
  * is already in if any, and whether it can be ticked.
  */
-function fn_hypay_link_order_row(array $row, array $status_names, $current = false)
+function fn_hypay_link_order_row(array $row, array $status_names, $current = false, array $known = null)
 {
     $order_id = (int) $row['order_id'];
-    $document = fn_hypay_get_order_document($order_id);
-    $link     = fn_hypay_link_get_latest($order_id);
+    if ($known !== null) {
+        // read for all the rows at once - fn_hypay_link_rows_context()
+        $document = $known['documents'][$order_id] ?? [];
+        $link     = $known['links'][$order_id] ?? [];
+    } else {
+        $document = fn_hypay_get_order_document($order_id);
+        $link     = fn_hypay_link_get_latest($order_id);
+    }
     $in_link  = !empty($link) && in_array($link['status'], ['active', 'paid'], true);
 
     return [
@@ -5222,6 +5352,51 @@ function fn_hypay_link_order_row(array $row, array $status_names, $current = fal
         'link_state'  => $in_link ? (string) $link['status'] : '',
         'selectable'  => empty($document) && !$in_link,
     ];
+}
+
+/**
+ * The document and the latest link of each of these orders, read in two
+ * queries for all of them - what fn_hypay_get_order_document() and
+ * fn_hypay_link_get_latest() answer for one order at a time. The link window
+ * lists up to a hundred of a customer's orders, and used to ask twice for
+ * each.
+ *
+ * @param int[] $order_ids
+ *
+ * @return array ['documents' => [order_id => document], 'links' => [order_id => link row]]
+ */
+function fn_hypay_link_rows_context(array $order_ids)
+{
+    $context   = ['documents' => [], 'links' => []];
+    $order_ids = array_values(array_unique(array_filter(array_map('intval', $order_ids))));
+    if (!$order_ids) {
+        return $context;
+    }
+
+    fn_hypay_ensure_schema();
+
+    $rows = db_get_array("SELECT order_id, data FROM ?:order_data WHERE type = 'X' AND order_id IN (?n)", $order_ids);
+    foreach ((array) $rows as $row) {
+        $doc = $row['data'] ? @unserialize($row['data'], ['allowed_classes' => false]) : false;
+        if (is_array($doc) && !empty($doc['ezcount_invoice_id'])) {
+            $context['documents'][(int) $row['order_id']] = $doc;
+        }
+    }
+
+    // oldest first, so the last one kept for an order is its latest
+    $rows = db_get_array(
+        "SELECT lo.order_id AS link_order_id, l.* FROM ?:hypay_payment_links AS l"
+        . " INNER JOIN ?:hypay_payment_link_orders AS lo ON lo.link_id = l.link_id"
+        . " WHERE lo.order_id IN (?n) ORDER BY l.link_id",
+        $order_ids
+    );
+    foreach ((array) $rows as $row) {
+        $oid = (int) $row['link_order_id'];
+        unset($row['link_order_id']);
+        $context['links'][$oid] = $row;
+    }
+
+    return $context;
 }
 
 /** the Info a link carries: the configured template, naming every order */
@@ -5645,7 +5820,10 @@ function fn_hypay_link_create($order_id, $email = '', $cell = '', array $order_i
             $params['heshDesc'] = $hesh_desc;
         }
         $params[HYPAY_EZ_INT_DOC_TYPE_PARAM] = $int_doc_type;
-        hypay_put($params, 'UserId', (string) ($ez_customer['vat'] ?? ''));
+        // the customer on Hyp's document: company number, copies, language
+        foreach (hypay_ez_int_doc_params($pp, $order_info, $ez_customer) as $ez_key => $ez_value) {
+            $params[$ez_key] = $ez_value;
+        }
     } elseif ($is_integrated) {
         // nothing to send to the customer; whether Hyp still issues the
         // document depends on how the terminal's invoice module is set up
@@ -5843,8 +6021,8 @@ function fn_hypay_refused_field(array $answer)
     }
 
     // a refusal worded otherwise that still names one of them
-    foreach (['ClientLName', 'ClientName', 'street', 'city', 'Info'] as $field) {
-        if (preg_match('/\b' . $field . '\b/i', $err)) {
+    foreach (['ClientLName', 'ClientName', 'street', 'city', 'Info', 'EZ.customer_crn', 'EZ.cc_emails', 'EZ.lang', 'EZ.vat'] as $field) {
+        if (preg_match('/\b' . preg_quote($field, '/') . '\b/i', $err)) {
             return $field;
         }
     }
@@ -5887,7 +6065,9 @@ function fn_hypay_fix_refused_field(array $params, $field, array $order_ids)
             (string) ($params['ClientName'] ?? ''),
             (string) ($params['ClientLName'] ?? '')
         );
-    } elseif (in_array($field, ['street', 'city', 'zip', 'phone'], true)) {
+    } elseif (in_array($field, ['street', 'city', 'zip', 'phone'], true) || strncasecmp($field, 'EZ.', 3) === 0) {
+        // a detail of the address, or of the document Hyp issues: the payment
+        // is worth more than either
         unset($fixed[$field]);
     } else {
         return null;
@@ -6175,7 +6355,10 @@ function fn_hypay_link_sign($order_id, array $order_info, array $orders, $amount
     if ($is_integrated && $int_doc_type !== 'none') {
         $params['SendHesh'] = hypay_bool($pp['sendhesh'] ?? 'N');
         $params[HYPAY_EZ_INT_DOC_TYPE_PARAM] = $int_doc_type;
-        hypay_put($params, 'UserId', (string) ($ez_customer['vat'] ?? ''));
+        // the customer on Hyp's document: company number, copies, language
+        foreach (hypay_ez_int_doc_params($pp, $order_info, $ez_customer) as $ez_key => $ez_value) {
+            $params[$ez_key] = $ez_value;
+        }
     } else {
         $params['SendHesh'] = 'False';
     }
@@ -7322,14 +7505,32 @@ function fn_hypay_get_link_panel_data($order_id)
     // The orders the link pays for, with what each of them totals today: the
     // sum drifting away from the amount of the link is what the panel warns
     // about - the customer would pay the old amount.
-    $link_orders = [];
-    $link_total  = 0.0;
-    foreach (fn_hypay_link_order_ids($link) as $oid) {
-        $row = db_get_row("SELECT order_id, timestamp, status, total FROM ?:orders WHERE order_id = ?i", $oid);
+    $link_orders    = [];
+    $link_total     = 0.0;
+    $link_order_ids = fn_hypay_link_order_ids($link);
+    $candidate_rows = ($state !== 'active' && $state !== 'paid')
+        ? fn_hypay_link_candidate_orders($order_info, $pp_link)
+        : [];
+
+    // every order the window shows, asked about once
+    $known = fn_hypay_link_rows_context(array_merge(
+        [$order_id],
+        $link_order_ids,
+        array_map(static function ($r) { return (int) $r['order_id']; }, $candidate_rows)
+    ));
+
+    $link_rows = [];
+    if ($link_order_ids) {
+        foreach ((array) db_get_array("SELECT order_id, timestamp, status, total FROM ?:orders WHERE order_id IN (?n)", $link_order_ids) as $row) {
+            $link_rows[(int) $row['order_id']] = $row;
+        }
+    }
+    foreach ($link_order_ids as $oid) {
+        $row = $link_rows[$oid] ?? [];
         if (empty($row)) {
             continue;
         }
-        $order_row     = fn_hypay_link_order_row($row, $status_names, $oid === $order_id);
+        $order_row     = fn_hypay_link_order_row($row, $status_names, $oid === $order_id, $known);
         $link_orders[] = $order_row;
         $link_total   += $order_row['total'];
     }
@@ -7344,9 +7545,9 @@ function fn_hypay_get_link_panel_data($order_id)
             'timestamp' => $order_info['timestamp'],
             'status'    => $order_info['status'],
             'total'     => $order_total,
-        ], $status_names, true);
-        foreach (fn_hypay_link_candidate_orders($order_info, $pp_link) as $row) {
-            $candidates[] = fn_hypay_link_order_row($row, $status_names);
+        ], $status_names, true, $known);
+        foreach ($candidate_rows as $row) {
+            $candidates[] = fn_hypay_link_order_row($row, $status_names, false, $known);
         }
     }
 
