@@ -693,7 +693,8 @@ The link is paid on Hyp's own payment page, and the result comes back two ways:
    timeout (`HYPAY_LINK_AUTO_CHECK_TIMEOUT`). The page says which orders it
    found paid. `status=3` settles the order with what LIST knows —
    its transaction Id, but no card details; if the return turns up afterwards,
-   it fills them in.
+   it fills them in, and issues the direct API document (see *The document
+   after a link is paid*).
 
    Earlier versions looked only from the order page, and only once a minute
    counting from the moment the link was made — an order opened within that
@@ -707,10 +708,20 @@ Whichever arrives first moves the order; the other one never moves it again.
 Each EzCount mode has its own **Document after a payment link is paid** setting:
 *Tax Invoice Receipt* (320, the default), *Receipt* (400) or *No document*.
 
-- **Direct API** — the add-on issues the chosen document as soon as the payment
-  is recorded (from the return or from the LIST lookup) and stores it on the
+- **Direct API** — the add-on issues the chosen document and stores it on the
   order exactly as after a checkout payment. The payment link block shows its
   type, number and PDF link.
+  - Recorded from the **return**: issued at once, with the card and the number
+    of payments the return reports.
+  - Recorded from the **LIST lookup**: LIST says that the link was paid, not
+    how — neither the card nor the number of payments. The document therefore
+    waits for the customer's return (usually seconds behind) and is issued by
+    it, with those details. If the return has not come within 15 minutes
+    (`HYPAY_LINK_DOC_WAIT_MINUTES`), the next time the order page or the order
+    list is opened the document is issued without the card details and
+    **without a number of payments** — it never claims "1 payment" for a deal
+    it knows nothing about. Earlier versions issued it straight from LIST as
+    a single regular payment, whatever the customer had chosen.
 - **Integrated** — Hyp issues the document itself when the link is paid. The
   link is created with `SendHesh` / `Pritim` / `heshDesc` as configured and the
   document type in `EZ.type` (the constant `HYPAY_EZ_INT_DOC_TYPE_PARAM` in

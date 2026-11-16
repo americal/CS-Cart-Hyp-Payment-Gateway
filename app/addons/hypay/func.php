@@ -51,7 +51,7 @@ if (!defined('HYPAY_STATUS_FORBIDDEN_FALLBACK')) { define('HYPAY_STATUS_FORBIDDE
  * request that touches a hold or a payment link; raise it whenever that
  * function learns a new table or column.
  */
-if (!defined('HYPAY_SCHEMA_VERSION')) { define('HYPAY_SCHEMA_VERSION', '8'); }
+if (!defined('HYPAY_SCHEMA_VERSION')) { define('HYPAY_SCHEMA_VERSION', '9'); }
 
 /** global debug switch (filled from payment settings later) */
 if (!isset($GLOBALS['HYPAY_DEBUG'])) { $GLOBALS['HYPAY_DEBUG'] = false; }
@@ -191,6 +191,10 @@ function fn_hypay_ensure_schema($force = false)
         . " trans_id varchar(64) NOT NULL default '',"
         // the document Hyp issued itself (integrated EzCount), from Hesh
         . " doc_number varchar(64) NOT NULL default '',"
+        // the direct API document of a link LIST found paid, which waits for
+        // the card details: '' | pending | issuing | issued | failed - see
+        // fn_hypay_link_settle_from_list()
+        . " doc_state varchar(16) NOT NULL default '',"
         . " kind varchar(16) NOT NULL default 'request',"
         // Y: the link holds the money (J5) instead of charging it
         . " j5 char(1) NOT NULL default 'N',"
@@ -221,6 +225,9 @@ function fn_hypay_ensure_schema($force = false)
     }
     if ($link_columns && !in_array('j5', $link_columns, true)) {
         db_query("ALTER TABLE ?:hypay_payment_links ADD j5 char(1) NOT NULL default 'N'");
+    }
+    if ($link_columns && !in_array('doc_state', $link_columns, true)) {
+        db_query("ALTER TABLE ?:hypay_payment_links ADD doc_state varchar(16) NOT NULL default ''");
     }
     if ($link_columns && !in_array('line_items', $link_columns, true)) {
         db_query("ALTER TABLE ?:hypay_payment_links ADD line_items varchar(16) NOT NULL default ''");
@@ -2508,18 +2515,29 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
     );
 
     // 3) payments section (credit card)
-    $num_payments = (int) ($ctx['payments'] ?? 1);
+    //
+    // The number of payments is stated only when it is known. 'payments' =>
+    // null says it is not (a payment link whose return never brought the card
+    // details): the document then names the card payment without claiming it
+    // was a single one - a tax document must not say "1 payment" about a deal
+    // the customer split in three.
+    $payments_known = !array_key_exists('payments', $ctx) || $ctx['payments'] !== null;
+    $num_payments   = (int) ($ctx['payments'] ?? 1);
     if ($num_payments < 1) { $num_payments = 1; }
 
     $payment_item = [
         'payment_type'       => 3,
         'payment_sum'        => $amount,
         'cc_type_name'       => (string) ($ctx['brand'] ?? ''),
-        'cc_num_of_payments' => $num_payments,
-        'cc_deal_type'       => ($num_payments > 1) ? '2' : '1',
-        'auto_calc_payments' => $auto_calc,
         'comment'            => 'מזהה עסקה בחברת האשראי: ' . (string) ($ctx['transaction_id'] ?? ''),
     ];
+    if ($payments_known) {
+        $payment_item['cc_num_of_payments'] = $num_payments;
+        $payment_item['cc_deal_type']       = ($num_payments > 1) ? '2' : '1';
+        $payment_item['auto_calc_payments'] = $auto_calc;
+    } else {
+        hypay_log($order_id, 'ezcount: number of payments unknown, left out of the document');
+    }
     $last4 = preg_replace('/\D+/', '', (string) ($ctx['last4'] ?? ''));
     if ($last4 !== '') { $payment_item['cc_number'] = $last4; }
 
@@ -4569,6 +4587,13 @@ function fn_hypay_get_j5_panel_data($order_id)
  * every link of a terminal at once, so one call settles them all.
  */
 if (!defined('HYPAY_LINK_LIST_CHECK_MINUTES')) { define('HYPAY_LINK_LIST_CHECK_MINUTES', 5); }
+
+/**
+ * Minutes the direct API document of a link found paid by LIST waits for the
+ * customer's return - the only thing that says which card paid and in how many
+ * payments - before it is issued without those details.
+ */
+if (!defined('HYPAY_LINK_DOC_WAIT_MINUTES')) { define('HYPAY_LINK_DOC_WAIT_MINUTES', 15); }
 
 /** seconds an automatic LIST lookup may take before the page goes on without it */
 if (!defined('HYPAY_LINK_AUTO_CHECK_TIMEOUT')) { define('HYPAY_LINK_AUTO_CHECK_TIMEOUT', 15); }
@@ -6867,6 +6892,7 @@ function fn_hypay_link_check($order_id, $quiet = false, $timeout = 45)
             fn_hypay_link_is_j5($link) ? __('warning') : __('notice'),
             fn_hypay_link_is_j5($link) ? __('hypay_link_j5_list_no_return') : __('hypay_link_check_paid')
         );
+        fn_hypay_link_notify_document_waiting([$link]);
     } elseif ($state === 'cancelled') {
         fn_set_notification('W', __('warning'), __('hypay_link_check_cancelled_remote'));
     } elseif (!$quiet) {
@@ -6933,6 +6959,9 @@ function fn_hypay_link_auto_check_all($order_ids = null, $force = false)
     fn_hypay_ensure_schema();
 
     $changed = ['paid' => [], 'cancelled' => [], 'expired' => []];
+
+    // documents of links LIST found paid, whose return never came
+    fn_hypay_link_issue_overdue_documents($order_ids);
 
     if ($order_ids !== null) {
         $order_ids = array_values(array_filter(array_map('intval', (array) $order_ids)));
@@ -7003,6 +7032,7 @@ function fn_hypay_link_auto_check_all($order_ids = null, $force = false)
 
     $due_ids = array_map(static function ($l) { return (int) $l['link_id']; }, $due);
     $listed  = [];
+    $settled = []; // the links this lookup found paid
 
     foreach ($groups as $group) {
         $pp = $group['pp'];
@@ -7036,6 +7066,9 @@ function fn_hypay_link_auto_check_all($order_ids = null, $force = false)
                 fn_set_notification('W', __('warning'), '#' . (int) $link['order_id'] . ': ' . __('hypay_link_j5_list_no_return'));
             } elseif (isset($changed[$state])) {
                 $changed[$state] = array_merge($changed[$state], fn_hypay_link_order_ids($link));
+                if ($state === 'paid') {
+                    $settled[] = $link;
+                }
             } elseif (in_array((int) $link['link_id'], $due_ids, true)
                 && fn_hypay_link_expire_if_due((int) $link['order_id'], true)
             ) {
@@ -7057,6 +7090,7 @@ function fn_hypay_link_auto_check_all($order_ids = null, $force = false)
         fn_set_notification('N', __('notice'), __('hypay_link_auto_paid', [
             '[orders]' => '#' . implode(', #', array_unique($changed['paid'])),
         ]));
+        fn_hypay_link_notify_document_waiting($settled);
     }
     if (!empty($changed['cancelled'])) {
         fn_set_notification('W', __('warning'), __('hypay_link_auto_cancelled', [
@@ -7213,14 +7247,153 @@ function fn_hypay_link_settle_from_list($order_id, array $link, $trans_id)
         'orders'       => fn_hypay_link_order_ids($link),
     ]);
 
-    fn_hypay_link_issue_document($order_id, $pp, $link, [
-        'transaction_id' => $trans_id,
-        'brand'          => '',
-        'last4'          => '',
-        'payments'       => 1,
-    ]);
+    // The document is not issued here. LIST says that the link was paid, not
+    // how: the card, and above all the number of payments, come only with the
+    // customer's return. Issued now, the document used to say "1 payment" and
+    // no card whatever the customer had picked. So it waits for the return,
+    // which usually is seconds behind (fn_hypay_link_issue_waiting_document),
+    // and is issued without those details only if the return has not come
+    // within HYPAY_LINK_DOC_WAIT_MINUTES (fn_hypay_link_issue_overdue_documents).
+    if (fn_hypay_link_document_due($pp)) {
+        db_query("UPDATE ?:hypay_payment_links SET doc_state = 'pending' WHERE link_id = ?i", $link['link_id']);
+        hypay_log($order_id, 'link: document waits for the card details of the return', [
+            'wait_minutes' => HYPAY_LINK_DOC_WAIT_MINUTES,
+        ]);
+    }
 
     return true;
+}
+
+/**
+ * Tell the administrator that the document of the links just found paid is
+ * not there yet, and why - otherwise a paid order without one looks broken.
+ */
+function fn_hypay_link_notify_document_waiting(array $links)
+{
+    $orders = [];
+    foreach ($links as $link) {
+        $fresh = fn_hypay_link_get($link['link_id']);
+        if (!empty($fresh) && ($fresh['doc_state'] ?? '') === 'pending') {
+            $orders = array_merge($orders, fn_hypay_link_order_ids($fresh));
+        }
+    }
+    if ($orders) {
+        fn_set_notification('N', __('notice'), __('hypay_link_doc_waiting', [
+            '[orders]'  => '#' . implode(', #', array_unique($orders)),
+            '[minutes]' => HYPAY_LINK_DOC_WAIT_MINUTES,
+        ]));
+    }
+}
+
+/** Does a paid link get a document from here (direct API, and a type chosen)? */
+function fn_hypay_link_document_due(array $pp)
+{
+    return ($pp['ez_mode'] ?? 'none') === 'direct' && fn_hypay_link_doc_type($pp, 'direct') !== 'none';
+}
+
+/**
+ * Issue the document a link found paid by LIST has been waiting with, exactly
+ * once: whoever takes the link from 'pending' issues it.
+ *
+ * @param array $card transaction_id, brand, last4, payments - payments null
+ *                    when nobody knows how many there were
+ *
+ * @return bool true when this call issued the document
+ */
+function fn_hypay_link_issue_waiting_document(array $link, array $pp, array $card)
+{
+    $link_id = (int) ($link['link_id'] ?? 0);
+    if ($link_id <= 0) {
+        return false;
+    }
+
+    $claimed = db_query(
+        "UPDATE ?:hypay_payment_links SET doc_state = 'issuing' WHERE link_id = ?i AND doc_state = 'pending'",
+        $link_id
+    );
+    if (!$claimed) {
+        return false;
+    }
+
+    $order_id = (int) $link['order_id'];
+    $issued   = false;
+    try {
+        if (fn_hypay_order_has_document($order_id)) {
+            // issued by hand, or by the EzCount Doc Generator, in the meantime
+            hypay_log($order_id, 'link: waiting document dropped, the order has one already');
+            $issued = true;
+        } else {
+            $issued = (bool) fn_hypay_link_issue_document($order_id, $pp, $link, $card);
+        }
+    } finally {
+        db_query(
+            "UPDATE ?:hypay_payment_links SET doc_state = ?s WHERE link_id = ?i AND doc_state = 'issuing'",
+            $issued ? 'issued' : 'failed',
+            $link_id
+        );
+    }
+
+    return $issued;
+}
+
+/**
+ * Documents still waiting for a return that has not come within
+ * HYPAY_LINK_DOC_WAIT_MINUTES of the payment: issued with what is known - the
+ * transaction, but neither the card nor the number of payments, which the
+ * document then does not state. Runs with the admin panel's own lookups.
+ *
+ * @param int[]|null $order_ids only the links of these orders; null for all
+ *
+ * @return int[] the orders that got their document
+ */
+function fn_hypay_link_issue_overdue_documents($order_ids = null)
+{
+    $condition = '';
+    if ($order_ids !== null) {
+        $order_ids = array_values(array_filter(array_map('intval', (array) $order_ids)));
+        if (empty($order_ids)) {
+            return [];
+        }
+        $condition = db_quote(
+            " AND l.link_id IN (SELECT lo.link_id FROM ?:hypay_payment_link_orders AS lo WHERE lo.order_id IN (?n))",
+            $order_ids
+        );
+    }
+
+    $links = db_get_array(
+        "SELECT l.* FROM ?:hypay_payment_links AS l"
+        . " WHERE l.doc_state = 'pending' AND l.status = 'paid' AND l.paid_at <= ?i ?p ORDER BY l.link_id",
+        TIME - HYPAY_LINK_DOC_WAIT_MINUTES * 60,
+        $condition
+    );
+
+    $done = [];
+    foreach ($links as $link) {
+        $order_id   = (int) $link['order_id'];
+        $order_info = fn_get_order_info($order_id);
+        if (empty($order_info)) {
+            db_query("UPDATE ?:hypay_payment_links SET doc_state = 'failed' WHERE link_id = ?i AND doc_state = 'pending'", $link['link_id']);
+            continue;
+        }
+
+        $pp = fn_hypay_link_processor_params((array) $order_info, $link);
+        $GLOBALS['HYPAY_DEBUG'] = (!empty($pp['debug_mode']) && $pp['debug_mode'] === 'Y');
+        hypay_log($order_id, 'link: no return within the wait, issuing the document without the card details', [
+            'link_id' => $link['link_id'],
+            'paid_at' => date('Y-m-d H:i:s', (int) $link['paid_at']),
+        ]);
+
+        if (fn_hypay_link_issue_waiting_document($link, $pp, [
+            'transaction_id' => (string) $link['trans_id'],
+            'brand'          => '',
+            'last4'          => '',
+            'payments'       => null,
+        ])) {
+            $done = array_merge($done, fn_hypay_link_order_ids($link));
+        }
+    }
+
+    return $done;
 }
 
 /**
@@ -7258,7 +7431,7 @@ function fn_hypay_link_doc_type(array $pp, $mode)
  * Integrated mode is not handled here: there Hyp issues the document itself,
  * as asked for when the link was created (fn_hypay_link_create).
  *
- * @param array $card transaction_id, brand, last4, payments
+ * @param array $card transaction_id, brand, last4, payments (null: unknown)
  *
  * @return array|false document info, false when none was issued
  */
@@ -7300,7 +7473,10 @@ function fn_hypay_link_issue_document($order_id, array $pp, array $link, array $
         'transaction_id' => (string) ($card['transaction_id'] ?? ''),
         'brand'          => (string) ($card['brand'] ?? ''),
         'last4'          => (string) ($card['last4'] ?? ''),
-        'payments'       => max(1, (int) ($card['payments'] ?? 1)),
+        // null: not known, and the document does not state it
+        'payments'       => (array_key_exists('payments', $card) && $card['payments'] === null)
+            ? null
+            : max(1, (int) ($card['payments'] ?? 1)),
         'amount'         => round((float) $link['amount'], 2),
         'flow'           => 'regular',
         'doc_type'       => $doc_type,

@@ -1655,3 +1655,7 @@ msgstr "The language of the document Hyp issues and of the e-mail it comes with,
 msgctxt "Languages::hypay_ez_int_customer_limits_v2"
 msgid "These travel with the payment request, and after a J5 hold with the capture. A customer exempt from VAT gets the document with 0% VAT (EZ.vat=0), as with the direct API. Filing the document under an existing customer card is the direct API's only."
 msgstr "These travel with the payment request, and after a J5 hold with the capture. A customer exempt from VAT gets the document with 0% VAT (EZ.vat=0), as with the direct API. Filing the document under an existing customer card is the direct API's only."
+
+msgctxt "Languages::hypay_link_doc_waiting"
+msgid "The document for order [orders] is issued when the customer returns from the payment page - only the return says which card paid and in how many payments. If the customer does not return within [minutes] minutes, it is issued without the card details and without the number of payments."
+msgstr "The document for order [orders] is issued when the customer returns from the payment page - only the return says which card paid and in how many payments. If the customer does not return within [minutes] minutes, it is issued without the card details and without the number of payments."
