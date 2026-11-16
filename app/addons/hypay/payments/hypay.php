@@ -278,6 +278,17 @@ if (defined('PAYMENT_NOTIFICATION')) {
             } else {
                 hypay_log($order_id, 'payment link already recorded, adding the card details', $pp_response);
                 fn_hypay_link_update_payment_info($hypay_link, $pp_response);
+
+                // LIST recorded the payment first and left the document to
+                // this return: only here are the card and the number of
+                // payments known. Issued once - a replayed return finds
+                // nothing waiting.
+                fn_hypay_link_issue_waiting_document($hypay_link, $pp, [
+                    'transaction_id' => $link_trans_id,
+                    'brand'          => $brand_name,
+                    'last4'          => $last4,
+                    'payments'       => $num_payments,
+                ]);
             }
 
             fn_set_notification('N', __('notice'), __('hypay_link_customer_paid', [
