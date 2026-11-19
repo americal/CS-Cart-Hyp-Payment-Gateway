@@ -1659,3 +1659,47 @@ msgstr "Эти данные идут с запросом на оплату, а �
 msgctxt "Languages::hypay_link_doc_waiting"
 msgid "The document for order [orders] is issued when the customer returns from the payment page - only the return says which card paid and in how many payments. If the customer does not return within [minutes] minutes, it is issued without the card details and without the number of payments."
 msgstr "Документ по заказу [orders] будет выписан, когда клиент вернётся со страницы оплаты: только возврат сообщает, какой картой и сколькими платежами оплачено. Если клиент не вернётся в течение [minutes] мин., документ будет выписан без данных карты и без числа платежей."
+
+msgctxt "Languages::hypay_link_doc_issued_auto"
+msgid "The document for the payment link paid for order [orders] has been issued."
+msgstr "Документ по оплаченной ссылке для заказа [orders] выписан."
+
+msgctxt "Languages::hypay_link_doc_failed"
+msgid "Order [orders] was paid by payment link, but the EzCount document has NOT been issued: [error]. Attempts so far: [attempts]; the next one is made by itself at [time]. You can also issue it now from the payment link window."
+msgstr "Заказ [orders] оплачен по ссылке, но документ EzCount НЕ выписан: [error]. Попыток: [attempts]; следующая будет сделана автоматически в [time]. Можно выписать сейчас в окне платёжной ссылки."
+
+msgctxt "Languages::hypay_link_doc_attention"
+msgid "Order [orders] was paid by payment link, but issuing its EzCount document did not finish ([error]). Check in EzCount whether the document exists; if not, issue it from the payment link window."
+msgstr "Заказ [orders] оплачен по ссылке, но выписка документа EzCount не завершилась ([error]). Проверьте в EzCount, есть ли документ; если нет - выпишите его в окне платёжной ссылки."
+
+msgctxt "Languages::hypay_link_doc_failed_list"
+msgid "Orders paid by payment link without an EzCount document: [orders]. Open an order to see why; the add-on keeps trying by itself."
+msgstr "Заказы, оплаченные по ссылке, без документа EzCount: [orders]. Откройте заказ, чтобы увидеть причину; модуль продолжает попытки автоматически."
+
+msgctxt "Languages::hypay_link_doc_no_paid_link"
+msgid "The order has no paid payment link to issue a document for."
+msgstr "У заказа нет оплаченной платёжной ссылки, по которой можно выписать документ."
+
+msgctxt "Languages::hypay_link_doc_already"
+msgid "The order already has a document."
+msgstr "У заказа уже есть документ."
+
+msgctxt "Languages::hypay_link_doc_not_direct"
+msgid "Payment links get no document from the add-on: the payment method does not use the EzCount direct API, or its payment link document is set to \"No document\"."
+msgstr "Модуль не выписывает документ для платёжных ссылок: способ оплаты не использует прямой API EzCount, или для документа после оплаты по ссылке выбрано «Без документа»."
+
+msgctxt "Languages::hypay_link_doc_in_progress"
+msgid "The document is being issued right now. Reopen the window in a minute."
+msgstr "Документ выписывается прямо сейчас. Откройте окно снова через минуту."
+
+msgctxt "Languages::hypay_link_doc_issue_now"
+msgid "Issue the document now"
+msgstr "Выписать документ сейчас"
+
+msgctxt "Languages::hypay_link_doc_pending"
+msgid "The document has not been issued yet: it waits up to [minutes] minutes for the customer's return, which brings the card details, and is then issued by itself."
+msgstr "Документ ещё не выписан: он ждёт до [minutes] мин. возврата клиента со страницы оплаты (с данными карты) и затем выписывается автоматически."
+
+msgctxt "Languages::hypay_link_doc_missing"
+msgid "The order was paid by payment link but has no EzCount document."
+msgstr "Заказ оплачен по ссылке, но документа EzCount у него нет."

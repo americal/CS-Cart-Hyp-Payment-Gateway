@@ -26,7 +26,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && function_exists('fn_hypay_ensure_add
 
     if ($mode === 'details' && !empty($_REQUEST['order_id'])) {
         fn_hypay_link_auto_check((int) $_REQUEST['order_id']);
+        // a paid link whose document could not be issued: said on the page
+        // every time it is opened, until the order has one
+        fn_hypay_link_notify_document_problems([(int) $_REQUEST['order_id']]);
     } elseif ($mode === 'manage') {
         fn_hypay_link_auto_check_all();
+        fn_hypay_link_notify_document_problems();
     }
 }

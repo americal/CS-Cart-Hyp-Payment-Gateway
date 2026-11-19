@@ -246,6 +246,10 @@ if (defined('PAYMENT_NOTIFICATION')) {
                 );
             }
 
+            // the card, kept on the link: every later attempt at the document
+            // (a retry, the button in the link window) is made with it
+            fn_hypay_link_store_card($hypay_link['link_id'], $brand_name, $last4, $num_payments);
+
             $hypay_link = fn_hypay_link_get($hypay_link['link_id']);
 
             // the same lines a checkout payment writes, plus when the link was paid
@@ -268,13 +272,26 @@ if (defined('PAYMENT_NOTIFICATION')) {
                 fn_hypay_link_finish_orders($hypay_link, $pp_response, $pp);
 
                 // the document the payment link settings ask for (direct API);
-                // in integrated mode Hyp has issued it already
-                fn_hypay_link_issue_document($order_id, $pp, $hypay_link, [
-                    'transaction_id' => $hyp_return_id,
-                    'brand'          => $brand_name,
-                    'last4'          => $last4,
-                    'payments'       => $num_payments,
-                ]);
+                // in integrated mode Hyp has issued it already. Through the
+                // same states as a document LIST left waiting: one that fails
+                // here is tried again by itself and shown to the administrator
+                // - it used to be tried once, and a failure was seen by nobody.
+                if (fn_hypay_link_document_due($pp)) {
+                    db_query(
+                        "UPDATE ?:hypay_payment_links SET doc_state = 'pending' WHERE link_id = ?i AND doc_state = ''",
+                        $hypay_link['link_id']
+                    );
+                    fn_hypay_link_issue_waiting_document($hypay_link, $pp, [
+                        'transaction_id' => $link_trans_id,
+                        'brand'          => $brand_name,
+                        'last4'          => $last4,
+                        'payments'       => $num_payments,
+                    ]);
+                } else {
+                    hypay_log($order_id, 'link: no document from the add-on for this link', [
+                        'ez_mode' => $pp['ez_mode'] ?? 'none',
+                    ]);
+                }
             } else {
                 hypay_log($order_id, 'payment link already recorded, adding the card details', $pp_response);
                 fn_hypay_link_update_payment_info($hypay_link, $pp_response);

@@ -31,6 +31,7 @@
      data-url-create="{"hypay.link_create"|fn_url}"
      data-url-cancel="{"hypay.link_cancel"|fn_url}"
      data-url-check="{"hypay.link_check"|fn_url}"
+     data-url-issue_doc="{"hypay.link_issue_doc"|fn_url}"
      data-order-id="{$hypay_link.order_id}"
      data-confirm-cancel="{__("hypay_link_confirm_cancel")}"
      data-label-create="{__("hypay_link_create_only")}"
@@ -109,6 +110,9 @@
             </div>
             {if $hypay_link.last_error}<div class="hypay-lp-banner__meta">{$hypay_link.last_error}</div>{/if}
         </div>
+        {if $hypay_link.doc_problem}
+            <div class="hypay-lp-alert hypay-lp-alert--e">{$hypay_link.doc_problem}</div>
+        {/if}
     {elseif $hypay_link.state == "active"}
         {* -------------------------------------------------------------- active *}
         <div class="hypay-lp-card">
@@ -325,6 +329,8 @@
                 <button type="button" class="btn hypay-lp-action" data-action="check">{__("hypay_link_check")}</button>
             {/if}
             <button type="button" class="btn hypay-lp-action hypay-lp-danger" data-action="cancel">{__("hypay_link_cancel")}</button>
+        {elseif $hypay_link.state == "paid" && $hypay_link.doc_problem}
+            <button type="button" class="btn btn-primary hypay-lp-action" data-action="issue_doc">{$hypay_link.doc_issue_label}</button>
         {/if}
     </div>
 </div>

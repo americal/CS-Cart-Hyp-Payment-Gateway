@@ -716,12 +716,46 @@ Each EzCount mode has its own **Document after a payment link is paid** setting:
   - Recorded from the **LIST lookup**: LIST says that the link was paid, not
     how — neither the card nor the number of payments. The document therefore
     waits for the customer's return (usually seconds behind) and is issued by
-    it, with those details. If the return has not come within 15 minutes
-    (`HYPAY_LINK_DOC_WAIT_MINUTES`), the next time the order page or the order
-    list is opened the document is issued without the card details and
-    **without a number of payments** — it never claims "1 payment" for a deal
-    it knows nothing about. Earlier versions issued it straight from LIST as
-    a single regular payment, whatever the customer had chosen.
+    it, with those details. If the return has not come within 2 minutes
+    (`HYPAY_LINK_DOC_WAIT_MINUTES`), the document is issued without the card
+    details and **without a number of payments** — it never claims
+    "1 payment" for a deal it knows nothing about.
+  - **Nothing waits for an order page to be opened.** Every request — any
+    storefront page, any admin page — makes a document sweep at most once a
+    minute (`HYPAY_LINK_DOC_SWEEP_SECONDS`): one cheap query, and the due
+    documents issued. The cron URL below does the same without visitors.
+    *Up to 1.3.1 the wait was 15 minutes and the document was issued only when
+    somebody opened the order page or the order list afterwards — a link paid
+    without a return could stay "paid" with no document, and no error, until
+    then.*
+  - **A document that fails is retried by itself**, from the return as well as
+    from LIST: after 2, 5, 15, 30 and then every 60 minutes
+    (`HYPAY_LINK_DOC_RETRY_MINUTES`), for 30 days, with the card the return
+    reported (kept on the link). Until it is issued the order page says so on
+    every opening — the error, the number of attempts and the next one — and
+    the order list names every such order. The payment link window shows the
+    reason and an **Issue the document now** button.
+  - An attempt that never finished (PHP killed mid-request, 10 minutes in
+    `issuing`) is **not** retried blindly — EzCount may have issued the
+    document without the answer reaching the store. It is flagged on the
+    order page; check EzCount, then use the button.
+  - Every attempt, failure and retry is written to
+    `var/log/hypay_ezcount.log` **even with debug mode off**.
+  - The state is kept in `?:hypay_payment_links.doc_state`:
+    `pending` → `issuing` → `issued` | `failed` (retried) | `attention`.
+
+  **Cron (recommended).** Point the server's cron at the storefront every few
+  minutes:
+
+  ```
+  */5 * * * * curl -s 'https://your-store.example/index.php?dispatch=hypay.cron' >/dev/null
+  ```
+
+  It issues the documents that are due and makes the LIST lookup for the links
+  still out (at most once per the order list interval), so a link paid while
+  nobody has the admin panel open is recorded — status, additional status and
+  document — all the same. It answers with a short JSON summary; it only does
+  what is due anyway, so it needs no password.
 - **Integrated** — Hyp issues the document itself when the link is paid. The
   link is created with `SendHesh` / `Pritim` / `heshDesc` as configured and the
   document type in `EZ.type` (the constant `HYPAY_EZ_INT_DOC_TYPE_PARAM` in
