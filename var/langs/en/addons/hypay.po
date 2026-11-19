@@ -1659,3 +1659,51 @@ msgstr "These travel with the payment request, and after a J5 hold with the capt
 msgctxt "Languages::hypay_link_doc_waiting"
 msgid "The document for order [orders] is issued when the customer returns from the payment page - only the return says which card paid and in how many payments. If the customer does not return within [minutes] minutes, it is issued without the card details and without the number of payments."
 msgstr "The document for order [orders] is issued when the customer returns from the payment page - only the return says which card paid and in how many payments. If the customer does not return within [minutes] minutes, it is issued without the card details and without the number of payments."
+
+msgctxt "Languages::hypay_link_doc_issued_auto"
+msgid "The document for the payment link paid for order [orders] has been issued."
+msgstr "The document for the payment link paid for order [orders] has been issued."
+
+msgctxt "Languages::hypay_link_doc_failed"
+msgid "Order [orders] was paid by payment link, but the EzCount document has NOT been issued: [error]. Attempts so far: [attempts]; the next one is made by itself at [time]. You can also issue it now from the payment link window."
+msgstr "Order [orders] was paid by payment link, but the EzCount document has NOT been issued: [error]. Attempts so far: [attempts]; the next one is made by itself at [time]. You can also issue it now from the payment link window."
+
+msgctxt "Languages::hypay_link_doc_attention"
+msgid "Order [orders] was paid by payment link, but issuing its EzCount document did not finish ([error]). Check in EzCount whether the document exists; if not, issue it from the payment link window."
+msgstr "Order [orders] was paid by payment link, but issuing its EzCount document did not finish ([error]). Check in EzCount whether the document exists; if not, issue it from the payment link window."
+
+msgctxt "Languages::hypay_link_doc_failed_list"
+msgid "Orders paid by payment link without an EzCount document: [orders]. Open an order to see why; the add-on keeps trying by itself."
+msgstr "Orders paid by payment link without an EzCount document: [orders]. Open an order to see why; the add-on keeps trying by itself."
+
+msgctxt "Languages::hypay_link_doc_no_paid_link"
+msgid "The order has no paid payment link to issue a document for."
+msgstr "The order has no paid payment link to issue a document for."
+
+msgctxt "Languages::hypay_link_doc_already"
+msgid "The order already has a document."
+msgstr "The order already has a document."
+
+msgctxt "Languages::hypay_link_doc_not_direct"
+msgid "Payment links get no document from the add-on: the payment method does not use the EzCount direct API, or its payment link document is set to \"No document\"."
+msgstr "Payment links get no document from the add-on: the payment method does not use the EzCount direct API, or its payment link document is set to \"No document\"."
+
+msgctxt "Languages::hypay_link_doc_in_progress"
+msgid "The document is being issued right now. Reopen the window in a few minutes."
+msgstr "The document is being issued right now. Reopen the window in a few minutes."
+
+msgctxt "Languages::hypay_link_doc_issue_now"
+msgid "Issue the document now"
+msgstr "Issue the document now"
+
+msgctxt "Languages::hypay_link_doc_pending"
+msgid "The document has not been issued yet: it waits up to [minutes] minutes for the customer's return, which brings the card details, and is then issued by itself."
+msgstr "The document has not been issued yet: it waits up to [minutes] minutes for the customer's return, which brings the card details, and is then issued by itself."
+
+msgctxt "Languages::hypay_link_doc_missing"
+msgid "The order was paid by payment link but has no EzCount document."
+msgstr "The order was paid by payment link but has no EzCount document."
+
+msgctxt "Languages::hypay_link_doc_issue_confirm"
+msgid "Before issuing: make sure EzCount has no document for transaction [trans] yet - otherwise this payment gets two documents. Issue the document now?"
+msgstr "Before issuing: make sure EzCount has no document for transaction [trans] yet - otherwise this payment gets two documents. Issue the document now?"

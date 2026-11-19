@@ -11,6 +11,8 @@
  *                               J4 (charge) or J5 (hold, deal=j5)
  * dispatch[hypay.link_cancel] — cancel the order's active payment link
  * dispatch[hypay.link_check]  — ask Hyp whether the link has been paid
+ * dispatch[hypay.link_issue_doc] — issue the EzCount document of the paid
+ *                               link now (it failed, or never finished)
  * (each of them, and the window, first expires a link past its lifetime)
  * hypay.link_panel (GET)      — the payment link window (dialog content)
  *****************************************************************************/
@@ -75,7 +77,7 @@ if ($mode === 'capture') {
 // itself back, redrawn with the outcome, in place of the old one - the page
 // does not reload and the dialog is not reopened. Without the flag (JavaScript
 // off, an old cached window) the order page is shown again, plainly.
-if (in_array($mode, ['link_create', 'link_cancel', 'link_check'], true)) {
+if (in_array($mode, ['link_create', 'link_cancel', 'link_check', 'link_issue_doc'], true)) {
     // A link that ran out while the window stood open: there is nothing left
     // to check or cancel, and the redrawn window says it expired. Creating
     // goes ahead - the expired link no longer stands in the way.
@@ -109,6 +111,9 @@ if (in_array($mode, ['link_create', 'link_cancel', 'link_check'], true)) {
                 'last'  => (string) ($_REQUEST['client_lname'] ?? ''),
             ]
         );
+    } elseif ($mode === 'link_issue_doc') {
+        // the document of the paid link, now - a paid link does not expire
+        fn_hypay_link_issue_document_now($order_id);
     } elseif ($expired) {
         // nothing left to cancel or check
     } elseif ($mode === 'link_cancel') {
