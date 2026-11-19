@@ -252,6 +252,17 @@ function fn_hypay_ensure_schema($force = false)
             db_query('ALTER TABLE ?:hypay_payment_links ADD ' . $column . ' ' . $definition);
         }
     }
+    // 1.3.1 marked a document 'failed' whatever went wrong, a timeout after
+    // EzCount had created it included, and could leave 'issuing' behind: those
+    // are never retried by themselves - the administrator checks EzCount and
+    // issues them from the link window
+    if ($link_columns && !in_array('doc_attempts', $link_columns, true)) {
+        db_query(
+            "UPDATE ?:hypay_payment_links SET doc_state = 'attention', doc_error = ?s"
+            . " WHERE status = 'paid' AND doc_state IN ('failed', 'issuing')",
+            'an attempt made before version 1.3.2 failed - look in EzCount whether the document exists before issuing it'
+        );
+    }
     if ($link_columns && !in_array('line_items', $link_columns, true)) {
         db_query("ALTER TABLE ?:hypay_payment_links ADD line_items varchar(16) NOT NULL default ''");
     }
@@ -2447,6 +2458,35 @@ function hypay_ez_int_doc_params(array $pp, $order_info, array $ez_customer)
  * ==========================================================================*/
 
 /**
+ * Did a failed createDoc certainly leave no document at EzCount?
+ *
+ * Yes only when the request never reached EzCount (the name did not resolve,
+ * the connection or the TLS handshake was refused - all before anything was
+ * sent), or when EzCount answered, and answered no: success false with an
+ * error message and no document number. A timeout, a cut connection, a 5xx
+ * or an answer that does not parse can follow a document EzCount did create.
+ *
+ * @param array $resp hypay_curl_json()
+ */
+function hypay_ez_failure_is_definite(array $resp)
+{
+    $errno = (int) ($resp['errno'] ?? 0);
+    if ($errno !== 0) {
+        // 5/6 resolve, 7 connect, 35 TLS connect, 51/58/59/60/77/83/90/91 certificates
+        return in_array($errno, [5, 6, 7, 35, 51, 58, 59, 60, 77, 83, 90, 91], true);
+    }
+
+    $code = (int) ($resp['http_code'] ?? 0);
+    $json = $resp['json'] ?? null;
+
+    return $code >= 200 && $code < 500
+        && is_object($json)
+        && property_exists($json, 'success') && empty($json->success)
+        && !empty($json->errMsg)
+        && empty($json->doc_number);
+}
+
+/**
  * Create an EzCount document for an order through the direct API.
  *
  * $ctx: transaction_id (Hypay Id), brand, last4, payments, amount (charged sum),
@@ -2514,6 +2554,8 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
     if (abs(round($items_sum, 2) - $amount) > 0.01) {
         $msg = __('hypay_ez_amount_mismatch', ['[items]' => $items_sum, '[charged]' => $amount]);
         $GLOBALS['HYPAY_LAST_DOC_ERROR'] = 'amount mismatch: document lines ' . $items_sum . ', charged ' . $amount;
+        // nothing was sent to EzCount
+        $GLOBALS['HYPAY_LAST_DOC_DEFINITE'] = true;
         fn_set_notification('E', __('error'), $msg);
         hypay_log($order_id, 'ezcount.createDoc ABORTED (amount mismatch)', ['items_sum' => $items_sum, 'charged' => $amount]);
 
@@ -2644,7 +2686,8 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
     $ok = (!empty($create_response->success) && !empty($create_response->doc_number));
     if (!$ok) {
         $last_error = isset($create_response->errMsg) ? (string) $create_response->errMsg : ('HTTP ' . $resp['http_code'] . '; body=' . $resp['body']);
-        $GLOBALS['HYPAY_LAST_DOC_ERROR'] = 'EzCount createDoc failed: ' . $last_error;
+        $GLOBALS['HYPAY_LAST_DOC_ERROR']    = 'EzCount createDoc failed: ' . $last_error;
+        $GLOBALS['HYPAY_LAST_DOC_DEFINITE'] = hypay_ez_failure_is_definite($resp);
         fn_set_notification('E', __('error'), 'EzCount createDoc failed: ' . $last_error);
         hypay_log($order_id, 'ezcount.createDoc FAILED', $last_error);
 
@@ -2657,7 +2700,8 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
             $ok = (!empty($create_response->success) && !empty($create_response->doc_number));
             if (!$ok) {
                 $last_error = isset($create_response->errMsg) ? (string) $create_response->errMsg : ('HTTP ' . $resp2['http_code'] . '; body=' . $resp2['body']);
-                $GLOBALS['HYPAY_LAST_DOC_ERROR'] = 'EzCount createDoc failed (retry): ' . $last_error;
+                $GLOBALS['HYPAY_LAST_DOC_ERROR']    = 'EzCount createDoc failed (retry): ' . $last_error;
+                $GLOBALS['HYPAY_LAST_DOC_DEFINITE'] = $GLOBALS['HYPAY_LAST_DOC_DEFINITE'] && hypay_ez_failure_is_definite($resp2);
                 fn_set_notification('E', __('error'), 'EzCount createDoc failed (retry): ' . $last_error);
                 hypay_log($order_id, 'ezcount.createDoc FAILED (retry)', $last_error);
             }
@@ -4911,7 +4955,7 @@ function fn_hypay_repair_addon_texts()
         //    it on whenever one is added
         $canary = db_get_field(
             "SELECT COUNT(*) FROM ?:language_values WHERE name = ?s AND lang_code = ?s",
-            'hypay_link_doc_issue_now',
+            'hypay_link_doc_issue_confirm',
             CART_LANGUAGE
         );
         if (!$canary) {
@@ -7458,16 +7502,32 @@ function fn_hypay_link_issue_waiting_document(array $link, array $pp, $card = nu
     $order_id = (int) $link['order_id'];
     $issued   = false;
     $error    = '';
-    $GLOBALS['HYPAY_LAST_DOC_ERROR'] = '';
+    // A retry is made only when the failure is certain to have left nothing
+    // at EzCount: a refusal EzCount answered, or a request that never reached
+    // it. Anything else - a timeout after the request was sent, a 5xx, a cut
+    // connection, an answer that does not parse, an exception after the call
+    // - may hide a document that was created: retried blindly it would issue
+    // a second tax document for one payment. Those wait for the administrator.
+    $definite = false;
+    $GLOBALS['HYPAY_LAST_DOC_ERROR']    = '';
+    $GLOBALS['HYPAY_LAST_DOC_DEFINITE'] = false;
     try {
-        if (fn_hypay_order_has_document($order_id)) {
+        // one document covers every order the link paid for: none of them
+        // may have one already
+        $link_orders = fn_hypay_link_order_ids($link) ?: [$order_id];
+        $with_doc    = array_values(array_filter($link_orders, 'fn_hypay_order_has_document'));
+        if (count($with_doc) === count($link_orders)) {
             // issued by hand, or by the EzCount Doc Generator, in the meantime
             hypay_log_always($order_id, 'link: document not issued, the order has one already');
             $issued = true;
+        } elseif ($with_doc) {
+            $error = 'order #' . implode(', #', $with_doc) . ' of this payment already has a document of its own:'
+                . ' a document for the whole payment would bill it twice - issue the rest by hand';
         } else {
             $issued = (bool) fn_hypay_link_issue_document($order_id, $pp, $link, $card);
             if (!$issued) {
-                $error = (string) ($GLOBALS['HYPAY_LAST_DOC_ERROR'] ?? '');
+                $error    = (string) ($GLOBALS['HYPAY_LAST_DOC_ERROR'] ?? '');
+                $definite = !empty($GLOBALS['HYPAY_LAST_DOC_DEFINITE']);
                 if ($error === '') {
                     $error = 'the document was not issued (EzCount mode: ' . ($pp['ez_mode'] ?? 'none') . ')';
                 }
@@ -7481,11 +7541,7 @@ function fn_hypay_link_issue_waiting_document(array $link, array $pp, $card = nu
                 "UPDATE ?:hypay_payment_links SET doc_state = 'issued', doc_error = '' WHERE link_id = ?i AND doc_state = 'issuing'",
                 $link_id
             );
-        } else {
-            if ($error === '') {
-                // only an exception the catch above did not get leaves this empty
-                $error = 'the attempt was interrupted';
-            }
+        } elseif ($definite) {
             $attempts = (int) db_get_field("SELECT doc_attempts FROM ?:hypay_payment_links WHERE link_id = ?i", $link_id);
             $next_at  = TIME + 60 * fn_hypay_link_doc_retry_minutes($attempts);
             db_query(
@@ -7500,6 +7556,23 @@ function fn_hypay_link_issue_waiting_document(array $link, array $pp, $card = nu
                 'attempt'  => $attempts,
                 'next_at'  => date('Y-m-d H:i:s', $next_at),
                 'error'    => $error,
+            ]);
+        } else {
+            if ($error === '') {
+                // only an exception the catch above did not get leaves this empty
+                $error = 'the attempt was interrupted';
+            }
+            $error .= ' - EzCount may have created the document all the same: look for transaction '
+                . ((string) ($link['trans_id'] ?? '') !== '' ? $link['trans_id'] : '#' . $order_id)
+                . ' in EzCount before issuing it again';
+            db_query(
+                "UPDATE ?:hypay_payment_links SET doc_state = 'attention', doc_error = ?s WHERE link_id = ?i AND doc_state = 'issuing'",
+                substr($error, 0, 2000),
+                $link_id
+            );
+            hypay_log_always($order_id, 'link: DOCUMENT STATE UNKNOWN, not retried - left to the administrator', [
+                'link_id' => $link_id,
+                'error'   => $error,
             ]);
         }
     }
@@ -7591,7 +7664,9 @@ function fn_hypay_link_issue_overdue_documents($order_ids = null)
     $links = db_get_array(
         "SELECT l.* FROM ?:hypay_payment_links AS l"
         . " WHERE l.status = 'paid' AND l.paid_at >= ?i"
-        . " AND ((l.doc_state = 'pending' AND l.paid_at <= ?i) OR (l.doc_state = 'failed' AND l.doc_next_at <= ?i))"
+        // a failure is retried only when recorded by an attempt of this
+        // version (doc_attempts) - see fn_hypay_ensure_schema() for older ones
+        . " AND ((l.doc_state = 'pending' AND l.paid_at <= ?i) OR (l.doc_state = 'failed' AND l.doc_attempts > 0 AND l.doc_next_at <= ?i))"
         . " ?p ORDER BY l.link_id LIMIT 20",
         $since,
         TIME - HYPAY_LINK_DOC_WAIT_MINUTES * 60,
@@ -7846,9 +7921,10 @@ function fn_hypay_link_issue_document_now($order_id)
         return false;
     }
 
-    // an attempt under way right now is left to finish
-    if (($link['doc_state'] ?? '') === 'issuing' && (int) $link['doc_claimed_at'] > TIME - 60) {
-        fn_set_notification('W', __('warning'), fn_hypay_text('hypay_link_doc_in_progress', 'The document is being issued right now. Reopen the window in a minute.'));
+    // an attempt that may still be under way is left to finish: a second one
+    // next to it would issue the document twice
+    if (($link['doc_state'] ?? '') === 'issuing' && (int) $link['doc_claimed_at'] > TIME - HYPAY_LINK_DOC_STUCK_MINUTES * 60) {
+        fn_set_notification('W', __('warning'), fn_hypay_text('hypay_link_doc_in_progress', 'The document is being issued right now. Reopen the window in a few minutes.'));
 
         return false;
     }
@@ -8307,6 +8383,11 @@ function fn_hypay_get_link_panel_data($order_id)
         // a paid link without its document: why, and the button to issue it
         'doc_problem'   => fn_hypay_link_panel_doc_problem($link, $state, $order_id, $pp_link),
         'doc_issue_label' => fn_hypay_text('hypay_link_doc_issue_now', 'Issue the document now'),
+        'doc_issue_confirm' => fn_hypay_text(
+            'hypay_link_doc_issue_confirm',
+            'Before issuing: make sure EzCount has no document for transaction [trans] yet - otherwise this payment gets two documents. Issue the document now?',
+            ['[trans]' => (string) ($link['trans_id'] ?? '') !== '' ? (string) $link['trans_id'] : '#' . $order_id]
+        ),
         'email'         => (string) ($order_info['email'] ?? ''),
         'cell'          => fn_hypay_link_normalize_cell($cell),
     ];

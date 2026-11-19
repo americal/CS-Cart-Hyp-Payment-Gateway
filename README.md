@@ -728,17 +728,29 @@ Each EzCount mode has its own **Document after a payment link is paid** setting:
     somebody opened the order page or the order list afterwards — a link paid
     without a return could stay "paid" with no document, and no error, until
     then.*
-  - **A document that fails is retried by itself**, from the return as well as
-    from LIST: after 2, 5, 15, 30 and then every 60 minutes
-    (`HYPAY_LINK_DOC_RETRY_MINUTES`), for 30 days, with the card the return
-    reported (kept on the link). Until it is issued the order page says so on
-    every opening — the error, the number of attempts and the next one — and
-    the order list names every such order. The payment link window shows the
-    reason and an **Issue the document now** button.
-  - An attempt that never finished (PHP killed mid-request, 10 minutes in
-    `issuing`) is **not** retried blindly — EzCount may have issued the
-    document without the answer reaching the store. It is flagged on the
-    order page; check EzCount, then use the button.
+  - **A document that certainly was not created is retried by itself**, from
+    the return as well as from LIST: after 2, 5, 15, 30 and then every 60
+    minutes (`HYPAY_LINK_DOC_RETRY_MINUTES`), for 30 days, with the card the
+    return reported (kept on the link). "Certainly" means EzCount answered
+    and refused (`success: false` with an error), or the request never
+    reached it (DNS, connection or TLS refused), or the add-on stopped before
+    calling it (amount mismatch).
+  - **Never two documents for one payment.** Every other failure — a timeout
+    after the request was sent, a 5xx, a cut connection, an answer that does
+    not parse, an error after the call, an attempt that never finished
+    (10 minutes in `issuing`) — may hide a document EzCount did create. Those
+    are set to `attention` and **never retried by themselves**: the order page
+    names the transaction to look for in EzCount. The same holds for a link
+    paying for several orders when one of them already has a document of its
+    own, and for documents 1.3.1 had marked failed or left half-way.
+    Each attempt takes the link atomically (`pending`/`failed` → `issuing`),
+    so the return, the sweep, the cron and the button never issue it twice,
+    and nothing is issued for an order that already has a document.
+  - Until the document is there the order page says so on every opening — the
+    error, the number of attempts and the next one — and the order list names
+    every such order. The payment link window shows the reason and an
+    **Issue the document now** button, which asks to check EzCount first and
+    is refused while an attempt may still be running.
   - Every attempt, failure and retry is written to
     `var/log/hypay_ezcount.log` **even with debug mode off**.
   - The state is kept in `?:hypay_payment_links.doc_state`:

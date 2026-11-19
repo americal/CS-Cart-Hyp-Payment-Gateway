@@ -1487,8 +1487,8 @@ msgid "Payment links get no document from the add-on: the payment method does no
 msgstr "התוסף אינו מפיק מסמך לקישורי תשלום: אמצעי התשלום אינו משתמש ב-API הישיר של EzCount, או שהמסמך לאחר תשלום בקישור מוגדר \"ללא מסמך\"."
 
 msgctxt "Languages::hypay_link_doc_in_progress"
-msgid "The document is being issued right now. Reopen the window in a minute."
-msgstr "המסמך מופק ממש עכשיו. פתחו את החלון שוב בעוד דקה."
+msgid "The document is being issued right now. Reopen the window in a few minutes."
+msgstr "המסמך מופק ממש עכשיו. פתחו את החלון שוב בעוד כמה דקות."
 
 msgctxt "Languages::hypay_link_doc_issue_now"
 msgid "Issue the document now"
@@ -1501,3 +1501,7 @@ msgstr "המסמך טרם הופק: הוא ממתין עד [minutes] דקות ל
 msgctxt "Languages::hypay_link_doc_missing"
 msgid "The order was paid by payment link but has no EzCount document."
 msgstr "ההזמנה שולמה בקישור תשלום אך אין לה מסמך EzCount."
+
+msgctxt "Languages::hypay_link_doc_issue_confirm"
+msgid "Before issuing: make sure EzCount has no document for transaction [trans] yet - otherwise this payment gets two documents. Issue the document now?"
+msgstr "לפני ההפקה: ודאו שב-EzCount עדיין אין מסמך לעסקה [trans] - אחרת לתשלום אחד יהיו שני מסמכים. להפיק את המסמך עכשיו?"

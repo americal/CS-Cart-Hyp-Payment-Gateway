@@ -34,6 +34,7 @@
      data-url-issue_doc="{"hypay.link_issue_doc"|fn_url}"
      data-order-id="{$hypay_link.order_id}"
      data-confirm-cancel="{__("hypay_link_confirm_cancel")}"
+     data-confirm-issue="{$hypay_link.doc_issue_confirm|default:""}"
      data-label-create="{__("hypay_link_create_only")}"
      data-label-send="{__("hypay_link_create")}"
      data-error-network="{__("hypay_link_error_network")}">
@@ -556,6 +557,9 @@
                     if (line_items()) { params.append('line_items', line_items()); }
                 }
                 if (action === 'cancel' && !window.confirm(block.getAttribute('data-confirm-cancel'))) { return; }
+                // a second document for one payment is the one mistake that
+                // cannot be taken back here: EzCount is checked first
+                if (action === 'issue_doc' && !window.confirm(block.getAttribute('data-confirm-issue'))) { return; }
 
                 block.className += ' is-busy';
                 if (busy) { busy.style.display = ''; }
