@@ -17,5 +17,9 @@ if (!defined('BOOTSTRAP')) { die('Access denied'); }
 //
 // 'change_order_status' keeps the add-on's own status changes out of the
 // forbidden status (Backordered) - see fn_hypay_guarded_status_change().
-fn_register_hooks('get_order_info_post', 'change_order_status');
+//
+// 'ezcount_webhook_document_created' is the EzCount Doc Generator add-on's: it
+// tells when EzCount's "document created" webhook arrives, and a payment link
+// waiting for its document takes it - see fn_hypay_ezcount_webhook_document_created().
+fn_register_hooks('get_order_info_post', 'change_order_status', 'ezcount_webhook_document_created');
 

@@ -256,11 +256,19 @@ function fn_hypay_ensure_schema($force = false)
     // EzCount had created it included, and could leave 'issuing' behind: those
     // are never retried by themselves - the administrator checks EzCount and
     // issues them from the link window
+    // - except those that went with Hyp's transaction number as their
+    // transaction_id: EzCount answers a repeated one with the original
+    // document, so they are tried again like any failure of this version
     if ($link_columns && !in_array('doc_attempts', $link_columns, true)) {
+        db_query(
+            "UPDATE ?:hypay_payment_links SET doc_state = 'failed', doc_attempts = 1, doc_next_at = 0, doc_error = ?s"
+            . " WHERE status = 'paid' AND doc_state IN ('failed', 'issuing') AND trans_id != ''",
+            'an attempt made before version 1.3.2 failed'
+        );
         db_query(
             "UPDATE ?:hypay_payment_links SET doc_state = 'attention', doc_error = ?s"
             . " WHERE status = 'paid' AND doc_state IN ('failed', 'issuing')",
-            'an attempt made before version 1.3.2 failed - look in EzCount whether the document exists before issuing it'
+            'an attempt made before version 1.3.2 failed, without a transaction number - look in EzCount whether the document exists before issuing it'
         );
     }
     if ($link_columns && !in_array('line_items', $link_columns, true)) {
@@ -2457,6 +2465,77 @@ function hypay_ez_int_doc_params(array $pp, $order_info, array $ez_customer)
  * EzCount (Direct API) document
  * ==========================================================================*/
 
+/** Does a createDoc answer name a document (by number or, for one it already had, by UUID)? */
+function hypay_ez_response_has_document($response)
+{
+    return is_object($response)
+        && !empty($response->success)
+        && (!empty($response->doc_number) || !empty($response->doc_uuid));
+}
+
+/**
+ * Put a document on the orders it was issued for (?:order_data type X), the
+ * record the order page, the EzCount Doc Generator and the "has a document"
+ * checks all read.
+ *
+ * The Doc Generator keeps its Bank Transfers data in the same row; it is
+ * carried over the way that add-on carries it over itself, so recording a
+ * document does not wipe the transfers out.
+ */
+function fn_hypay_record_order_document(array $order_ids, array $doc_log)
+{
+    foreach (array_unique(array_map('intval', $order_ids)) as $doc_order_id) {
+        if ($doc_order_id <= 0) {
+            continue;
+        }
+        $order_doc = $doc_log;
+
+        $existing_raw = db_get_field("SELECT data FROM ?:order_data WHERE order_id = ?i AND type = 'X'", $doc_order_id);
+        $existing     = $existing_raw ? @unserialize($existing_raw, ['allowed_classes' => false]) : false;
+        if (is_array($existing) && !empty($existing['bank_transfers'])) {
+            $order_doc['bank_transfers'] = $existing['bank_transfers'];
+            $order_doc['subtype']        = 'bank_transfers';
+        }
+
+        db_query("REPLACE INTO ?:order_data (order_id, type, data) VALUES (?i, 'X', ?s)", $doc_order_id, serialize($order_doc));
+    }
+}
+
+/**
+ * A document EzCount reported through its "document created" webhook, which
+ * the EzCount Doc Generator add-on receives and keeps in ?:ezcount_documents -
+ * by the transaction_id it was created with (Hyp's transaction number, for
+ * the documents of this add-on) or by its UUID.
+ *
+ * @return array the row, empty when there is none (or no Doc Generator)
+ */
+function fn_hypay_ezcount_webhook_document($transaction_id, $doc_uuid = '')
+{
+    static $has_table = null;
+
+    $transaction_id = trim((string) $transaction_id);
+    $doc_uuid       = trim((string) $doc_uuid);
+    if ($transaction_id === '' && $doc_uuid === '') {
+        return [];
+    }
+
+    if ($has_table === null) {
+        $has_table = (bool) db_get_field(
+            "SHOW TABLES LIKE ?s",
+            (string) Registry::get('config.table_prefix') . 'ezcount_documents'
+        );
+    }
+    if (!$has_table) {
+        return [];
+    }
+
+    $row = $transaction_id !== ''
+        ? db_get_row("SELECT * FROM ?:ezcount_documents WHERE doc_transaction_id = ?s AND doc_number != '' ORDER BY doc_received_at DESC LIMIT 1", $transaction_id)
+        : db_get_row("SELECT * FROM ?:ezcount_documents WHERE doc_uuid = ?s LIMIT 1", $doc_uuid);
+
+    return is_array($row) ? $row : [];
+}
+
 /**
  * Did a failed createDoc certainly leave no document at EzCount?
  *
@@ -2683,7 +2762,11 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
     $create_response = $resp['json'];
 
     // 8) handle result, with single smart retry (strip ua_uuid on relevant error)
-    $ok = (!empty($create_response->success) && !empty($create_response->doc_number));
+    //
+    // A document is there when EzCount names it - by number, or by UUID alone:
+    // asked again with a transaction_id it already has, EzCount does not create
+    // a new document but points to the original one.
+    $ok = hypay_ez_response_has_document($create_response);
     if (!$ok) {
         $last_error = isset($create_response->errMsg) ? (string) $create_response->errMsg : ('HTTP ' . $resp['http_code'] . '; body=' . $resp['body']);
         $GLOBALS['HYPAY_LAST_DOC_ERROR']    = 'EzCount createDoc failed: ' . $last_error;
@@ -2697,7 +2780,7 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
             unset($payload2['ua_uuid']);
             $resp2 = hypay_curl_json($order_id, $create_url, $payload2, []);
             $create_response = $resp2['json'];
-            $ok = (!empty($create_response->success) && !empty($create_response->doc_number));
+            $ok = hypay_ez_response_has_document($create_response);
             if (!$ok) {
                 $last_error = isset($create_response->errMsg) ? (string) $create_response->errMsg : ('HTTP ' . $resp2['http_code'] . '; body=' . $resp2['body']);
                 $GLOBALS['HYPAY_LAST_DOC_ERROR']    = 'EzCount createDoc failed (retry): ' . $last_error;
@@ -2710,27 +2793,26 @@ function fn_hypay_create_ezcount_doc($order_id, $order_info, array $pp, array $c
 
     // 9) persist doc info once (or drop helpful hint)
     if ($ok) {
+        $doc_uuid   = (string) ($create_response->doc_uuid ?? '');
+        $doc_number = (string) ($create_response->doc_number ?? '');
+        if ($doc_number === '') {
+            // the original document, named by its UUID alone: its number from
+            // EzCount's webhook when it has come, a mark until then (the Doc
+            // Generator's webhook puts the number in when it arrives)
+            $known      = fn_hypay_ezcount_webhook_document('', $doc_uuid);
+            $doc_number = (string) ($known['doc_number'] ?? '') !== '' ? (string) $known['doc_number'] : '?';
+            hypay_log_always($order_id, 'ezcount.createDoc: EzCount pointed to an existing document', [
+                'doc_uuid'       => $doc_uuid,
+                'transaction_id' => $payload['transaction_id'],
+            ]);
+        }
         $doc_log = [
-            'ezcount_invoice_id'       => $create_response->doc_number,
-            'ezcount_invoice_url'      => $create_response->pdf_link ?? '',
-            'ezcount_invoice_doc_uuid' => $create_response->doc_uuid ?? '',
+            'ezcount_invoice_id'       => $doc_number,
+            'ezcount_invoice_url'      => (string) ($create_response->pdf_link ?? ''),
+            'ezcount_invoice_doc_uuid' => $doc_uuid,
             'invoice_type'             => (string) $doc_type,
         ];
-        foreach ($doc_order_ids as $doc_order_id) {
-            $order_doc = $doc_log;
-
-            // The EzCount Doc Generator add-on keeps its Bank Transfers data in
-            // the same row; carried over the way that add-on carries it over
-            // itself, so issuing a document does not wipe the transfers out
-            $existing_raw = db_get_field("SELECT data FROM ?:order_data WHERE order_id = ?i AND type = 'X'", $doc_order_id);
-            $existing     = $existing_raw ? @unserialize($existing_raw, ['allowed_classes' => false]) : false;
-            if (is_array($existing) && !empty($existing['bank_transfers'])) {
-                $order_doc['bank_transfers'] = $existing['bank_transfers'];
-                $order_doc['subtype']        = 'bank_transfers';
-            }
-
-            db_query("REPLACE INTO ?:order_data (order_id, type, data) VALUES (?i, 'X', ?s)", $doc_order_id, serialize($order_doc));
-        }
+        fn_hypay_record_order_document($doc_order_ids, $doc_log);
         hypay_log($order_id, 'ezcount.createDoc SUCCESS', $doc_log + ['orders' => $doc_order_ids]);
 
         return $doc_log;
@@ -7523,6 +7605,21 @@ function fn_hypay_link_issue_waiting_document(array $link, array $pp, $card = nu
         } elseif ($with_doc) {
             $error = 'order #' . implode(', #', $with_doc) . ' of this payment already has a document of its own:'
                 . ' a document for the whole payment would bill it twice - issue the rest by hand';
+        } elseif ($known = fn_hypay_ezcount_webhook_document($card['transaction_id'] ?? '')) {
+            // EzCount already reported a document for this payment through its
+            // webhook (an earlier attempt whose answer never arrived): it is
+            // recorded, and EzCount is not asked again
+            fn_hypay_record_order_document($link_orders, [
+                'ezcount_invoice_id'       => (string) $known['doc_number'],
+                'ezcount_invoice_url'      => (string) ($known['pdf_link'] ?? ''),
+                'ezcount_invoice_doc_uuid' => (string) $known['doc_uuid'],
+                'invoice_type'             => (string) ($known['doc_type'] ?? ''),
+            ]);
+            hypay_log_always($order_id, 'link: document taken from the EzCount webhook, not issued again', [
+                'doc_number' => $known['doc_number'],
+                'doc_uuid'   => $known['doc_uuid'],
+            ]);
+            $issued = true;
         } else {
             $issued = (bool) fn_hypay_link_issue_document($order_id, $pp, $link, $card);
             if (!$issued) {
@@ -7530,6 +7627,15 @@ function fn_hypay_link_issue_waiting_document(array $link, array $pp, $card = nu
                 $definite = !empty($GLOBALS['HYPAY_LAST_DOC_DEFINITE']);
                 if ($error === '') {
                     $error = 'the document was not issued (EzCount mode: ' . ($pp['ez_mode'] ?? 'none') . ')';
+                }
+                // The document goes to EzCount with Hyp's transaction number as
+                // its transaction_id, and EzCount does not create a second one
+                // for a transaction_id it has: asked again, it answers with
+                // the original. So even a failure that may have created it
+                // can be tried again - when the number is known.
+                if (!$definite && trim((string) ($card['transaction_id'] ?? '')) !== '') {
+                    $definite = true;
+                    $error   .= ' (state unknown; safe to try again: EzCount answers a repeated transaction_id with the original document)';
                 }
             }
         }
@@ -7641,16 +7747,31 @@ function fn_hypay_link_issue_overdue_documents($order_ids = null)
 
     $since = TIME - HYPAY_LINK_DOC_SWEEP_DAYS * 86400;
 
-    // attempts that never finished: not retried blindly - EzCount may have
-    // issued the document without the answer reaching here
+    // attempts that never finished: EzCount may have issued the document
+    // without the answer reaching here. Tried again when the transaction
+    // number went with it (EzCount answers a repeated transaction_id with the
+    // original document); without one, left to the administrator.
     $stuck = db_get_array(
-        "SELECT l.link_id, l.order_id FROM ?:hypay_payment_links AS l"
+        "SELECT l.link_id, l.order_id, l.trans_id FROM ?:hypay_payment_links AS l"
         . " WHERE l.status = 'paid' AND l.doc_state = 'issuing' AND l.doc_claimed_at > 0 AND l.doc_claimed_at <= ?i AND l.paid_at >= ?i ?p",
         TIME - HYPAY_LINK_DOC_STUCK_MINUTES * 60,
         $since,
         $condition
     );
     foreach ($stuck as $row) {
+        if (trim((string) $row['trans_id']) !== '') {
+            $moved = db_query(
+                "UPDATE ?:hypay_payment_links SET doc_state = 'failed', doc_next_at = 0, doc_error = ?s,"
+                . " doc_attempts = CASE WHEN doc_attempts > 0 THEN doc_attempts ELSE 1 END"
+                . " WHERE link_id = ?i AND doc_state = 'issuing'",
+                'the previous attempt did not finish; tried again with the same transaction number',
+                $row['link_id']
+            );
+            if ($moved) {
+                hypay_log_always((int) $row['order_id'], 'link: document attempt never finished, trying again (same transaction_id)', ['link_id' => $row['link_id']]);
+            }
+            continue;
+        }
         $moved = db_query(
             "UPDATE ?:hypay_payment_links SET doc_state = 'attention', doc_error = ?s WHERE link_id = ?i AND doc_state = 'issuing'",
             'the attempt to issue the document did not finish - check EzCount before issuing it again',
@@ -8383,14 +8504,83 @@ function fn_hypay_get_link_panel_data($order_id)
         // a paid link without its document: why, and the button to issue it
         'doc_problem'   => fn_hypay_link_panel_doc_problem($link, $state, $order_id, $pp_link),
         'doc_issue_label' => fn_hypay_text('hypay_link_doc_issue_now', 'Issue the document now'),
-        'doc_issue_confirm' => fn_hypay_text(
+        // asked only when the payment has no transaction number: with one,
+        // EzCount answers a repeated transaction_id with the original document
+        // and cannot issue a second
+        'doc_issue_confirm' => (string) ($link['trans_id'] ?? '') !== '' ? '' : fn_hypay_text(
             'hypay_link_doc_issue_confirm',
             'Before issuing: make sure EzCount has no document for transaction [trans] yet - otherwise this payment gets two documents. Issue the document now?',
-            ['[trans]' => (string) ($link['trans_id'] ?? '') !== '' ? (string) $link['trans_id'] : '#' . $order_id]
+            ['[trans]' => '#' . $order_id]
         ),
         'email'         => (string) ($order_info['email'] ?? ''),
         'cell'          => fn_hypay_link_normalize_cell($cell),
     ];
+}
+
+/**
+ * Hook of the EzCount Doc Generator add-on: EzCount's "document created"
+ * webhook has arrived (authenticated by that add-on). A paid link waiting for
+ * its document - failed, never finished, or left to the administrator - whose
+ * transaction number the document carries gets it recorded on its orders: the
+ * document exists, and asking EzCount again would only be answered with it.
+ *
+ * @param array $doc doc_uuid, doc_number, doc_type, doc_transaction_id,
+ *                   pdf_link, doc_price_total (?:ezcount_documents row)
+ */
+function fn_hypay_ezcount_webhook_document_created($doc)
+{
+    try {
+        $transaction_id = trim((string) ($doc['doc_transaction_id'] ?? ''));
+        if ($transaction_id === '' || (string) ($doc['doc_number'] ?? '') === '') {
+            return;
+        }
+
+        fn_hypay_ensure_schema();
+        $links = db_get_array(
+            "SELECT * FROM ?:hypay_payment_links WHERE trans_id = ?s AND status = 'paid' AND j5 != 'Y'"
+            . " AND doc_state IN ('pending', 'failed', 'attention', 'issuing')",
+            $transaction_id
+        );
+        foreach ($links as $link) {
+            $order_ids = fn_hypay_link_order_ids($link) ?: [(int) $link['order_id']];
+
+            // the amount must be the link's: anything else is not its document
+            if (isset($doc['doc_price_total']) && abs((float) $doc['doc_price_total'] - (float) $link['amount']) > 0.01) {
+                hypay_log_always((int) $link['order_id'], 'webhook: document with the link\'s transaction number but another amount, not recorded', [
+                    'doc_number' => $doc['doc_number'],
+                    'doc_total'  => $doc['doc_price_total'],
+                    'link_total' => $link['amount'],
+                ]);
+                continue;
+            }
+
+            $with_doc = array_values(array_filter($order_ids, 'fn_hypay_order_has_document'));
+            if (count($with_doc) < count($order_ids)) {
+                if ($with_doc) {
+                    // partly billed some other way: not the add-on's to settle
+                    continue;
+                }
+                fn_hypay_record_order_document($order_ids, [
+                    'ezcount_invoice_id'       => (string) $doc['doc_number'],
+                    'ezcount_invoice_url'      => (string) ($doc['pdf_link'] ?? ''),
+                    'ezcount_invoice_doc_uuid' => (string) ($doc['doc_uuid'] ?? ''),
+                    'invoice_type'             => (string) ($doc['doc_type'] ?? ''),
+                ]);
+            }
+            db_query(
+                "UPDATE ?:hypay_payment_links SET doc_state = 'issued', doc_error = '' WHERE link_id = ?i",
+                $link['link_id']
+            );
+            hypay_log_always((int) $link['order_id'], 'webhook: document recorded from EzCount\'s "document created"', [
+                'link_id'    => $link['link_id'],
+                'doc_number' => $doc['doc_number'],
+                'orders'     => $order_ids,
+            ]);
+        }
+    } catch (\Throwable $e) {
+        // a webhook must never fail on the add-on's account
+        hypay_log_always(0, 'webhook: hook failed', get_class($e) . ': ' . $e->getMessage());
+    }
 }
 
 /**

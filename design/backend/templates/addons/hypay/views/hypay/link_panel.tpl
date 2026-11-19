@@ -559,7 +559,8 @@
                 if (action === 'cancel' && !window.confirm(block.getAttribute('data-confirm-cancel'))) { return; }
                 // a second document for one payment is the one mistake that
                 // cannot be taken back here: EzCount is checked first
-                if (action === 'issue_doc' && !window.confirm(block.getAttribute('data-confirm-issue'))) { return; }
+                if (action === 'issue_doc' && block.getAttribute('data-confirm-issue')
+                    && !window.confirm(block.getAttribute('data-confirm-issue'))) { return; }
 
                 block.className += ' is-busy';
                 if (busy) { busy.style.display = ''; }

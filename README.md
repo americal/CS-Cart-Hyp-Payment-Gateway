@@ -728,24 +728,36 @@ Each EzCount mode has its own **Document after a payment link is paid** setting:
     somebody opened the order page or the order list afterwards — a link paid
     without a return could stay "paid" with no document, and no error, until
     then.*
-  - **A document that certainly was not created is retried by itself**, from
-    the return as well as from LIST: after 2, 5, 15, 30 and then every 60
-    minutes (`HYPAY_LINK_DOC_RETRY_MINUTES`), for 30 days, with the card the
-    return reported (kept on the link). "Certainly" means EzCount answered
-    and refused (`success: false` with an error), or the request never
-    reached it (DNS, connection or TLS refused), or the add-on stopped before
-    calling it (amount mismatch).
-  - **Never two documents for one payment.** Every other failure — a timeout
-    after the request was sent, a 5xx, a cut connection, an answer that does
-    not parse, an error after the call, an attempt that never finished
-    (10 minutes in `issuing`) — may hide a document EzCount did create. Those
-    are set to `attention` and **never retried by themselves**: the order page
-    names the transaction to look for in EzCount. The same holds for a link
-    paying for several orders when one of them already has a document of its
-    own, and for documents 1.3.1 had marked failed or left half-way.
-    Each attempt takes the link atomically (`pending`/`failed` → `issuing`),
-    so the return, the sweep, the cron and the button never issue it twice,
-    and nothing is issued for an order that already has a document.
+  - **A failed document is retried by itself**, from the return as well as
+    from LIST: after 2, 5, 15, 30 and then every 60 minutes
+    (`HYPAY_LINK_DOC_RETRY_MINUTES`), for 30 days, with the card the return
+    reported (kept on the link).
+  - **Never two documents for one payment.** createDoc goes out with Hyp's
+    transaction number as its `transaction_id`, and EzCount's API is
+    explicit: *"if you will send the same transaction_id again, we will not
+    create a new doc … instead will give you a link to the original doc"*. So
+    a retry after a timeout, a 5xx or a cut connection — when EzCount may have
+    created the document without the answer reaching the store — gets the
+    original document back, not a second one. An answer that names the
+    document by UUID alone is accepted as that original.
+  - Layers on top of that:
+    - Before calling EzCount, an attempt looks for a document EzCount already
+      reported with that `transaction_id` through its **"document created"
+      webhook** (received by the EzCount Doc Generator add-on, see its
+      README) and records it instead. The webhook itself, when it arrives,
+      records the document on a payment link still waiting for it (the
+      `ezcount_webhook_document_created` hook), provided the amount matches.
+    - A payment **without** a transaction number cannot rely on EzCount's
+      check: a failure that may have created the document is set to
+      `attention` and never retried by itself; the order page says what to
+      look for in EzCount, and the window's button asks first.
+    - A link paying for several orders, one of which already has a document
+      of its own, issues nothing (`attention`): a document for the whole
+      payment would bill that order twice.
+    - Each attempt takes the link atomically (`pending`/`failed` →
+      `issuing`), so the return, the sweep, the cron and the button never run
+      two attempts at once, the button is refused while one may still be
+      running, and nothing is issued for an order that already has one.
   - Until the document is there the order page says so on every opening — the
     error, the number of attempts and the next one — and the order list names
     every such order. The payment link window shows the reason and an
