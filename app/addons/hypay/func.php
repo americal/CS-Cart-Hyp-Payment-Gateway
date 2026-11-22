@@ -4743,13 +4743,15 @@ if (!defined('HYPAY_LINK_LIST_CHECK_MINUTES')) { define('HYPAY_LINK_LIST_CHECK_M
 /**
  * Minutes the direct API document of a link found paid by LIST waits for the
  * customer's return - the only thing that says which card paid and in how many
- * payments - before it is issued without those details. By the time LIST sees
- * the payment it has already happened, and a return that comes at all comes
- * seconds after it: the wait is short. It used to be 15 minutes, and counted
- * only when somebody opened an order page afterwards - a paid order could stay
- * without its document indefinitely.
+ * payments - before it is issued without those details.
+ *
+ * 0: no wait, the document is issued the moment LIST finds the payment. On the
+ * live store the return of a payment link never came - not once in three
+ * months of logs, against a dozen payments found by LIST - so any wait only
+ * delayed the document (1.3.1 waited 15 minutes, 1.3.2 two). Raise it only on
+ * a terminal whose link payments do come back to payment_notification.
  */
-if (!defined('HYPAY_LINK_DOC_WAIT_MINUTES')) { define('HYPAY_LINK_DOC_WAIT_MINUTES', 2); }
+if (!defined('HYPAY_LINK_DOC_WAIT_MINUTES')) { define('HYPAY_LINK_DOC_WAIT_MINUTES', 0); }
 
 /**
  * Seconds between two document sweeps made on the back of ordinary requests
@@ -7440,9 +7442,24 @@ function fn_hypay_link_settle_from_list($order_id, array $link, $trans_id)
             "UPDATE ?:hypay_payment_links SET doc_state = 'pending' WHERE link_id = ?i AND doc_state IN ('', 'pending')",
             $link['link_id']
         );
-        hypay_log_always($order_id, 'link: document waits for the card details of the return', [
-            'wait_minutes' => HYPAY_LINK_DOC_WAIT_MINUTES,
-        ]);
+
+        if (HYPAY_LINK_DOC_WAIT_MINUTES <= 0) {
+            // no wait: issued here and now, in the request that found the
+            // payment. Should it fail, it stays 'failed' and the sweep tries
+            // again; the order page says so.
+            hypay_log_always($order_id, 'link: issuing the document now (LIST found the payment)');
+            if (fn_hypay_link_issue_waiting_document($link, $pp)) {
+                fn_set_notification('N', __('notice'), fn_hypay_text(
+                    'hypay_link_doc_issued_auto',
+                    'The document for the payment link paid for order [orders] has been issued.',
+                    ['[orders]' => '#' . implode(', #', fn_hypay_link_order_ids($link) ?: [$order_id])]
+                ));
+            }
+        } else {
+            hypay_log_always($order_id, 'link: document waits for the card details of the return', [
+                'wait_minutes' => HYPAY_LINK_DOC_WAIT_MINUTES,
+            ]);
+        }
     } else {
         hypay_log_always($order_id, 'link: no document from the add-on for this link', [
             'ez_mode'  => $pp['ez_mode'] ?? 'none',

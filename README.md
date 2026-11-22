@@ -713,13 +713,16 @@ Each EzCount mode has its own **Document after a payment link is paid** setting:
   type, number and PDF link.
   - Recorded from the **return**: issued at once, with the card and the number
     of payments the return reports.
-  - Recorded from the **LIST lookup**: LIST says that the link was paid, not
-    how — neither the card nor the number of payments. The document therefore
-    waits for the customer's return (usually seconds behind) and is issued by
-    it, with those details. If the return has not come within 2 minutes
-    (`HYPAY_LINK_DOC_WAIT_MINUTES`), the document is issued without the card
-    details and **without a number of payments** — it never claims
-    "1 payment" for a deal it knows nothing about.
+  - Recorded from the **LIST lookup**: the document is issued **at once**, in
+    the same request that found the payment. LIST says that the link was paid,
+    not how, so the document carries the transaction number but neither the
+    card nor the number of payments — it never claims "1 payment" for a deal
+    it knows nothing about. Should it fail, the sweep tries again.
+    *1.3.1 waited 15 minutes for the customer's return, 1.3.2 two, hoping for
+    the card details. On the live store that return never came — not once in
+    three months, against a dozen link payments found by LIST — so the wait
+    only delayed the document. `HYPAY_LINK_DOC_WAIT_MINUTES` (0) brings the
+    wait back for a terminal whose link payments do return to the store.*
   - **Nothing waits for an order page to be opened.** Every request — any
     storefront page, any admin page — makes a document sweep at most once a
     minute (`HYPAY_LINK_DOC_SWEEP_SECONDS`): one cheap query, and the due
