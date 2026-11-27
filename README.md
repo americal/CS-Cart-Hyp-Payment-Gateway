@@ -715,9 +715,14 @@ Each EzCount mode has its own **Document after a payment link is paid** setting:
     of payments the return reports.
   - Recorded from the **LIST lookup**: the document is issued **at once**, in
     the same request that found the payment. LIST says that the link was paid,
-    not how, so the document carries the transaction number but neither the
-    card nor the number of payments — it never claims "1 payment" for a deal
-    it knows nothing about. Should it fail, the sweep tries again.
+    not how. The card number is asked of Hyp right before the document
+    (`getToken` with the transaction number: Hyp's token ends in the card's
+    last 4 digits), so the document and the order's payment information carry
+    `****1234`; the digits are kept on the link. The brand and the number of
+    payments are in no answer Hyp gives the store, so the document leaves them
+    out — it never claims "1 payment" for a deal it knows nothing about. If
+    getToken fails (no token permission on the terminal), the document goes
+    out without the card, as before. Should it fail, the sweep tries again.
     *1.3.1 waited 15 minutes for the customer's return, 1.3.2 two, hoping for
     the card details. On the live store that return never came — not once in
     three months, against a dozen link payments found by LIST — so the wait

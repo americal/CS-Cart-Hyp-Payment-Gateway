@@ -7599,6 +7599,23 @@ function fn_hypay_link_issue_waiting_document(array $link, array $pp, $card = nu
     }
 
     $order_id = (int) $link['order_id'];
+
+    // LIST found the payment and the customer's return never came: the card
+    // is not known. Hyp's getToken knows it - the last 4 digits of the token
+    // are those of the card - so it is asked before the document goes out
+    // without a card number.
+    if (preg_replace('/\D+/', '', (string) ($card['last4'] ?? '')) === ''
+        && trim((string) ($card['transaction_id'] ?? '')) !== ''
+    ) {
+        try {
+            $last4 = fn_hypay_link_fetch_card_last4($order_id, $link, $pp, (string) $card['transaction_id']);
+            if ($last4 !== '') {
+                $card['last4'] = $last4;
+            }
+        } catch (\Throwable $e) {
+            hypay_log_always($order_id, 'link: card lookup failed', get_class($e) . ': ' . $e->getMessage());
+        }
+    }
     $issued   = false;
     $error    = '';
     // A retry is made only when the failure is certain to have left nothing
@@ -7710,6 +7727,54 @@ function fn_hypay_link_issue_waiting_document(array $link, array $pp, $card = nu
     }
 
     return $issued;
+}
+
+/**
+ * The last 4 digits of the card that paid a link, from Hyp, for a payment
+ * whose return never came (LIST has the transaction, not the card).
+ *
+ * getToken answers with the card's token, and Hyp's token ends in the card's
+ * own last 4 digits. The digits are kept on the link and written into the
+ * payment information of every order it paid for, so they are asked for once.
+ * The token itself is not kept. The brand and the number of payments are not
+ * in the answer and stay unknown.
+ *
+ * @return string 4 digits, '' when Hyp did not give them
+ */
+function fn_hypay_link_fetch_card_last4($order_id, array $link, array $pp, $trans_id)
+{
+    $trans_id    = trim((string) $trans_id);
+    $credentials = fn_hypay_link_credentials($pp);
+    if ($trans_id === '' || !$credentials) {
+        return '';
+    }
+
+    $result = fn_hypay_api_request($order_id, $credentials + [
+        'action'  => 'getToken',
+        'TransId' => $trans_id,
+    ], 'link.getToken');
+
+    $params = $result['params'];
+    $token  = preg_replace('/\D+/', '', (string) ($params['Token'] ?? ''));
+    if ((string) ($params['CCode'] ?? '') !== '0' || strlen($token) < 4) {
+        hypay_log_always($order_id, 'link: card not known - getToken gave no token', [
+            'transId' => $trans_id,
+            'error'   => fn_hypay_format_error($params['CCode'] ?? '', $params['errMsg'] ?? '', hypay_mask_response($result['raw'])),
+        ]);
+
+        return '';
+    }
+
+    $last4 = substr($token, -4);
+    db_query(
+        "UPDATE ?:hypay_payment_links SET card_last4 = ?s WHERE link_id = ?i AND card_last4 = ''",
+        $last4,
+        (int) $link['link_id']
+    );
+    fn_hypay_link_update_payment_info($link, ['card_number' => $last4]);
+    hypay_log_always($order_id, 'link: card taken from getToken', ['transId' => $trans_id, 'last4' => $last4]);
+
+    return $last4;
 }
 
 /**
